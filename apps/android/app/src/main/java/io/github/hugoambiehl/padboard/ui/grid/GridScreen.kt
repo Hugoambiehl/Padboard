@@ -1,7 +1,11 @@
 package io.github.hugoambiehl.padboard.ui.grid
 
 import android.text.format.DateFormat
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,8 +24,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -41,9 +48,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.hugoambiehl.padboard.R
-import io.github.hugoambiehl.padboard.connection.ServerAddress
+import io.github.hugoambiehl.padboard.connection.Transport
 import io.github.hugoambiehl.padboard.protocol.ButtonView
 import io.github.hugoambiehl.padboard.protocol.Layout
+import io.github.hugoambiehl.padboard.ui.connect.ForgetDialog
 import io.github.hugoambiehl.padboard.ui.theme.PadboardColors
 import io.github.hugoambiehl.padboard.ui.theme.PadboardType
 import java.util.Date
@@ -52,17 +60,34 @@ import kotlinx.coroutines.flow.Flow
 
 private const val ERROR_BANNER_MS = 3_000L
 
+/** What the top bar shows about the link. */
+sealed interface GridStatus {
+    val serverName: String
+
+    data class Connected(
+        override val serverName: String,
+        val transport: Transport,
+        val latencyMs: Int?,
+        /** Paired over Wi-Fi with this PC. */
+        val paired: Boolean
+    ) : GridStatus
+
+    /** The grid stays visible but inactive. */
+    data class Reconnecting(override val serverName: String) : GridStatus
+}
+
 /** Main screen: top bar and the button grid of the current page (Main.dc.html). */
 @Composable
 fun GridScreen(
     layout: Layout?,
-    serverName: String,
-    address: ServerAddress,
+    status: GridStatus,
     actionFailures: Flow<String>,
     onPress: (String) -> Unit,
     onRelease: (String) -> Unit,
-    onDisconnect: () -> Unit
+    onPairWifi: () -> Unit,
+    onForget: () -> Unit
 ) {
+    var menu by remember { mutableStateOf(false) }
     // Phase 1 shows the first page; page swipes come in phase 4.
     val pageIndex = 0
     var errorVisible by remember { mutableStateOf(false) }
@@ -83,9 +108,8 @@ fun GridScreen(
                 profileName = layout?.profile?.name.orEmpty(),
                 pageCount = layout?.pages?.size ?: 0,
                 pageIndex = pageIndex,
-                serverName = serverName,
-                address = address,
-                onDisconnect = onDisconnect
+                status = status,
+                onPill = { menu = true }
             )
             val page = layout?.pages?.getOrNull(pageIndex)
             if (layout == null || page == null) {
@@ -97,18 +121,60 @@ fun GridScreen(
                     )
                 }
             } else {
-                ButtonGrid(
-                    cols = layout.grid.cols.toInt(),
-                    rows = layout.grid.rows.toInt(),
-                    buttons = page.buttons,
-                    onPress = onPress,
-                    onRelease = onRelease,
-                    modifier = Modifier.fillMaxWidth().weight(1f)
-                )
+                val live = status is GridStatus.Connected
+                val dim by animateFloatAsState(if (live) 1f else 0.4f, tween(200), label = "gridDim")
+                Box(Modifier.fillMaxWidth().weight(1f)) {
+                    ButtonGrid(
+                        cols = layout.grid.cols.toInt(),
+                        rows = layout.grid.rows.toInt(),
+                        buttons = page.buttons,
+                        onPress = onPress,
+                        onRelease = onRelease,
+                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = dim }
+                    )
+                    if (!live) {
+                        // Presses would go nowhere while reconnecting: swallow them.
+                        Box(
+                            Modifier.matchParentSize().pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) awaitPointerEvent().changes.forEach { it.consume() }
+                                }
+                            }
+                        )
+                    }
+                }
             }
         }
         ErrorBanner(visible = errorVisible, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp))
     }
+    if (menu) {
+        LinkMenu(status, onPairWifi = onPairWifi, onForget = onForget, onDismiss = { menu = false })
+    }
+}
+
+/** Opened from the connection pill. */
+@Composable
+private fun LinkMenu(status: GridStatus, onPairWifi: () -> Unit, onForget: () -> Unit, onDismiss: () -> Unit) {
+    val usbOnly = status is GridStatus.Connected && !status.paired
+    if (!usbOnly) {
+        ForgetDialog(status.serverName, onConfirm = onForget, onDismiss = onDismiss)
+        return
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = PadboardColors.Surface2,
+        title = { Text(status.serverName, color = PadboardColors.Text) },
+        text = { Text(stringResource(R.string.usb_only_body), color = PadboardColors.TextMuted2) },
+        confirmButton = {
+            TextButton(onClick = {
+                onDismiss()
+                onPairWifi()
+            }) { Text(stringResource(R.string.pair_wifi), color = PadboardColors.Accent) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = PadboardColors.Text) }
+        }
+    )
 }
 
 @Composable
@@ -144,14 +210,7 @@ private fun ButtonGrid(
 }
 
 @Composable
-private fun TopBar(
-    profileName: String,
-    pageCount: Int,
-    pageIndex: Int,
-    serverName: String,
-    address: ServerAddress,
-    onDisconnect: () -> Unit
-) {
+private fun TopBar(profileName: String, pageCount: Int, pageIndex: Int, status: GridStatus, onPill: () -> Unit) {
     Box(Modifier.fillMaxWidth().height(48.dp)) {
         ProfileChip(profileName, Modifier.align(Alignment.CenterStart))
         PageDots(pageCount, pageIndex, Modifier.align(Alignment.Center))
@@ -160,7 +219,7 @@ private fun TopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            ConnectionPill(serverName, address, onDisconnect)
+            ConnectionPill(status, onPill)
             Clock()
         }
     }
@@ -218,33 +277,74 @@ private fun PageDots(count: Int, current: Int, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ConnectionPill(serverName: String, address: ServerAddress, onDisconnect: () -> Unit) {
-    val transport = stringResource(if (address.isUsb) R.string.transport_usb else R.string.transport_wifi)
-    val description = stringResource(R.string.connection_pill_description, serverName, transport)
+private fun ConnectionPill(status: GridStatus, onClick: () -> Unit) {
+    val detail =
+        when (status) {
+            is GridStatus.Connected -> {
+                val transport =
+                    stringResource(
+                        if (status.transport ==
+                            Transport.Usb
+                        ) {
+                            R.string.transport_usb
+                        } else {
+                            R.string.transport_wifi
+                        }
+                    )
+                status.latencyMs?.let { stringResource(R.string.pill_latency, transport, it) } ?: transport
+            }
+            is GridStatus.Reconnecting -> stringResource(R.string.pill_reconnecting)
+        }
+    val description = stringResource(R.string.connection_pill_description, status.serverName, detail)
     Row(
         modifier =
         Modifier
             .clip(CircleShape)
             .background(PadboardColors.Surface2)
             .border(1.dp, PadboardColors.Border2, CircleShape)
-            .clickable(onClick = onDisconnect)
+            .clickable(onClick = onClick)
             .semantics { contentDescription = description }
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(PadboardColors.Teal))
+        StatusDot(connected = status is GridStatus.Connected)
         // Hostnames can be long ("My-Laptop-15-…"): keep the pill clear of the page dots.
         Text(
-            serverName,
+            status.serverName,
             style = PadboardType.Pill,
             color = PadboardColors.TextPill,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 260.dp)
+            modifier = Modifier.widthIn(max = 240.dp)
         )
-        Text("· $transport", style = PadboardType.Pill, color = PadboardColors.TextMuted)
+        Text("· $detail", style = PadboardType.Pill, color = PadboardColors.TextMuted)
     }
+}
+
+/** Teal when connected; orange and pulsing (alpha only) while reconnecting. */
+@Composable
+private fun StatusDot(connected: Boolean) {
+    val pulse =
+        if (connected) {
+            1f
+        } else {
+            val transition = rememberInfiniteTransition(label = "pulse")
+            val alpha by transition.animateFloat(
+                initialValue = 1f,
+                targetValue = 0.3f,
+                animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse),
+                label = "pulseAlpha"
+            )
+            alpha
+        }
+    Box(
+        Modifier
+            .size(8.dp)
+            .graphicsLayer { alpha = pulse }
+            .clip(CircleShape)
+            .background(if (connected) PadboardColors.Teal else PadboardColors.Orange)
+    )
 }
 
 /** Current time in the user's 12/24 h preference, refreshed on each minute. */

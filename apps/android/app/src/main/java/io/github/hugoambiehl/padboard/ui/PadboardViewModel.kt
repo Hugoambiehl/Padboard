@@ -5,66 +5,71 @@ import android.os.Build
 import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import io.github.hugoambiehl.padboard.connection.ConnectionState
+import io.github.hugoambiehl.padboard.connection.ConnectionManager
 import io.github.hugoambiehl.padboard.connection.DeviceIdStore
-import io.github.hugoambiehl.padboard.connection.PadboardClient
-import io.github.hugoambiehl.padboard.connection.ServerAddress
-import io.github.hugoambiehl.padboard.connection.ServerAddressStore
-import io.github.hugoambiehl.padboard.protocol.Layout
+import io.github.hugoambiehl.padboard.connection.DiscoveredPc
+import io.github.hugoambiehl.padboard.connection.Endpoint
+import io.github.hugoambiehl.padboard.connection.NsdDirectory
+import io.github.hugoambiehl.padboard.connection.PairingStore
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 
 class PadboardViewModel(application: Application) : AndroidViewModel(application) {
-    private val store = ServerAddressStore(application)
     private val okHttp =
         OkHttpClient
             .Builder()
             .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .build()
-    private val client = PadboardClient(okHttp, deviceName(application))
-    private val deviceId = viewModelScope.async { DeviceIdStore(application).deviceId() }
+    private val directory = NsdDirectory(application)
+    private val manager =
+        ConnectionManager(
+            parentScope = viewModelScope,
+            http = okHttp,
+            pairing = PairingStore(application),
+            directory = directory,
+            deviceName = deviceName(application)
+        )
 
-    val connection: StateFlow<ConnectionState> = client.state
-    val layout: StateFlow<Layout?> = client.layout
-    val actionFailures: SharedFlow<String> = client.actionFailures
+    val link = manager.state
+    val layout = manager.layout
+    val actionFailures = manager.actionFailures
+    val pairingProblems = manager.pairingProblems
 
-    /** Last used address, to prefill the connection form. */
-    val savedAddress: StateFlow<ServerAddress?> =
-        store.address.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    /** PCs announcing Padboard on the network. */
+    val pcs = directory.pcs
 
     init {
-        // A dedicated tablet should come back to its PC by itself.
-        viewModelScope.launch { store.address.first()?.let { client.connect(it, deviceId.await()) } }
+        directory.start()
+        viewModelScope.launch { manager.start(DeviceIdStore(application).deviceId()) }
+        // A PC appearing on the network is worth a reconnection attempt right away.
+        viewModelScope.launch { directory.pcs.collect { manager.nudge() } }
     }
 
-    fun connect(address: ServerAddress) {
-        viewModelScope.launch {
-            store.save(address)
-            client.connect(address, deviceId.await())
-        }
-    }
+    fun press(buttonId: String) = manager.press(buttonId)
 
-    fun disconnect() = client.disconnect()
+    fun release(buttonId: String) = manager.release(buttonId)
 
-    fun press(buttonId: String) = client.press(buttonId)
+    fun pair(pc: DiscoveredPc) = manager.pair(pc)
 
-    fun release(buttonId: String) = client.release(buttonId)
+    fun pair(endpoint: Endpoint) = manager.pair(endpoint)
+
+    fun submitPin(pin: String) = manager.submitPin(pin)
+
+    fun cancelPairing() = manager.cancelPairing()
+
+    fun forget() = manager.forget()
+
+    fun retry() = manager.retry()
 
     override fun onCleared() {
-        client.disconnect()
+        directory.stop()
         okHttp.dispatcher.executorService.shutdown()
         okHttp.connectionPool.evictAll()
     }
 
     private companion object {
-        const val CONNECT_TIMEOUT_SECONDS = 5L
+        const val CONNECT_TIMEOUT_SECONDS = 4L
 
         /** "Galaxy Tab A" (user-visible device name) when available, else the model ("SM-T580"). */
         fun deviceName(application: Application): String = Settings.Global

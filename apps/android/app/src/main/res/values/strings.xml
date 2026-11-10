@@ -2,29 +2,64 @@
     <!-- Default resources are French (default UI language); English goes in values-en. -->
     <string name="app_name" translatable="false">Padboard</string>
 
-    <!-- Connection screen -->
-    <string name="connect_title">Connecter la tablette\nà ton PC</string>
-    <string name="connect_body">Lance Padboard sur ton PC. En USB, branche la tablette et utilise l’adresse 127.0.0.1. En Wi-Fi, saisis l’adresse affichée par l’application du PC.</string>
-    <string name="connect_card_title">Adresse du PC</string>
-    <string name="connect_host_label">Adresse IP</string>
-    <string name="connect_port_label">Port</string>
-    <string name="connect_button">Se connecter</string>
-    <string name="connect_usb_button">Utiliser l’USB</string>
-    <string name="connect_connecting">Connexion à %1$s…</string>
-    <string name="connect_cancel">Annuler</string>
-    <string name="connect_invalid_host">Adresse invalide.</string>
-    <string name="connect_invalid_port">Port invalide (1 à 65535).</string>
+    <!-- Setup (no paired PC), layout of Pairing.dc.html -->
+    <string name="setup_title">Associer la tablette\nà ton PC</string>
+    <string name="setup_body">Sur ton PC, clique sur « Associer un appareil » dans Padboard : un code à 6 chiffres s’affiche. Choisis ton PC ici, puis tape le code. Tu ne le feras qu’une fois.</string>
+    <string name="setup_usb_hint">En USB, pas besoin de code : branche simplement la tablette (débogage USB activé), la connexion est automatique.</string>
+    <string name="setup_found">PC trouvés sur le réseau</string>
+    <string name="setup_searching">Recherche d’autres PC…</string>
+    <string name="setup_incompatible">Version de Padboard incompatible</string>
+    <string name="setup_manual">Saisir l’adresse du PC</string>
+    <string name="setup_host_label">Adresse IP du PC</string>
+    <string name="setup_invalid_host">Adresse invalide.</string>
+    <string name="setup_manual_connect">Se connecter</string>
+    <string name="setup_back">Retour à la grille</string>
+    <string name="pairing_unreachable">Impossible de joindre ce PC en Wi-Fi. Vérifie que le Wi-Fi est activé dans Padboard sur le PC et que les deux appareils sont sur le même réseau.</string>
+    <string name="pairing_lost">La connexion au PC a été interrompue pendant l’association. Recommence.</string>
 
-    <!-- Connection failures -->
-    <string name="failure_unreachable">Impossible de joindre le PC à l’adresse %1$s. Vérifie que Padboard est lancé, et pour l’USB que la commande adb reverse a été exécutée.</string>
+    <!-- PIN entry -->
+    <string name="pin_title">Code affiché\nsur ton PC</string>
+    <string name="pin_server">Association avec %1$s</string>
+    <string name="pin_body">Tape le code à 6 chiffres affiché dans la fenêtre « Associer une tablette » de ton PC.</string>
+    <string name="pin_code_label">Code affiché sur ton PC</string>
+    <!-- "3 chiffres saisis sur 6": a progress, not a quantity. -->
+    <string name="pin_digits_description" tools:ignore="PluralsCandidate">%1$d chiffres saisis sur %2$d</string>
+    <string name="pin_check_title">Vérifie que ton PC affiche ce code</string>
+    <string name="pin_check_hint">S’il est différent, ne tape pas le code et annule : un autre appareil se fait passer pour ton PC.</string>
+    <string name="pin_checking">Vérification…</string>
+    <plurals name="pin_invalid">
+        <item quantity="one">Code incorrect. %1$d essai restant.</item>
+        <item quantity="many">Code incorrect. %1$d essais restants.</item>
+        <item quantity="other">Code incorrect. %1$d essais restants.</item>
+    </plurals>
+    <string name="pin_expired">Le code a expiré. Affiche un nouveau code sur le PC.</string>
+    <string name="pin_locked">Trop d’essais : affiche un nouveau code sur le PC.</string>
+    <string name="pin_no_code">Aucun code affiché sur le PC : clique sur « Associer un appareil ».</string>
+    <string name="pin_erase">Effacer</string>
+    <string name="pin_cancel">Annuler</string>
+
+    <!-- Searching / failures -->
+    <string name="starting">Démarrage…</string>
+    <string name="searching_title">Recherche de %1$s…</string>
+    <string name="searching_body">Branche la tablette en USB, ou vérifie que Padboard est lancé sur le PC avec le Wi-Fi activé et que les deux appareils sont sur le même réseau.</string>
     <string name="failure_incompatible">Les versions de Padboard sur le PC et sur la tablette sont incompatibles. Mets les deux à jour.</string>
-    <string name="failure_rejected">Le PC a refusé la connexion.</string>
-    <string name="failure_lost">Connexion au PC perdue.</string>
+    <string name="retry">Réessayer</string>
+    <string name="cancel">Annuler</string>
+
+    <!-- Forget the paired PC -->
+    <string name="forget_button">Associer un autre PC</string>
+    <string name="forget_title">Oublier %1$s ?</string>
+    <string name="forget_body">La tablette ne se connectera plus à ce PC en Wi-Fi tant qu’elle n’aura pas été associée de nouveau. L’USB reste possible.</string>
+    <string name="forget_confirm">Oublier ce PC</string>
+    <string name="usb_only_body">Connectée en USB. Associe la tablette à ce PC pour pouvoir aussi l’utiliser en Wi-Fi, câble débranché.</string>
+    <string name="pair_wifi">Associer en Wi-Fi</string>
 
     <!-- Grid -->
     <string name="transport_usb">USB</string>
     <string name="transport_wifi">Wi-Fi</string>
-    <string name="connection_pill_description">Connecté à %1$s en %2$s. Toucher pour se déconnecter.</string>
+    <string name="pill_latency">%1$s · %2$d ms</string>
+    <string name="pill_reconnecting">Reconnexion…</string>
+    <string name="connection_pill_description">%1$s, %2$s. Toucher pour les options de connexion.</string>
     <!-- "Page 2 sur 3": a position, not a quantity. -->
     <string name="page_indicator_description" tools:ignore="PluralsCandidate">Page %1$d sur %2$d</string>
     <string name="layout_waiting">Réception de la grille…</string>

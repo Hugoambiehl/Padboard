@@ -1,17 +1,12 @@
 package io.github.hugoambiehl.padboard.connection
 
-/** Where the desktop app listens. Validated with [ServerAddress.parse]. */
-data class ServerAddress(val host: String, val port: Int) {
-    /** Through `adb reverse`, a USB-connected desktop is reached on the loopback address. */
-    val isUsb: Boolean get() = host == LOOPBACK || host == "localhost"
-
-    val webSocketUrl: String get() = "ws://$host:$port/"
-
-    /** Host and port as typed by the user, e.g. `192.168.1.20:47321`. */
-    val display: String get() = "$host:$port"
+/** Where the PC listens. User input is validated with [Endpoint.parse]. */
+data class Endpoint(val host: String, val port: Int) {
+    /** Host and port, e.g. `192.168.1.20:47322` (IPv6 in brackets), as in URLs. */
+    val display: String get() = if (':' in host) "[$host]:$port" else "$host:$port"
 
     sealed interface ParseResult {
-        data class Valid(val address: ServerAddress) : ParseResult
+        data class Valid(val endpoint: Endpoint) : ParseResult
 
         data object InvalidHost : ParseResult
 
@@ -19,7 +14,11 @@ data class ServerAddress(val host: String, val port: Int) {
     }
 
     companion object {
-        const val DEFAULT_PORT = 47321
+        /** USB: plain WebSocket, reached at 127.0.0.1 through `adb reverse` (`USB_PORT` in crates/protocol). */
+        const val USB_PORT = 47321
+
+        /** Wi-Fi: WebSocket over TLS (`WIFI_PORT` in crates/protocol). */
+        const val WIFI_PORT = 47322
         const val LOOPBACK = "127.0.0.1"
 
         private val IPV4 = Regex("""^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$""")
@@ -35,7 +34,7 @@ data class ServerAddress(val host: String, val port: Int) {
             if (!hostOk) return ParseResult.InvalidHost
             val p = port.trim().toIntOrNull()
             if (p == null || p !in 1..65535) return ParseResult.InvalidPort
-            return ParseResult.Valid(ServerAddress(h, p))
+            return ParseResult.Valid(Endpoint(h, p))
         }
     }
 }
