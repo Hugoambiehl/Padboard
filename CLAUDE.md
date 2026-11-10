@@ -159,7 +159,8 @@ SM-T580, always measure in release builds.
 2. **Connection** — mDNS + PIN pairing, USB via adb reverse, auto-switch,
    reconnection, heartbeat.
 3. **Editor** — replica, library, inspector, drag & drop, persistence, live sync,
-   undo/redo.
+   undo/redo. Backlog: dark window title bar (GNOME shows a light one while
+   the app is dark) — window `theme: "Dark"` or a custom title bar.
 4. **Actions** — all MVP actions (Linux + Windows), stateful buttons, folders,
    pages, multi-actions.
 5. **Tablet polish** — launcher, lock task, animations, disconnected overlay,
