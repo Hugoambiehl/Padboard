@@ -14,11 +14,12 @@
       {
         "label": "main",
         "title": "Padboard",
-        "width": 1100,
-        "height": 760,
-        "minWidth": 720,
-        "minHeight": 520,
-        "backgroundColor": "#0E0F12"
+        "width": 1360,
+        "height": 860,
+        "minWidth": 1100,
+        "minHeight": 680,
+        "backgroundColor": "#0E0F12",
+        "theme": "Dark"
       }
     ],
     "security": {

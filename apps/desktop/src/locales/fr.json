@@ -3,7 +3,9 @@
     "name": "Padboard",
     "loading": "Chargement…",
     "loadError": "Impossible de joindre le backend Padboard.",
-    "tablets": "Aucune tablette | 1 tablette | {count} tablettes"
+    "tablets": "Aucune tablette | 1 tablette | {count} tablettes",
+    "connectionsHint": "Connexions, appareils associés et activité",
+    "backToEditor": "Retour à l’éditeur"
   },
   "server": {
     "title": "Serveur",
@@ -117,6 +119,39 @@
       "ready": "Prête : port {port} redirigé.",
       "failed": "Échec de la redirection.",
       "other": "État adb : {state}"
+    }
+  },
+  "common": {
+    "cancel": "Annuler",
+    "create": "Créer",
+    "rename": "Renommer",
+    "delete": "Supprimer"
+  },
+  "editor": {
+    "undo": "Annuler",
+    "redo": "Rétablir",
+    "undoShortcut": "Annuler (Ctrl+Z)",
+    "redoShortcut": "Rétablir (Ctrl+Maj+Z)"
+  },
+  "profiles": {
+    "label": "Profil :",
+    "nameLabel": "Nom du profil",
+    "create": {
+      "action": "Nouveau profil",
+      "title": "Nouveau profil"
+    },
+    "duplicate": {
+      "action": "Dupliquer",
+      "title": "Dupliquer le profil",
+      "defaultName": "{name} (copie)"
+    },
+    "rename": {
+      "action": "Renommer",
+      "title": "Renommer le profil"
+    },
+    "delete": {
+      "action": "Supprimer",
+      "confirm": "Confirmer la suppression"
     }
   }
 }

@@ -1,0 +1,89 @@
+// Development-only preview without the Rust backend: `npm run dev`, then open
+// http://localhost:1420/?mock in a browser (or a headless one for
+// screenshots). Never loaded by the Tauri app or the production build.
+import { mockIPC } from "@tauri-apps/api/mocks";
+import type { EditorState } from "../generated/types";
+import type { Snapshot } from "../types/status";
+import fixture from "./fixture-config.json";
+
+const editor: EditorState = {
+  config: fixture as EditorState["config"],
+  canUndo: true,
+  canRedo: false,
+};
+
+const status: Snapshot = {
+  server: {
+    name: "PC-HUGO",
+    usb: { state: "listening", port: 47321, address: "127.0.0.1:47321", errorDetail: null },
+    wifi: {
+      enabled: true,
+      forced: null,
+      listener: { state: "listening", port: 47322, address: "0.0.0.0:47322", errorDetail: null },
+      lanAddresses: [
+        { address: "192.168.1.42", interface: "wlo1", physical: true },
+        { address: "172.18.0.1", interface: "br-568a00b37a31", physical: false },
+      ],
+      fingerprint: "44QK-JFGX-DRZ6",
+      tlsError: null,
+      mdns: { state: "announced" },
+    },
+    invalidSettings: [],
+  },
+  clients: [
+    {
+      id: 1,
+      deviceId: "tab",
+      deviceName: "Galaxy Tab A",
+      transport: "usb",
+      peer: "127.0.0.1:50000",
+      connectedAtMs: Date.now(),
+    },
+  ],
+  pairing: { state: "idle" },
+  pairedDevices: [],
+  usb: { adb: { state: "ready", path: "/usr/bin/adb", version: "1.0.41" }, devices: [] },
+  activity: [],
+};
+
+const keys = [
+  "ControlLeft",
+  "ShiftLeft",
+  "AltLeft",
+  "MetaLeft",
+  "KeyA",
+  "KeyC",
+  "KeyV",
+  "KeyT",
+  "KeyZ",
+  "F13",
+  "PrintScreen",
+  "MediaPlayPause",
+  "AudioVolumeUp",
+  "AudioVolumeDown",
+];
+
+export function install() {
+  mockIPC(
+    (cmd) => {
+      switch (cmd) {
+        case "get_status":
+          return status;
+        case "get_editor":
+          return editor;
+        case "list_keys":
+          return keys;
+        case "edit":
+          return {};
+        case "undo":
+        case "redo":
+          return false;
+        case "test_button":
+          return { status: "ok" };
+        default:
+          return null;
+      }
+    },
+    { shouldMockEvents: true },
+  );
+}

@@ -60,6 +60,13 @@ belongs to an app installed as a **snap** (e.g. VS Code): snap terminals leak GT
 variables that make WebKitGTK abort at startup (`Settings schema … does not
 contain a key named 'antialiasing'`). The script removes them.
 
+### Preview the UI in a browser
+
+`cd apps/desktop && npm run dev`, then open `http://localhost:1420/?mock`
+(`&view=connections` for the connections view): the frontend runs against a fake
+backend (`src/dev/mock.ts`, development builds only). Handy for layout work and
+headless screenshots; everything else needs the real app.
+
 ### Test without the tablet
 
 `fake-tablet` speaks the protocol like the Android app (mDNS discovery, TLS with

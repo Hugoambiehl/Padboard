@@ -1,45 +1,60 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { useEventListener } from "@vueuse/core";
 import AppHeader from "./components/AppHeader.vue";
-import ServerCard from "./components/ServerCard.vue";
-import ClientsCard from "./components/ClientsCard.vue";
-import PairedDevicesCard from "./components/PairedDevicesCard.vue";
-import UsbCard from "./components/UsbCard.vue";
-import ActivityCard from "./components/ActivityCard.vue";
 import PairingDialog from "./components/PairingDialog.vue";
+import EditorView from "./views/EditorView.vue";
+import ConnectionsView from "./views/ConnectionsView.vue";
 import { useStatus } from "./composables/useStatus";
+import { useEditor } from "./composables/useEditor";
 
 const { t } = useI18n();
 const { snapshot, failed } = useStatus();
+const { undo, redo } = useEditor();
+// `?view=connections` opens the connections view (browser preview, see src/dev/mock.ts).
+const view = ref<"editor" | "connections">(
+  import.meta.env.DEV && new URLSearchParams(location.search).get("view") === "connections"
+    ? "connections"
+    : "editor",
+);
 const pairingOpen = ref(false);
+
+// Undo / redo everywhere, text fields included: the configuration's history
+// (typing in a field is one entry) replaces the fields' native undo.
+useEventListener(window, "keydown", (event: KeyboardEvent) => {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+  const key = event.key.toLowerCase();
+  if (key === "z" && !event.shiftKey) {
+    event.preventDefault();
+    void undo();
+  } else if ((key === "z" && event.shiftKey) || key === "y") {
+    event.preventDefault();
+    void redo();
+  }
+});
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col">
-    <AppHeader :tablets="snapshot?.clients.length ?? 0" @pair="pairingOpen = true" />
-    <main class="mx-auto flex w-full max-w-5xl flex-col gap-5 p-5">
-      <p v-if="failed" class="text-sm text-cat-red">{{ t("app.loadError") }}</p>
-      <p v-else-if="!snapshot" class="text-sm text-muted">{{ t("app.loading") }}</p>
-      <template v-else>
-        <div class="grid gap-5 md:grid-cols-2">
-          <ServerCard :server="snapshot.server" />
-          <ClientsCard :clients="snapshot.clients" />
-          <PairedDevicesCard
-            :devices="snapshot.pairedDevices"
-            :clients="snapshot.clients"
-            @pair="pairingOpen = true"
-          />
-          <UsbCard :usb="snapshot.usb" :port="snapshot.server.usb.port" />
-        </div>
-        <ActivityCard :activity="snapshot.activity" />
-        <PairingDialog
-          v-if="pairingOpen"
-          :pairing="snapshot.pairing"
-          :wifi="snapshot.server.wifi"
-          @close="pairingOpen = false"
-        />
-      </template>
-    </main>
+  <div class="flex h-screen flex-col">
+    <AppHeader
+      :view="view"
+      @pair="pairingOpen = true"
+      @toggle-view="view = view === 'editor' ? 'connections' : 'editor'"
+    />
+    <p v-if="failed" class="p-5 text-sm text-cat-red">{{ t("app.loadError") }}</p>
+    <p v-else-if="!snapshot" class="p-5 text-sm text-muted">{{ t("app.loading") }}</p>
+    <template v-else>
+      <EditorView v-show="view === 'editor'" />
+      <div v-if="view === 'connections'" class="min-h-0 flex-1 overflow-y-auto">
+        <ConnectionsView :snapshot="snapshot" @back="view = 'editor'" @pair="pairingOpen = true" />
+      </div>
+      <PairingDialog
+        v-if="pairingOpen"
+        :pairing="snapshot.pairing"
+        :wifi="snapshot.server.wifi"
+        @close="pairingOpen = false"
+      />
+    </template>
   </div>
 </template>

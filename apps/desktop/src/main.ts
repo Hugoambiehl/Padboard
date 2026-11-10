@@ -9,4 +9,12 @@ import "./style.css";
 import App from "./App.vue";
 import { i18n } from "./i18n";
 
-createApp(App).use(i18n).mount("#app");
+async function main() {
+  // Browser preview with a fake backend (development only, see src/dev/mock.ts).
+  if (import.meta.env.DEV && new URLSearchParams(location.search).has("mock")) {
+    (await import("./dev/mock")).install();
+  }
+  createApp(App).use(i18n).mount("#app");
+}
+
+void main();
