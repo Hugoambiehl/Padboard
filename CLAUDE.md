@@ -142,8 +142,9 @@ SM-T580, always measure in release builds.
   pairing attempts can never lock a paired tablet out.
 - **Keys are stored by physical position**: W3C `KeyboardEvent.code` names
   (`KeyA`, `ControlLeft`…), mapped to evdev keycodes / Windows scancodes.
-- **Generated types are committed**: `apps/desktop/src/generated/` (TS) and the
-  Android package `io.github.hugoambiehl.padboard.protocol` (Kotlin). CI checks
+- **Generated types are committed**: `apps/desktop/src/generated/types.ts`
+  (TS: protocol + actions + editable configuration) and the Android package
+  `io.github.hugoambiehl.padboard.protocol` (Kotlin: protocol only). CI checks
   they are up to date.
 - **Type generation**: `scripts/gen-types.sh` (`--check` in CI), config in
   `typeshare.toml`, typeshare-cli version pinned in the script. typeshare has no
@@ -200,6 +201,30 @@ SM-T580, always measure in release builds.
   workflow together with `scripts/gen-types.sh`. A CI change is validated on a
   branch (no Windows job) before reaching `main`.
 
+## Editor (phase 3) decisions
+
+- **Rust is the single source of truth**: the configuration (`config/`,
+  `profiles.json`) is only changed through edit operations sent by the
+  frontend, validated, then persisted (debounced) and pushed to the tablets.
+  Undo/redo lives in Rust (snapshots); successive edits of one field (typing a
+  label) merge into one undo entry; layout pushes are throttled to one every
+  100–150 ms while typing.
+- **Icons**: Lucide (ISC license), stored as `{ name, paths }`: the name for the
+  picker, the SVG path data for the tablet (protocol `ButtonIcon`). The frontend
+  converts Lucide elements to paths (`src/icons/paths.ts`); the desktop
+  validates them (count, size, syntax) before sending. User images: backlog
+  (phase 4 or 5).
+- **Pages** are identified by id, never by position. If the page shown on the
+  tablet is deleted, the tablet falls back to an existing page.
+- **Library**: only working actions; shortcut presets are adapted to the OS
+  (lock: Win+L / Super+L; screenshot: Win+Shift+S / Print Screen).
+- **`Action`** is adjacently tagged (`{ type, params }`) so typeshare can
+  generate it. `Key` comes from a macro typeshare cannot see: keys are strings
+  in TS and the editor gets the valid names from the backend.
+- **Drag and drop** is hand-made with pointer events (WebKitGTK and WebView2
+  behave differently with HTML5 DnD), with a keyboard alternative to move the
+  selected button. Frontend logic is tested with Vitest.
+
 ## Conventions
 
 - **Paths contain a space** (`Projets persos`): always quote paths in shell scripts,
@@ -230,3 +255,4 @@ SM-T580, always measure in release builds.
    screensaver, performance. Backlog: the Android 12L taskbar stays drawn over
    the app in immersive mode on the SM-T580 (no inset reported); QR code pairing.
 6. **Distribution** — Windows installer, signed release APK, CI, README, open source.
+   License notices to ship: Lucide icons (ISC), Inter and Space Grotesk (OFL).
