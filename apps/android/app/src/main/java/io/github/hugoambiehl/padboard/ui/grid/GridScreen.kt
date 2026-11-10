@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -37,6 +38,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.hugoambiehl.padboard.R
 import io.github.hugoambiehl.padboard.connection.ServerAddress
@@ -232,7 +234,15 @@ private fun ConnectionPill(serverName: String, address: ServerAddress, onDisconn
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(PadboardColors.Teal))
-        Text(serverName, style = PadboardType.Pill, color = PadboardColors.TextPill, maxLines = 1)
+        // Hostnames can be long ("My-Laptop-15-…"): keep the pill clear of the page dots.
+        Text(
+            serverName,
+            style = PadboardType.Pill,
+            color = PadboardColors.TextPill,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 260.dp)
+        )
         Text("· $transport", style = PadboardType.Pill, color = PadboardColors.TextMuted)
     }
 }
