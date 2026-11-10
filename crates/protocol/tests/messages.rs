@@ -1,5 +1,3 @@
-#![allow(clippy::unwrap_used)]
-
 use padboard_protocol::{
     ButtonEvent, ButtonView, Category, ErrorCode, ErrorPayload, GridSize, Heartbeat, HelloPayload,
     Layout, Message, PROTOCOL_VERSION, Page, ProfileInfo, WelcomePayload, is_compatible,

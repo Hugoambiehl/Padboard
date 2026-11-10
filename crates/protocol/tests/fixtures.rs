@@ -2,6 +2,8 @@
 //! expected message and re-encode to the exact same JSON. The Android unit
 //! tests decode the same files.
 
+// Helpers below are not #[test] functions, so clippy.toml's allow-unwrap-in-tests
+// does not cover them.
 #![allow(clippy::unwrap_used)]
 
 use std::collections::BTreeSet;
