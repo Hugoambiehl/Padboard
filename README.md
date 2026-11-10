@@ -19,6 +19,33 @@ Wi-Fi or USB, no cloud, free and open-source tools only.
 
 ## Development setup (Linux)
 
+### Run the desktop app
+
+```sh
+(cd apps/desktop && npm install)   # once
+scripts/desktop-dev.sh             # = npm run tauri dev, with a clean environment
+```
+
+The WebSocket server listens on `127.0.0.1:47321` by default: enough for a tablet
+plugged over USB, after `adb reverse tcp:47321 tcp:47321`. Pairing does not exist
+yet, so listening on the local network (Wi-Fi) is an explicit opt-in, and the app
+shows a warning while it is enabled:
+
+```sh
+PADBOARD_BIND=lan scripts/desktop-dev.sh
+```
+
+| Variable | Values | Default |
+|---|---|---|
+| `PADBOARD_BIND` | `loopback`, `lan` | `loopback` |
+| `PADBOARD_PORT` | TCP port | `47321` |
+| `PADBOARD_LOG` | `tracing` filter, e.g. `debug` | `info` (debug for Padboard) |
+
+Use `scripts/desktop-dev.sh` rather than `npm run tauri dev` when your terminal
+belongs to an app installed as a **snap** (e.g. VS Code): snap terminals leak GTK
+variables that make WebKitGTK abort at startup (`Settings schema … does not
+contain a key named 'antialiasing'`). The script removes them.
+
 ### Linux: uinput access
 
 On Linux, Padboard sends keyboard shortcuts through a **uinput virtual keyboard**.

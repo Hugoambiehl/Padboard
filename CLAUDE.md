@@ -118,6 +118,16 @@ SM-T580, always measure in release builds.
   option to emit string unions, so it emits TS `enum`s: `erasableSyntaxOnly` is
   disabled in the desktop tsconfig for that reason. No custom post-processing of
   typeshare output.
+- **Tauri versions**: the `tauri` crate and the `@tauri-apps/*` npm packages must
+  stay on the same minor (currently `~2.11` on both sides); bump them together.
+- **Desktop dev launch**: `scripts/desktop-dev.sh`. It strips the GTK/GIO
+  variables leaked by snap terminals (VS Code snap), which crash WebKitGTK.
+- **WebSocket server**: rejects handshakes carrying an `Origin` header (browsers),
+  so a web page on the PC cannot drive it; executes actions via `spawn_blocking`;
+  is independent from Tauri (reports `ServerEvent`s, tested end-to-end in
+  `server.rs`). UI state (`state.rs`) is mirrored by hand in
+  `apps/desktop/src/types/status.ts`; the backend sends codes, the frontend
+  translates.
 - **Shared JSON fixtures** in `crates/protocol/fixtures/`, tested both on the Rust
   side and the Kotlin side.
 - **Android package**: `io.github.hugoambiehl.padboard`.
