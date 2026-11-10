@@ -19,12 +19,19 @@ export interface ListenerStatus {
 export type MdnsStatus =
   { state: "off" } | { state: "announced" } | { state: "error"; detail: string };
 
+export interface LanAddress {
+  address: string;
+  interface: string;
+  /** Wi-Fi or Ethernet: where tablets can reach the PC. */
+  physical: boolean;
+}
+
 export interface WifiStatus {
   enabled: boolean;
   /** Set when PADBOARD_BIND forces Wi-Fi on (true) or off (false). */
   forced: boolean | null;
   listener: ListenerStatus;
-  lanAddresses: string[];
+  lanAddresses: LanAddress[];
   fingerprint: string | null;
   tlsError: string | null;
   mdns: MdnsStatus;

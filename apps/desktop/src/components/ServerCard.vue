@@ -18,6 +18,8 @@ const dot: Record<ListenerState, string> = {
 };
 const usb = computed(() => props.server.usb);
 const wifi = computed(() => props.server.wifi);
+const physical = computed(() => wifi.value.lanAddresses.filter((a) => a.physical));
+const others = computed(() => wifi.value.lanAddresses.filter((a) => !a.physical));
 const toggleLocked = computed(() => wifi.value.forced !== null || wifi.value.tlsError !== null);
 
 const busy = ref(false);
@@ -111,11 +113,20 @@ async function toggleWifi(enabled: boolean) {
         <p class="text-sm text-muted">{{ t("lan.hint") }}</p>
         <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
           <dt class="text-muted">{{ t("lan.addresses") }}</dt>
-          <dd class="font-mono">
-            <template v-if="wifi.lanAddresses.length > 0">
-              {{ wifi.lanAddresses.map((ip) => `${ip}:${wifi.listener.port}`).join(", ") }}
-            </template>
-            <span v-else class="font-sans text-muted">{{ t("lan.none") }}</span>
+          <dd class="flex flex-col gap-1">
+            <span v-for="a in physical" :key="a.address" class="font-mono">
+              {{ a.address }}:{{ wifi.listener.port }}
+              <span class="font-sans text-xs text-muted">({{ a.interface }})</span>
+            </span>
+            <span v-if="physical.length === 0" class="text-muted">{{ t("lan.none") }}</span>
+            <details v-if="others.length > 0" class="text-xs text-muted">
+              <summary class="cursor-pointer select-none">
+                {{ t("lan.otherInterfaces", others.length) }}
+              </summary>
+              <span v-for="a in others" :key="a.address" class="block font-mono">
+                {{ a.address }} <span class="font-sans">({{ a.interface }})</span>
+              </span>
+            </details>
           </dd>
           <dt class="text-muted">{{ t("lan.discovery") }}</dt>
           <dd :title="wifi.mdns.state === 'error' ? wifi.mdns.detail : undefined">

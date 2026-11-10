@@ -116,6 +116,8 @@ pub enum ServerEvent {
     /// Wi-Fi turned on or off from the UI.
     WifiEnabled(bool),
     Mdns(crate::wifi::MdnsStatus),
+    /// IPv4 addresses of the PC changed (physical interfaces first).
+    LanAddresses(Vec<crate::netif::LanAddress>),
     /// `adb` and the USB devices it sees.
     Usb(crate::adb::UsbStatus),
     ClientConnected {

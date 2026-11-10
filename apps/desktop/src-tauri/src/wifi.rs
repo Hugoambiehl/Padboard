@@ -4,11 +4,11 @@
 //! Stopping aborts the listener task, which owns its connection tasks: every
 //! Wi-Fi connection is closed at once.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use mdns_sd::{ServiceDaemon, ServiceInfo};
+use mdns_sd::{IfKind, ServiceDaemon, ServiceInfo};
 use padboard_protocol::{MDNS_SERVICE_TYPE, PROTOCOL_VERSION, txt};
 use serde::Serialize;
 use tauri::async_runtime::JoinHandle;
@@ -39,6 +39,8 @@ struct Runtime {
     listener: Option<JoinHandle<()>>,
     mdns: Option<ServiceDaemon>,
     announced: Option<String>,
+    /// Interfaces never used for mDNS (see `netif.rs`).
+    excluded: BTreeSet<String>,
 }
 
 impl std::fmt::Debug for Wifi {
@@ -121,7 +123,10 @@ impl Wifi {
     fn announce(&self, runtime: &mut Runtime) -> MdnsStatus {
         if runtime.mdns.is_none() {
             match ServiceDaemon::new() {
-                Ok(daemon) => runtime.mdns = Some(daemon),
+                Ok(daemon) => {
+                    exclude(&daemon, runtime.excluded.iter().cloned().collect());
+                    runtime.mdns = Some(daemon);
+                }
                 Err(e) => {
                     tracing::warn!("mDNS unavailable: {e}");
                     return MdnsStatus::Error {
@@ -173,6 +178,24 @@ impl Wifi {
         }
     }
 
+    /// Keeps virtual interfaces out of mDNS. Called with every interface scan:
+    /// newly seen virtual interfaces (e.g. Docker started later) are excluded
+    /// as they appear; physical ones stay enabled (the default).
+    pub fn exclude_interfaces(&self, virtual_names: &BTreeSet<String>) {
+        let mut runtime = self.lock();
+        let new: Vec<String> = virtual_names
+            .difference(&runtime.excluded)
+            .cloned()
+            .collect();
+        if new.is_empty() {
+            return;
+        }
+        runtime.excluded.extend(new.iter().cloned());
+        if let Some(daemon) = &runtime.mdns {
+            exclude(daemon, new);
+        }
+    }
+
     fn emit(&self, event: ServerEvent) {
         let _ = self.ctx.events.send(event);
     }
@@ -183,6 +206,14 @@ impl Drop for Wifi {
         if let Some(daemon) = self.lock().mdns.take() {
             let _ = daemon.shutdown();
         }
+    }
+}
+
+fn exclude(daemon: &ServiceDaemon, names: Vec<String>) {
+    let mut kinds = vec![IfKind::LoopbackV4, IfKind::LoopbackV6];
+    kinds.extend(names.into_iter().map(IfKind::Name));
+    if let Err(e) = daemon.disable_interface(kinds) {
+        tracing::warn!("cannot exclude interfaces from mDNS: {e}");
     }
 }
 

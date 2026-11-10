@@ -29,7 +29,7 @@
     "forcedOff": "Désactivé par la variable d’environnement PADBOARD_BIND.",
     "hint": "Seules les tablettes associées peuvent se connecter. Elles trouvent ce PC automatiquement sur le réseau.",
     "addresses": "Adresses",
-    "none": "Aucune adresse réseau détectée.",
+    "none": "Aucune connexion Wi-Fi ou Ethernet détectée.",
     "discovery": "Découverte",
     "mdns": {
       "off": "Inactive",
@@ -39,7 +39,8 @@
     "disabled": "Désactivé : seule la connexion USB est possible.",
     "tlsError": "Le Wi-Fi est indisponible : impossible de créer la clé de chiffrement de ce PC.",
     "fingerprint": "Empreinte de ce PC :",
-    "fingerprintHint": "La tablette affiche ce même code au moment de l’association."
+    "fingerprintHint": "La tablette affiche ce même code au moment de l’association.",
+    "otherInterfaces": "aucune autre interface | 1 autre interface (non annoncée) | {count} autres interfaces (non annoncées)"
   },
   "clients": {
     "title": "Tablettes connectées",

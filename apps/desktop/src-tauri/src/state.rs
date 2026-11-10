@@ -12,6 +12,7 @@ use serde::Serialize;
 
 use crate::adb::UsbStatus;
 use crate::auth::{AuthChange, PairedDeviceView, PairingView, Transport};
+use crate::netif::LanAddress;
 use crate::server::{ActionOutcome, ServerEvent};
 use crate::settings::Settings;
 use crate::wifi::MdnsStatus;
@@ -75,8 +76,8 @@ pub struct WifiStatus {
     /// `Some` when `PADBOARD_BIND` forces Wi-Fi on or off (the toggle is locked).
     pub forced: Option<bool>,
     pub listener: ListenerStatus,
-    /// IPv4 addresses of this PC on the local network.
-    pub lan_addresses: Vec<String>,
+    /// IPv4 addresses of this PC, physical interfaces (Wi-Fi, Ethernet) first.
+    pub lan_addresses: Vec<LanAddress>,
     /// Short fingerprint of the TLS key, shown when pairing.
     pub fingerprint: Option<String>,
     /// Why the TLS identity could not be created (Wi-Fi unavailable).
@@ -89,7 +90,7 @@ pub struct WifiStatus {
 pub struct Init<'a> {
     pub settings: &'a Settings,
     pub server_name: String,
-    pub lan_addresses: Vec<String>,
+    pub lan_addresses: Vec<LanAddress>,
     pub layout: &'a Layout,
     pub wifi_enabled: bool,
     pub fingerprint: Option<String>,
@@ -233,6 +234,7 @@ impl Snapshot {
             }
             ServerEvent::Mdns(status) => self.server.wifi.mdns = status,
             ServerEvent::Usb(status) => self.usb = status,
+            ServerEvent::LanAddresses(addresses) => self.server.wifi.lan_addresses = addresses,
             ServerEvent::ClientConnected {
                 id,
                 device_id,
@@ -296,7 +298,11 @@ mod tests {
         Snapshot::new(Init {
             settings: &settings,
             server_name: "PC".into(),
-            lan_addresses: vec!["192.168.1.20".into()],
+            lan_addresses: vec![LanAddress {
+                address: "192.168.1.20".into(),
+                interface: "wlo1".into(),
+                physical: true,
+            }],
             layout: &layout,
             wifi_enabled: false,
             fingerprint: Some("AAAA-BBBB-CCCC".into()),

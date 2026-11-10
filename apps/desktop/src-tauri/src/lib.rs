@@ -10,6 +10,7 @@ mod adb;
 mod auth;
 mod demo;
 mod identity;
+mod netif;
 mod paired;
 #[doc(hidden)]
 pub mod pinning;
@@ -21,7 +22,6 @@ mod storage;
 mod tls;
 mod wifi;
 
-use std::net::IpAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, AtomicUsize};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
@@ -164,11 +164,12 @@ pub fn run() {
             };
             let profile = demo::profile();
             let server_name = server_name();
+            let interfaces = netif::scan();
 
             let snapshot: SharedSnapshot = Arc::new(Mutex::new(Snapshot::new(state::Init {
                 settings: &settings,
                 server_name: server_name.clone(),
-                lan_addresses: lan_addresses(),
+                lan_addresses: interfaces.addresses.clone(),
                 layout: &profile.layout,
                 wifi_enabled,
                 fingerprint: tls.as_ref().map(|t| t.fingerprint.clone()),
@@ -239,6 +240,7 @@ pub fn run() {
                 settings.wifi_addr(),
                 tls.map(|t| t.acceptor),
             );
+            wifi.exclude_interfaces(&interfaces.virtual_names);
             wifi.set_running(wifi_enabled);
 
             // USB: follow devices and forward the USB port to the tablets.
@@ -252,6 +254,30 @@ pub fn run() {
                     let _ = usb_events.send(ServerEvent::Usb(status));
                 },
             ));
+
+            // Interfaces change (Wi-Fi reconnects, Docker starts): refresh the
+            // addresses shown and keep new virtual interfaces out of mDNS.
+            let scan_events = events_tx.clone();
+            let scan_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let mut last = interfaces;
+                let mut tick = tokio::time::interval(std::time::Duration::from_secs(10));
+                tick.tick().await;
+                loop {
+                    tick.tick().await;
+                    let fresh = tauri::async_runtime::spawn_blocking(netif::scan)
+                        .await
+                        .unwrap_or_default();
+                    if fresh == last {
+                        continue;
+                    }
+                    if let Some(backend) = scan_handle.try_state::<Backend>() {
+                        backend.wifi.exclude_interfaces(&fresh.virtual_names);
+                    }
+                    let _ = scan_events.send(ServerEvent::LanAddresses(fresh.addresses.clone()));
+                    last = fresh;
+                }
+            });
 
             app.manage(Backend {
                 config,
@@ -288,25 +314,4 @@ fn server_name() -> String {
     } else {
         name
     }
-}
-
-/// Non-loopback IPv4 addresses of this PC, sorted.
-fn lan_addresses() -> Vec<String> {
-    let mut addresses: Vec<String> = match if_addrs::get_if_addrs() {
-        Ok(interfaces) => interfaces
-            .into_iter()
-            .filter(|i| !i.is_loopback())
-            .filter_map(|i| match i.ip() {
-                IpAddr::V4(ip) if !ip.is_link_local() => Some(ip.to_string()),
-                _ => None,
-            })
-            .collect(),
-        Err(e) => {
-            tracing::warn!("cannot list network interfaces: {e}");
-            Vec::new()
-        }
-    };
-    addresses.sort();
-    addresses.dedup();
-    addresses
 }
