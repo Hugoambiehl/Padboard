@@ -143,9 +143,14 @@ SM-T580, always measure in release builds.
 - **Android package**: `io.github.hugoambiehl.padboard`.
 - **i18n**: French by default, **no hard-coded UI text**. Android: `strings.xml`
   resources; desktop: `vue-i18n`. English to be added before open-sourcing.
-- **CI (private repo, Windows minutes count double)**: Windows job only on push
-  to `main` and on pull requests; cache Cargo, npm and Gradle; `concurrency`
-  with `cancel-in-progress`.
+- **CI (private repo, Windows minutes count double)**: `.github/workflows/ci.yml`.
+  Windows job only on push to `main`, pull requests and manual runs
+  (`workflow_dispatch`); cache Cargo, npm and Gradle; `concurrency` with
+  `cancel-in-progress`. The frontend is built before any Rust job (the Tauri
+  crate embeds `apps/desktop/dist`). `setup-gradle` uses `cache-provider: basic`
+  (MIT) — its default provider is proprietary. Bump `TYPESHARE_VERSION` in the
+  workflow together with `scripts/gen-types.sh`. A CI change is validated on a
+  branch (no Windows job) before reaching `main`.
 
 ## Conventions
 

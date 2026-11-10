@@ -125,3 +125,27 @@ sudo udevadm trigger --sysname-match=uinput
 > Security note: with this rule, any program running in your session can create
 > a virtual keyboard and inject keystrokes (it cannot read your real keyboard).
 > This is the same trust level as an X11 session.
+
+## Continuous integration
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push:
+
+| Job | Checks |
+| --- | --- |
+| Rust + desktop frontend (Linux) | ESLint, Prettier, `vue-tsc` + Vite build, `cargo fmt`, `cargo clippy -D warnings`, `cargo test` |
+| Generated protocol types | `scripts/gen-types.sh --check` |
+| Android | ktlint, unit tests, Android Lint, debug APK |
+| Rust (Windows) | `cargo clippy -D warnings`, `cargo test` — only on pushes to `main`, pull requests and manual runs |
+
+To run the same checks locally before pushing:
+
+```sh
+(cd apps/desktop && npm run lint && npm run format:check && npm run build)
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+scripts/gen-types.sh --check
+(cd apps/android && ./gradlew ktlintCheck testDebugUnitTest lintDebug assembleDebug)
+```
+
+Run the whole workflow by hand (Windows job included): `gh workflow run CI --ref <branch>`.
