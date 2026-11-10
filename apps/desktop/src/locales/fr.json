@@ -125,7 +125,8 @@
     "cancel": "Annuler",
     "create": "Créer",
     "rename": "Renommer",
-    "delete": "Supprimer"
+    "delete": "Supprimer",
+    "close": "Fermer"
   },
   "editor": {
     "undo": "Annuler",
@@ -272,5 +273,65 @@
         "desc": "Coupe ou rétablit le son"
       }
     }
+  },
+  "inspector": {
+    "noneTitle": "Aucune case sélectionnée",
+    "noneBody": "Clique sur une case de la grille pour la modifier, ou glisse une action depuis la bibliothèque.",
+    "emptyTitle": "Case vide",
+    "emptyBody": "Glisse une action depuis la bibliothèque à gauche pour créer un bouton à cet emplacement.",
+    "addShortcut": "Créer un raccourci clavier ici",
+    "position": "Ligne {row} · Colonne {col}",
+    "noLabel": "Sans libellé",
+    "label": "Libellé",
+    "subtitle": "Sous-titre",
+    "subtitlePlaceholder": "Facultatif",
+    "icon": "Icône",
+    "noIcon": "Sans icône (initiale du libellé)",
+    "moreIcons": "Toutes les icônes…",
+    "color": "Couleur",
+    "action": "Action",
+    "hotkey": "Raccourci clavier",
+    "test": "Tester l’action",
+    "tested": "Action exécutée"
+  },
+  "hotkey": {
+    "record": "Enregistrer",
+    "cancel": "Annuler l’enregistrement",
+    "listening": "Appuie sur la combinaison, puis relâche…",
+    "empty": "Aucune touche : le bouton ne fera rien.",
+    "removeKey": "Retirer {key}",
+    "addKey": "Ajouter une touche…",
+    "hint": "Les touches sont des positions physiques. Certaines combinaisons sont interceptées par le système avant Padboard (Super + L…) : ajoute-les touche par touche."
+  },
+  "icons": {
+    "title": "Choisir une icône",
+    "search": "Rechercher une icône",
+    "searchPlaceholder": "Rechercher (en anglais : volume, mic, play…)",
+    "more": "… et {count} autres : affine la recherche.",
+    "none": "Aucune icône ne correspond.",
+    "credit": "Icônes Lucide (licence ISC)"
+  },
+  "colors": {
+    "violet": "Violet",
+    "blue": "Bleu",
+    "teal": "Turquoise",
+    "orange": "Orange",
+    "pink": "Rose",
+    "red": "Rouge",
+    "grey": "Gris"
+  },
+  "editErrors": {
+    "cellTaken": "Cette case est déjà occupée.",
+    "outsideGrid": "Des boutons sortiraient de la grille.",
+    "lastProfile": "Il faut garder au moins un profil.",
+    "lastPage": "Un profil garde au moins une page.",
+    "tooManyProfiles": "Nombre maximal de profils atteint.",
+    "tooManyPages": "Nombre maximal de pages atteint.",
+    "invalidText": "Texte vide ou trop long.",
+    "invalidIcon": "Icône invalide.",
+    "invalidAction": "Raccourci invalide (touche répétée ou plus de 6 touches).",
+    "notFound": "Cet élément n’existe plus.",
+    "otherProfile": "Un bouton ne peut pas changer de profil.",
+    "unknown": "Modification refusée."
   }
 }

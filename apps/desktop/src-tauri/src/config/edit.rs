@@ -723,4 +723,31 @@ mod tests {
         }
         assert_eq!(e.undo.len(), HISTORY);
     }
+
+    /// The JSON the frontend sends (generated TypeScript types) decodes.
+    #[test]
+    fn frontend_edits_decode() {
+        let cases = [
+            r#"{"type":"setLabel","params":{"buttonId":"copy","label":"Copier"}}"#,
+            r#"{"type":"setSubtitle","params":{"buttonId":"copy"}}"#,
+            r#"{"type":"setIcon","params":{"buttonId":"copy","icon":{"name":"Mic","paths":["M12 19v3"]}}}"#,
+            r#"{"type":"setColor","params":{"buttonId":"copy","color":"red"}}"#,
+            r#"{"type":"setAction","params":{"buttonId":"copy","action":{"type":"hotkey","params":{"keys":["ControlLeft","KeyC"]}}}}"#,
+            r#"{"type":"moveButton","params":{"buttonId":"copy","pageId":"page-1","row":2,"col":3}}"#,
+            r#"{"type":"addButton","params":{"pageId":"page-1","row":0,"col":1,"label":"X","color":"blue","action":{"type":"hotkey","params":{"keys":[]}}}}"#,
+            r#"{"type":"setGrid","params":{"profileId":"demo","cols":6,"rows":4}}"#,
+            r#"{"type":"addProfile","params":{"name":"Gaming"}}"#,
+            r#"{"type":"setActiveProfile","params":{"profileId":"demo"}}"#,
+            r#"{"type":"movePage","params":{"pageId":"page-1","index":0}}"#,
+        ];
+        let mut e = editor();
+        for json in cases {
+            let edit: Edit =
+                serde_json::from_str(json).unwrap_or_else(|err| panic!("{json}: {err}"));
+            e.apply(edit)
+                .unwrap_or_else(|err| panic!("{json}: {err:?}"));
+        }
+        assert_eq!(button(&e, "copy").color, Category::Red);
+        assert_eq!(button(&e, "copy").subtitle, None);
+    }
 }

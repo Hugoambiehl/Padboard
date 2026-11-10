@@ -7,6 +7,8 @@ import GridSizeMenu from "../components/editor/GridSizeMenu.vue";
 import ReplicaGrid from "../components/editor/ReplicaGrid.vue";
 import ActionLibrary from "../components/editor/ActionLibrary.vue";
 import DragGhost from "../components/editor/DragGhost.vue";
+import ButtonInspector from "../components/editor/ButtonInspector.vue";
+import EditErrorToast from "../components/editor/EditErrorToast.vue";
 import { useEditor } from "../composables/useEditor";
 import { useStatus } from "../composables/useStatus";
 
@@ -45,7 +47,10 @@ const presetIcons = ref<Record<string, string[]>>({});
     </main>
     <aside
       class="w-[340px] shrink-0 overflow-y-auto border-l border-line bg-surface px-[22px] py-6"
-    />
+    >
+      <ButtonInspector v-if="activeProfile" />
+    </aside>
     <DragGhost :preset-icons="presetIcons" />
+    <EditErrorToast />
   </div>
 </template>

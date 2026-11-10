@@ -11,6 +11,10 @@ export interface Cell {
 
 const pageId = ref<string | null>(null);
 const selected = ref<Cell | null>(null);
+// Browser preview (src/dev/mock.ts): `?select=row,col` selects a cell of the first page.
+const preselect = import.meta.env.DEV
+  ? /^(\d+),(\d+)$/.exec(new URLSearchParams(location.search).get("select") ?? "")
+  : null;
 let watching = false;
 
 /** The page shown in the editor and the selected cell, shared by all panels. */
@@ -36,6 +40,13 @@ export function useSelection() {
       [activeProfile, page],
       ([profile, current]) => {
         if (current && pageId.value !== current.id) pageId.value = current.id;
+        if (preselect && current && !selected.value && pageId.value === current.id) {
+          selected.value = {
+            pageId: current.id,
+            row: Number(preselect[1]),
+            col: Number(preselect[2]),
+          };
+        }
         const cell = selected.value;
         if (
           cell &&
