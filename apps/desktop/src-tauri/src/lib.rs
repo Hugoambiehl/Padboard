@@ -173,6 +173,12 @@ fn list_keys() -> Vec<&'static str> {
         .collect()
 }
 
+/// The action library, adapted to this operating system.
+#[tauri::command]
+fn library() -> Vec<config::presets::Preset> {
+    config::presets::presets()
+}
+
 /// Runs a button's action on this PC ("Tester l'action").
 #[tauri::command]
 async fn test_button(
@@ -216,6 +222,7 @@ pub fn run() {
             redo,
             checkpoint,
             list_keys,
+            library,
             test_button
         ])
         .setup(move |app| {

@@ -4,6 +4,7 @@
 
 pub mod edit;
 mod model;
+pub mod presets;
 pub mod seed;
 mod svg_path;
 mod validate;
@@ -206,9 +207,12 @@ mod tests {
                 }),
             ),
             (
-                "empty hotkey",
+                "repeated key",
                 Box::new(move |c| {
-                    page(c).buttons[0].action = Action::Hotkey(padboard_actions::Hotkey::new([]));
+                    page(c).buttons[0].action = Action::Hotkey(padboard_actions::Hotkey::new([
+                        padboard_actions::Key::KeyA,
+                        padboard_actions::Key::KeyA,
+                    ]));
                 }),
             ),
         ];

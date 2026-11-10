@@ -226,6 +226,21 @@ export interface PairSuccessPayload {
 	token: string;
 }
 
+export enum PresetGroup {
+	System = "system",
+	Media = "media",
+}
+
+export interface Preset {
+	/** Stable id; also the i18n key of the label and description. */
+	id: string;
+	group: PresetGroup;
+	color: Category;
+	/** Lucide icon name (the frontend resolves its paths). */
+	icon: string;
+	action: Action;
+}
+
 /** Authentication state of a connection, announced in `welcome`. */
 export enum AuthStatus {
 	/** Valid token, or USB connection: everything is allowed. */

@@ -30,3 +30,10 @@ body {
   @apply bg-bg text-fg font-sans antialiased;
   color-scheme: dark;
 }
+
+/* While dragging (src/editor/drag.ts): no text selection, grabbing cursor. */
+body.dragging,
+body.dragging * {
+  user-select: none;
+  cursor: grabbing !important;
+}

@@ -63,6 +63,24 @@ const keys = [
   "AudioVolumeDown",
 ];
 
+const hk = (...keys: string[]) => ({ type: "hotkey", params: { keys } });
+const presets = [
+  { id: "hotkey", group: "system", color: "grey", icon: "Keyboard", action: hk() },
+  { id: "copy", group: "system", color: "blue", icon: "Copy", action: hk("ControlLeft", "KeyC") },
+  {
+    id: "paste",
+    group: "system",
+    color: "blue",
+    icon: "ClipboardPaste",
+    action: hk("ControlLeft", "KeyV"),
+  },
+  { id: "screenshot", group: "system", color: "teal", icon: "Camera", action: hk("PrintScreen") },
+  { id: "lock", group: "system", color: "red", icon: "Lock", action: hk("MetaLeft", "KeyL") },
+  { id: "playPause", group: "media", color: "orange", icon: "Play", action: hk("MediaPlayPause") },
+  { id: "volumeUp", group: "media", color: "violet", icon: "Volume2", action: hk("AudioVolumeUp") },
+  { id: "mute", group: "media", color: "violet", icon: "VolumeX", action: hk("AudioVolumeMute") },
+];
+
 export function install() {
   mockIPC(
     (cmd) => {
@@ -73,6 +91,8 @@ export function install() {
           return editor;
         case "list_keys":
           return keys;
+        case "library":
+          return presets;
         case "edit":
           return {};
         case "undo":

@@ -162,6 +162,9 @@ fn validate_button(button: &ButtonConfig) -> Result<(), ConfigError> {
         return Err(ConfigError::InvalidIcon(button.id.clone()));
     }
     match &button.action {
+        // An empty shortcut is a button still being set up: allowed in the
+        // configuration, refused when pressed (`Hotkey::validate`).
+        Action::Hotkey(hotkey) if hotkey.keys.is_empty() => Ok(()),
         Action::Hotkey(hotkey) => hotkey.validate().map_err(|e| ConfigError::InvalidAction {
             button: button.id.clone(),
             detail: e.to_string(),

@@ -186,5 +186,91 @@
     "wouldCut": "Des boutons sortiraient de la grille : déplace-les ou supprime-les d’abord.",
     "emptyCell": "Case vide, ligne {row}, colonne {col}",
     "dropHere": "Déposer ici"
+  },
+  "library": {
+    "title": "Bibliothèque d’actions",
+    "subtitle": "Glisse une action sur une case",
+    "search": "Rechercher une action",
+    "searchPlaceholder": "Rechercher…",
+    "noResult": "Aucune action ne correspond.",
+    "clickHint": "Glisse sur une case vide, ou clique pour l’ajouter à la case sélectionnée",
+    "groups": {
+      "system": "Système",
+      "media": "Audio et médias"
+    },
+    "presets": {
+      "hotkey": {
+        "label": "Raccourci clavier",
+        "desc": "Simule une combinaison de touches"
+      },
+      "copy": {
+        "label": "Copier",
+        "desc": "Ctrl + C"
+      },
+      "cut": {
+        "label": "Couper",
+        "desc": "Ctrl + X"
+      },
+      "paste": {
+        "label": "Coller",
+        "desc": "Ctrl + V"
+      },
+      "undo": {
+        "label": "Annuler",
+        "desc": "Ctrl + Z"
+      },
+      "redo": {
+        "label": "Rétablir",
+        "desc": "Refait la dernière action annulée"
+      },
+      "screenshot": {
+        "label": "Capture d’écran",
+        "desc": "Outil de capture du système"
+      },
+      "showDesktop": {
+        "label": "Bureau",
+        "desc": "Affiche le bureau"
+      },
+      "lock": {
+        "label": "Verrouiller",
+        "desc": "Verrouille la session"
+      },
+      "taskManager": {
+        "label": "Gestionnaire des tâches",
+        "desc": "Ctrl + Maj + Échap"
+      },
+      "terminal": {
+        "label": "Terminal",
+        "desc": "Ctrl + Alt + T"
+      },
+      "playPause": {
+        "label": "Lecture / Pause",
+        "desc": "Lecteur actif"
+      },
+      "previousTrack": {
+        "label": "Piste précédente",
+        "desc": "Lecteur actif"
+      },
+      "nextTrack": {
+        "label": "Piste suivante",
+        "desc": "Lecteur actif"
+      },
+      "stop": {
+        "label": "Stop",
+        "desc": "Arrête la lecture"
+      },
+      "volumeUp": {
+        "label": "Volume +",
+        "desc": "Monte le son du PC"
+      },
+      "volumeDown": {
+        "label": "Volume −",
+        "desc": "Baisse le son du PC"
+      },
+      "mute": {
+        "label": "Muet",
+        "desc": "Coupe ou rétablit le son"
+      }
+    }
   }
 }

@@ -6,10 +6,8 @@ import ButtonFace from "./ButtonFace.vue";
 import { useEditor } from "../../composables/useEditor";
 import { buttonAt, useSelection } from "../../editor/selection";
 import { arrowDirection, neighbor } from "../../editor/keyboard";
-
-/** Cell highlighted as a drop target while dragging (see the library). */
-defineProps<{ dropTarget?: { row: number; col: number } | null }>();
-const emit = defineEmits<{ pointerdownButton: [event: PointerEvent, buttonId: string] }>();
+import { drag, dropEffect, startDrag } from "../../editor/drag";
+import type { ButtonConfig } from "../../generated/types";
 
 const { t } = useI18n();
 const { activeProfile, edit } = useEditor();
@@ -27,6 +25,27 @@ const cells = computed(() => {
   }
   return out;
 });
+
+/** How the hovered cell would take the dragged item. */
+function dropState(row: number, col: number, hasButton: boolean): "add" | "move" | "none" | null {
+  const target = drag.target;
+  if (!drag.source || !target || target.row !== row || target.col !== col) return null;
+  return dropEffect(drag.source, hasButton);
+}
+
+// Dragging a button moves it (swapping with the button of the target cell).
+function dragButton(event: PointerEvent, button: ButtonConfig) {
+  const p = page.value;
+  if (!p) return;
+  startDrag(event, { kind: "button", button }, async (cell) => {
+    if (cell.row === button.row && cell.col === button.col) return;
+    const ok = await edit({
+      type: "moveButton",
+      params: { buttonId: button.id, pageId: p.id, row: cell.row, col: cell.col },
+    });
+    if (ok) pick(cell.row, cell.col);
+  });
+}
 
 function isSelected(row: number, col: number) {
   const s = selected.value;
@@ -93,21 +112,23 @@ async function onKeydown(event: KeyboardEvent) {
           c.button
             ? 'items-start justify-between bg-surface-2'
             : 'items-center justify-center gap-1.5 border-dashed bg-accent/[.06] text-[11px] text-muted-2',
-          isSelected(c.row, c.col)
-            ? 'border-accent'
-            : dropTarget && dropTarget.row === c.row && dropTarget.col === c.col
-              ? 'border-accent/70 bg-accent/15'
-              : c.button
-                ? 'border-line-2'
-                : 'border-[#34374A]',
+          dropState(c.row, c.col, !!c.button) === 'none'
+            ? 'border-cat-red/60'
+            : dropState(c.row, c.col, !!c.button)
+              ? 'border-accent bg-accent/15'
+              : isSelected(c.row, c.col)
+                ? 'border-accent'
+                : c.button
+                  ? 'border-line-2'
+                  : 'border-[#34374A]',
         ]"
         @click="pick(c.row, c.col)"
-        @pointerdown="c.button && emit('pointerdownButton', $event, c.button.id)"
+        @pointerdown="c.button && dragButton($event, c.button)"
       >
         <ButtonFace v-if="c.button" :button="c.button" compact />
         <template v-else>
           <Plus :size="18" class="text-accent" aria-hidden="true" />
-          <span v-if="dropTarget && dropTarget.row === c.row && dropTarget.col === c.col">
+          <span v-if="dropState(c.row, c.col, false) === 'add'">
             {{ t("grid.dropHere") }}
           </span>
         </template>
