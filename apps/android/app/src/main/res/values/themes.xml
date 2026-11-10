@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.Padboard" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Dark only. The window background matches the app to avoid a white flash at startup. -->
+    <style name="Theme.Padboard" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/background</item>
+    </style>
 </resources>

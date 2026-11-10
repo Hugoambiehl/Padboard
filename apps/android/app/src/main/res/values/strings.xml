@@ -1,3 +1,32 @@
-<resources>
-    <string name="app_name">Padboard</string>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Default resources are French (default UI language); English goes in values-en. -->
+    <string name="app_name" translatable="false">Padboard</string>
+
+    <!-- Connection screen -->
+    <string name="connect_title">Connecter la tablette\nà ton PC</string>
+    <string name="connect_body">Lance Padboard sur ton PC. En USB, branche la tablette et utilise l’adresse 127.0.0.1. En Wi-Fi, saisis l’adresse affichée par l’application du PC.</string>
+    <string name="connect_card_title">Adresse du PC</string>
+    <string name="connect_host_label">Adresse IP</string>
+    <string name="connect_port_label">Port</string>
+    <string name="connect_button">Se connecter</string>
+    <string name="connect_usb_button">Utiliser l’USB</string>
+    <string name="connect_connecting">Connexion à %1$s…</string>
+    <string name="connect_cancel">Annuler</string>
+    <string name="connect_invalid_host">Adresse invalide.</string>
+    <string name="connect_invalid_port">Port invalide (1 à 65535).</string>
+
+    <!-- Connection failures -->
+    <string name="failure_unreachable">Impossible de joindre le PC à l’adresse %1$s. Vérifie que Padboard est lancé, et pour l’USB que la commande adb reverse a été exécutée.</string>
+    <string name="failure_incompatible">Les versions de Padboard sur le PC et sur la tablette sont incompatibles. Mets les deux à jour.</string>
+    <string name="failure_rejected">Le PC a refusé la connexion.</string>
+    <string name="failure_lost">Connexion au PC perdue.</string>
+
+    <!-- Grid -->
+    <string name="transport_usb">USB</string>
+    <string name="transport_wifi">Wi-Fi</string>
+    <string name="connection_pill_description">Connecté à %1$s en %2$s. Toucher pour se déconnecter.</string>
+    <!-- "Page 2 sur 3": a position, not a quantity. -->
+    <string name="page_indicator_description" tools:ignore="PluralsCandidate">Page %1$d sur %2$d</string>
+    <string name="layout_waiting">Réception de la grille…</string>
+    <string name="action_failed">L’action a échoué sur le PC.</string>
 </resources>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The tablet talks to the desktop app over plain ws:// on the LAN (or 127.0.0.1
+  through `adb reverse` for USB). LAN addresses cannot be listed in a
+  domain-config, so cleartext is allowed for the whole app: it never talks to
+  anything but the user's own PC.
+-->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <base-config
+        cleartextTrafficPermitted="true"
+        tools:ignore="InsecureBaseConfiguration" />
+</network-security-config>
