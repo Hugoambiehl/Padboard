@@ -30,7 +30,7 @@ rustls = { version = "0.23.46", default-features = false, features = ["logging",
 sha2.workspace = true
 subtle = "2.6.1"
 tauri = { version = "~2.11", features = [] }
-tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
+tokio = { version = "1.54.1", features = ["io-util", "macros", "net", "process", "rt-multi-thread", "sync", "time"] }
 tokio-rustls = { version = "0.26.6", default-features = false, features = ["logging", "ring", "tls12"] }
 tokio-tungstenite = "0.30.0"
 futures-util = { version = "0.3.34", default-features = false, features = ["std", "sink"] }

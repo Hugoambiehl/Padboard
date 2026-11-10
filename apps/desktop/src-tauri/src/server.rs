@@ -116,6 +116,8 @@ pub enum ServerEvent {
     /// Wi-Fi turned on or off from the UI.
     WifiEnabled(bool),
     Mdns(crate::wifi::MdnsStatus),
+    /// `adb` and the USB devices it sees.
+    Usb(crate::adb::UsbStatus),
     ClientConnected {
         id: u64,
         device_id: String,

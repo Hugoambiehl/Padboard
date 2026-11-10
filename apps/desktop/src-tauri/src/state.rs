@@ -10,6 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use padboard_protocol::Layout;
 use serde::Serialize;
 
+use crate::adb::UsbStatus;
 use crate::auth::{AuthChange, PairedDeviceView, PairingView, Transport};
 use crate::server::{ActionOutcome, ServerEvent};
 use crate::settings::Settings;
@@ -25,6 +26,8 @@ pub struct Snapshot {
     pub clients: Vec<ClientInfo>,
     pub pairing: PairingView,
     pub paired_devices: Vec<PairedDeviceView>,
+    /// `adb` and the devices plugged over USB.
+    pub usb: UsbStatus,
     /// Most recent first.
     pub activity: VecDeque<ActivityEntry>,
     #[serde(skip)]
@@ -181,6 +184,7 @@ impl Snapshot {
             clients: Vec::new(),
             pairing: PairingView::Idle,
             paired_devices: Vec::new(),
+            usb: UsbStatus::default(),
             activity: VecDeque::new(),
             labels,
             next_activity_id: 1,
@@ -228,6 +232,7 @@ impl Snapshot {
                 }
             }
             ServerEvent::Mdns(status) => self.server.wifi.mdns = status,
+            ServerEvent::Usb(status) => self.usb = status,
             ServerEvent::ClientConnected {
                 id,
                 device_id,
@@ -443,6 +448,7 @@ mod tests {
         assert_eq!(v["server"]["wifi"]["fingerprint"], "AAAA-BBBB-CCCC");
         assert_eq!(v["server"]["wifi"]["mdns"]["state"], "off");
         assert!(v["server"]["wifi"]["lanAddresses"].is_array());
+        assert_eq!(v["usb"]["adb"]["state"], "searching");
         assert!(v.get("labels").is_none());
     }
 }

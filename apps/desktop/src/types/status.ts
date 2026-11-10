@@ -60,6 +60,33 @@ export interface PairedDevice {
   lastSeenMs: number | null;
 }
 
+export type AdbState =
+  | { state: "searching" }
+  | { state: "missing"; chosen: string | null }
+  | { state: "ready"; path: string; version: string | null }
+  | { state: "error"; path: string; detail: string };
+
+export type DeviceState =
+  | { state: "unauthorized" }
+  | { state: "noPermission" }
+  | { state: "offline" }
+  | { state: "checking" }
+  | { state: "noPadboard" }
+  | { state: "ready" }
+  | { state: "failed"; detail: string }
+  | { state: "other"; adbState: string };
+
+export interface UsbDevice {
+  serial: string;
+  model: string | null;
+  state: DeviceState;
+}
+
+export interface UsbStatus {
+  adb: AdbState;
+  devices: UsbDevice[];
+}
+
 export type ActionErrorCode = "invalid" | "unsupported" | "unavailable" | "failed";
 
 export type ActionOutcome =
@@ -79,5 +106,6 @@ export interface Snapshot {
   clients: ClientInfo[];
   pairing: PairingView;
   pairedDevices: PairedDevice[];
+  usb: UsbStatus;
   activity: ActivityEntry[];
 }

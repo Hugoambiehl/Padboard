@@ -6,6 +6,7 @@
 //! the `status` event and can be fetched with the `get_status` command. The
 //! other commands drive pairing, revocation and the Wi-Fi toggle.
 
+mod adb;
 mod auth;
 mod demo;
 mod identity;
@@ -21,6 +22,7 @@ mod tls;
 mod wifi;
 
 use std::net::IpAddr;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, AtomicUsize};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
@@ -50,6 +52,8 @@ struct Backend {
     auth: Arc<Auth>,
     wifi: Wifi,
     events: tokio::sync::mpsc::UnboundedSender<ServerEvent>,
+    /// The `adb` chosen in the UI; the tracker restarts when it changes.
+    adb_path: tokio::sync::watch::Sender<Option<PathBuf>>,
 }
 
 impl Backend {
@@ -67,6 +71,25 @@ impl Backend {
         }
         let _ = self.events.send(ServerEvent::WifiEnabled(enabled));
         self.wifi.set_running(enabled);
+        Ok(())
+    }
+
+    /// `None`: look `adb` up automatically again.
+    fn set_adb_path(&self, path: Option<PathBuf>) -> Result<(), String> {
+        if let Some(path) = &path
+            && !path.is_file()
+        {
+            return Err(format!("{} is not a file", path.display()));
+        }
+        {
+            let mut preferences = self
+                .preferences
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            preferences.adb_path.clone_from(&path);
+            self.config.save(&*preferences).map_err(|e| e.to_string())?;
+        }
+        self.adb_path.send_replace(path);
         Ok(())
     }
 }
@@ -100,6 +123,12 @@ fn set_wifi_enabled(backend: tauri::State<'_, Backend>, enabled: bool) -> Result
     backend.set_wifi_enabled(enabled)
 }
 
+/// Uses this `adb` executable (`None`: find it automatically).
+#[tauri::command]
+fn set_adb_path(backend: tauri::State<'_, Backend>, path: Option<String>) -> Result<(), String> {
+    backend.set_adb_path(path.map(PathBuf::from))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     init_tracing();
@@ -115,7 +144,8 @@ pub fn run() {
             start_pairing,
             cancel_pairing,
             revoke_device,
-            set_wifi_enabled
+            set_wifi_enabled,
+            set_adb_path
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -210,6 +240,18 @@ pub fn run() {
             );
             wifi.set_running(wifi_enabled);
 
+            // USB: follow devices and forward the USB port to the tablets.
+            let (adb_path, adb_chosen) = tokio::sync::watch::channel(preferences.adb_path.clone());
+            let usb_events = events_tx.clone();
+            tauri::async_runtime::spawn(adb::run(
+                adb::Config::new(settings.usb_port),
+                adb::Process,
+                adb_chosen,
+                move |status| {
+                    let _ = usb_events.send(ServerEvent::Usb(status));
+                },
+            ));
+
             app.manage(Backend {
                 config,
                 settings: settings.clone(),
@@ -217,6 +259,7 @@ pub fn run() {
                 auth,
                 wifi,
                 events: events_tx,
+                adb_path,
             });
 
             if let Some(window) = app.get_webview_window("main") {
