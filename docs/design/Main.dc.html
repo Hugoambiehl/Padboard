@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Grille de boutons</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#8B7CFF}a:hover{color:#B3A9FF}
+button{font:inherit}
+.tile{cursor:pointer;transition:transform .12s ease, background-color .2s ease, border-color .2s ease}
+.tile:active{transform:scale(.94)}
+.ic{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.pulse{animation:pulse 1.2s ease-in-out infinite}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; padding: 28px 40px 40px; background: #0E0F12; color: #E8EAF0; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; gap: 24px">
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 48px">
+    <button style="display: flex; align-items: center; gap: 12px; background: #17181D; border: 1px solid #24262E; border-radius: 14px; padding: 7px 16px 7px 7px; color: #E8EAF0; cursor: pointer">
+      <span style="width: 34px; height: 34px; border-radius: 10px; background: #8B7CFF; display: flex; align-items: center; justify-content: center">
+        <svg class="ic" width="18" height="18" viewBox="0 0 24 24" stroke="#0E0F12" aria-hidden="true"><path d="M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z"></path></svg>
+      </span>
+      <span style="font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 600">Streaming</span>
+      <svg class="ic" width="16" height="16" viewBox="0 0 24 24" stroke="#8A90A0" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+    </button>
+    <div style="display: flex; align-items: center; gap: 8px">
+      <span style="width: 26px; height: 8px; border-radius: 4px; background: #E8EAF0"></span>
+      <span style="width: 8px; height: 8px; border-radius: 4px; background: #3A3D47"></span>
+      <span style="width: 8px; height: 8px; border-radius: 4px; background: #3A3D47"></span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 14px">
+      <div style="display: flex; align-items: center; gap: 8px; background: #17181D; border: 1px solid #24262E; border-radius: 999px; padding: 8px 14px; font-size: 14px; color: #C3C8D4">
+        <span style="width: 8px; height: 8px; border-radius: 4px; background: #3DD6B5"></span>
+        PC-HUGO
+        <span style="color: #8A90A0">· USB · 2 ms</span>
+      </div>
+      <span style="font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 500; color: #E8EAF0">21:42</span>
+    </div>
+  </div>
+  <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 20px; flex: 1; min-height: 0">
+    <sc-for list="{{items}}" as="item" hint-placeholder-count="15">
+      <button class="tile" onClick="{{item.press}}" style="display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; padding: 20px; border-radius: 22px; background: {{item.bg}}; border: 1px solid {{item.border}}; color: #E8EAF0; text-align: left; box-sizing: border-box; min-height: 0">
+        <div style="display: flex; width: 100%; justify-content: space-between; align-items: flex-start">
+          <span style="width: 56px; height: 56px; border-radius: 16px; background: {{item.iconBg}}; display: flex; align-items: center; justify-content: center">
+            <svg class="ic" width="28" height="28" viewBox="0 0 24 24" stroke="{{item.iconFg}}" aria-hidden="true"><path d="{{item.d}}"></path></svg>
+          </span>
+          <sc-if value="{{item.hasBadge}}" hint-placeholder-val="{{false}}">
+            <span style="display: flex; align-items: center; gap: 6px; background: {{item.iconBg}}; color: {{item.iconFg}}; border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 600; letter-spacing: .04em">
+              <span class="pulse" style="width: 7px; height: 7px; border-radius: 4px; background: {{item.iconFg}}"></span>
+              {{item.badge}}
+            </span>
+          </sc-if>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <span style="font-size: 17px; font-weight: 600">{{item.label}}</span>
+          <span style="font-size: 13px; color: #8A90A0">{{item.sub}}</span>
+        </div>
+      </button>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { mic: true, rec: false, live: true, scene: 'jeu' };
+  }
+  renderVals() {
+    var s = this.state;
+    var self = this;
+    var T = {
+      violet: ['#8B7CFF', 'rgba(139,124,255,.16)'],
+      blue: ['#5AA9FF', 'rgba(90,169,255,.16)'],
+      teal: ['#3DD6B5', 'rgba(61,214,181,.16)'],
+      orange: ['#FF9F5A', 'rgba(255,159,90,.16)'],
+      pink: ['#FF6FAE', 'rgba(255,111,174,.16)'],
+      red: ['#FF5C5C', 'rgba(255,92,92,.18)'],
+      slate: ['#A3ABBD', 'rgba(163,171,189,.14)']
+    };
+    var I = {
+      mic: 'M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2 M12 19v3',
+      micOff: 'M2 2l20 20 M18.89 13.23A7 7 0 0 0 19 12v-2 M5 10v2a7 7 0 0 0 12 5 M15 9.34V5a3 3 0 0 0-5.68-1.33 M9 9v3a3 3 0 0 0 5.12 2.12 M12 19v3',
+      volume: 'M11 5L6 9H2v6h4l5 4V5z M15.54 8.46a5 5 0 0 1 0 7.07 M19.07 4.93a10 10 0 0 1 0 14.14',
+      play: 'M5 4l8 8-8 8V4z M17 5v14 M21 5v14',
+      next: 'M5 4l10 8-10 8V4z M19 5v14',
+      headset: 'M3 18v-6a9 9 0 0 1 18 0v6 M21 19a2 2 0 0 1-2 2h-1v-6h3z M3 19a2 2 0 0 0 2 2h1v-6H3z',
+      camera: 'M23 7l-7 5 7 5V7z M1 5h15v14H1z',
+      scene: 'M3 4h18v12H3z M8 20h8 M12 16v4',
+      clock: 'M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20z M12 6v6l4 2',
+      record: 'M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16z M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6z',
+      live: 'M4.93 19.07a10 10 0 0 1 0-14.14 M7.76 16.24a6 6 0 0 1 0-8.49 M16.24 7.76a6 6 0 0 1 0 8.49 M19.07 4.93a10 10 0 0 1 0 14.14 M12 11a1 1 0 1 0 0 2a1 1 0 1 0 0-2z',
+      globe: 'M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20z M2 12h20 M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20z',
+      terminal: 'M4 17l6-6-6-6 M12 19h8',
+      folder: 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z',
+      lock: 'M5 11h14v10H5z M8 11V7a4 4 0 0 1 8 0v4',
+      moon: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'
+    };
+    function scene(key, label, icon) {
+      var on = s.scene === key;
+      return { label: label, sub: on ? 'Scène active' : 'OBS · Scène', d: I[icon], tone: 'teal', active: on,
+        press: function () { self.setState({ scene: key }); } };
+    }
+    var raw = [
+      { label: s.mic ? 'Micro' : 'Micro coupé', sub: s.mic ? 'Actif' : 'Muet', d: s.mic ? I.mic : I.micOff, tone: s.mic ? 'violet' : 'red', active: !s.mic,
+        press: function () { self.setState({ mic: !s.mic }); } },
+      { label: 'Son PC', sub: 'Volume 64 %', d: I.volume, tone: 'blue' },
+      { label: 'Lecture / Pause', sub: 'Médias', d: I.play, tone: 'orange' },
+      { label: 'Piste suivante', sub: 'Médias', d: I.next, tone: 'orange' },
+      { label: 'Discord', sub: 'Sourdine · Ctrl+Shift+D', d: I.headset, tone: 'blue' },
+      scene('cam', 'Caméra', 'camera'),
+      scene('jeu', 'Jeu', 'scene'),
+      scene('pause', 'Pause', 'clock'),
+      { label: 'Enregistrer', sub: s.rec ? '00:12:48' : 'OBS · Arrêté', d: I.record, tone: 'red', active: s.rec, badge: s.rec ? 'REC' : '',
+        press: function () { self.setState({ rec: !s.rec }); } },
+      { label: 'Live', sub: s.live ? 'Depuis 1 h 04' : 'OBS · Hors ligne', d: I.live, tone: 'pink', active: s.live, badge: s.live ? 'EN DIRECT' : '',
+        press: function () { self.setState({ live: !s.live }); } },
+      { label: 'Navigateur', sub: 'Lancer l’application', d: I.globe, tone: 'slate' },
+      { label: 'Terminal', sub: 'Lancer l’application', d: I.terminal, tone: 'slate' },
+      { label: 'Gaming', sub: 'Dossier · 6 boutons', d: I.folder, tone: 'violet' },
+      { label: 'Verrouiller', sub: 'Win + L', d: I.lock, tone: 'slate' },
+      { label: 'Mode nuit', sub: 'Écran tablette', d: I.moon, tone: 'slate' }
+    ];
+    var items = raw.map(function (it) {
+      var t = T[it.tone];
+      return {
+        label: it.label, sub: it.sub, d: it.d,
+        iconFg: t[0], iconBg: t[1],
+        bg: it.active ? '#1E2029' : '#17181D',
+        border: it.active ? t[0] : '#24262E',
+        hasBadge: !!it.badge, badge: it.badge || '',
+        press: it.press || function () {}
+      };
+    });
+    return { items: items };
+  }
+}
+</script>
+</body>
+</html>

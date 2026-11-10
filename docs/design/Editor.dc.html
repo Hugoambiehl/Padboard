@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Éditeur desktop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0F12}
+a{color:#8B7CFF}a:hover{color:#B3A9FF}
+button,input{font:inherit}
+input:focus{outline:2px solid #8B7CFF;outline-offset:1px}
+.ic{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.hov{cursor:pointer;transition:background-color .15s ease, transform .12s ease, border-color .15s ease}
+.hov:hover{background-color:#1E2029}
+.hov:active{transform:scale(.97)}
+.cell{cursor:pointer;transition:transform .12s ease, border-color .15s ease}
+.cell:active{transform:scale(.95)}
+</style>
+</helmet>
+<div style="min-height: 960px; background: #0E0F12; color: #E8EAF0; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-bottom: 1px solid #22242B; background: #121317">
+    <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap">
+      <span style="width: 32px; height: 32px; border-radius: 10px; background: #8B7CFF; display: flex; align-items: center; justify-content: center">
+        <svg class="ic" width="17" height="17" viewBox="0 0 24 24" stroke="#0E0F12" aria-hidden="true"><path d="M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z"></path></svg>
+      </span>
+      <span style="font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 600">Padboard</span>
+      <span style="width: 1px; height: 22px; background: #2A2D36"></span>
+      <button class="hov" style="display: flex; align-items: center; gap: 8px; background: #17181D; border: 1px solid #24262E; border-radius: 10px; padding: 7px 12px; color: #E8EAF0; font-size: 14px">
+        Profil : <strong style="font-weight: 600">Streaming</strong>
+        <svg class="ic" width="14" height="14" viewBox="0 0 24 24" stroke="#8A90A0" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+      </button>
+      <div style="display: flex; gap: 4px">
+        <button class="hov" aria-label="Annuler" style="width: 34px; height: 34px; border-radius: 9px; background: transparent; border: 1px solid #24262E; display: flex; align-items: center; justify-content: center">
+          <svg class="ic" width="16" height="16" viewBox="0 0 24 24" stroke="#C3C8D4" aria-hidden="true"><path d="M3 7v6h6 M21 17a9 9 0 0 0-15-6.7L3 13"></path></svg>
+        </button>
+        <button class="hov" aria-label="Rétablir" style="width: 34px; height: 34px; border-radius: 9px; background: transparent; border: 1px solid #24262E; display: flex; align-items: center; justify-content: center">
+          <svg class="ic" width="16" height="16" viewBox="0 0 24 24" stroke="#C3C8D4" aria-hidden="true"><path d="M21 7v6h-6 M3 17a9 9 0 0 1 15-6.7L21 13"></path></svg>
+        </button>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+      <div style="display: flex; align-items: center; gap: 8px; background: rgba(61,214,181,.10); border: 1px solid rgba(61,214,181,.35); color: #9FEBD9; border-radius: 999px; padding: 6px 12px; font-size: 13px">
+        <span style="width: 8px; height: 8px; border-radius: 4px; background: #3DD6B5"></span>
+        Galaxy Tab A · USB · 2 ms
+      </div>
+      <button class="hov" style="background: #17181D; border: 1px solid #24262E; color: #E8EAF0; border-radius: 10px; padding: 7px 14px; font-size: 14px">Associer un appareil</button>
+    </div>
+  </header>
+
+  <div style="display: flex; flex-wrap: wrap; flex: 1; min-height: 0">
+
+    <aside style="flex: 1 1 260px; background: #121317; border-right: 1px solid #22242B; padding: 20px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px">
+      <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 4px">
+        <span style="font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600">Bibliothèque d’actions</span>
+        <span style="font-size: 13px; color: #8A90A0">Glisse une action sur une case</span>
+      </div>
+      <label style="display: flex; align-items: center; gap: 8px; background: #0E0F12; border: 1px solid #24262E; border-radius: 10px; padding: 0 12px">
+        <svg class="ic" width="16" height="16" viewBox="0 0 24 24" stroke="#8A90A0" aria-hidden="true"><path d="M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14z M21 21l-4.35-4.35"></path></svg>
+        <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Rechercher une action</span>
+        <input value="{{q}}" onChange="{{onSearch}}" placeholder="Rechercher…" style="flex: 1; min-width: 0; background: transparent; border: 0; color: #E8EAF0; padding: 10px 0; font-size: 14px; outline: none">
+      </label>
+      <div style="display: flex; flex-direction: column; gap: 16px">
+        <sc-for list="{{groups}}" as="g" hint-placeholder-count="5">
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <span style="font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #8A90A0; padding: 0 6px 4px">{{g.name}}</span>
+            <sc-for list="{{g.items}}" as="a" hint-placeholder-count="3">
+              <button class="hov" style="display: flex; align-items: center; gap: 10px; background: transparent; border: 1px solid transparent; border-radius: 10px; padding: 7px 8px; color: #E8EAF0; text-align: left; cursor: grab">
+                <span style="width: 30px; height: 30px; flex: none; border-radius: 9px; background: {{a.bg}}; display: flex; align-items: center; justify-content: center">
+                  <svg class="ic" width="16" height="16" viewBox="0 0 24 24" stroke="{{a.fg}}" aria-hidden="true"><path d="{{a.d}}"></path></svg>
+                </span>
+                <span style="display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0">
+                  <span style="font-size: 14px; font-weight: 500">{{a.name}}</span>
+                  <span style="font-size: 12px; color: #8A90A0">{{a.desc}}</span>
+                </span>
+                <svg class="ic" width="14" height="14" viewBox="0 0 24 24" stroke="#4A4E5A" aria-hidden="true"><path d="M9 5h.01 M9 12h.01 M9 19h.01 M15 5h.01 M15 12h.01 M15 19h.01"></path></svg>
+              </button>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </aside>
+
+    <main style="flex: 999 1 560px; min-width: 0; padding: 28px 32px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 20px">
+      <div style="width: 100%; max-width: 820px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+        <div style="display: flex; gap: 6px; flex-wrap: wrap">
+          <button class="hov" style="background: #22242C; border: 1px solid #34374A; color: #E8EAF0; border-radius: 9px; padding: 7px 14px; font-size: 14px; font-weight: 600">Page 1</button>
+          <button class="hov" style="background: transparent; border: 1px solid #24262E; color: #A3ABBD; border-radius: 9px; padding: 7px 14px; font-size: 14px">Page 2</button>
+          <button class="hov" style="background: transparent; border: 1px solid #24262E; color: #A3ABBD; border-radius: 9px; padding: 7px 14px; font-size: 14px">Gaming</button>
+          <button class="hov" aria-label="Ajouter une page" style="width: 34px; background: transparent; border: 1px dashed #34374A; color: #A3ABBD; border-radius: 9px; display: flex; align-items: center; justify-content: center">
+            <svg class="ic" width="14" height="14" viewBox="0 0 24 24" stroke="#A3ABBD" aria-hidden="true"><path d="M12 5v14 M5 12h14"></path></svg>
+          </button>
+        </div>
+        <button class="hov" style="display: flex; align-items: center; gap: 8px; background: transparent; border: 1px solid #24262E; color: #A3ABBD; border-radius: 9px; padding: 7px 12px; font-size: 13px">
+          Grille 5 × 3
+          <svg class="ic" width="14" height="14" viewBox="0 0 24 24" stroke="#8A90A0" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+        </button>
+      </div>
+
+      <div style="width: 100%; max-width: 820px; background: #08090B; border: 1px solid #22242B; border-radius: 30px; padding: 18px; box-sizing: border-box">
+        <div style="background: #0E0F12; border-radius: 16px; padding: 16px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px">
+          <sc-for list="{{cells}}" as="c" hint-placeholder-count="15">
+            <sc-if value="{{c.filled}}" hint-placeholder-val="{{true}}">
+              <button class="cell" onClick="{{c.pick}}" style="aspect-ratio: 1.1; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; padding: 10px; border-radius: 12px; background: #17181D; border: 2px solid {{c.ring}}; color: #E8EAF0; text-align: left; box-sizing: border-box; min-width: 0">
+                <span style="width: 32px; height: 32px; border-radius: 9px; background: {{c.bg}}; display: flex; align-items: center; justify-content: center">
+                  <svg class="ic" width="17" height="17" viewBox="0 0 24 24" stroke="{{c.fg}}" aria-hidden="true"><path d="{{c.d}}"></path></svg>
+                </span>
+                <span style="font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%">{{c.label}}</span>
+              </button>
+            </sc-if>
+            <sc-if value="{{c.empty}}" hint-placeholder-val="{{false}}">
+              <button class="cell" onClick="{{c.pick}}" style="aspect-ratio: 1.1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; border-radius: 12px; background: rgba(139,124,255,.06); border: 2px dashed {{c.ring}}; color: #A3ABBD; box-sizing: border-box; min-width: 0; font-size: 11px; text-align: center; padding: 6px">
+                <svg class="ic" width="18" height="18" viewBox="0 0 24 24" stroke="#8B7CFF" aria-hidden="true"><path d="M12 5v14 M5 12h14"></path></svg>
+                Déposer ici
+              </button>
+            </sc-if>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="width: 100%; max-width: 820px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; color: #8A90A0">
+        <span>Clique sur une case pour la modifier · Glisse les cases pour les réorganiser</span>
+        <span style="display: flex; align-items: center; gap: 6px; color: #9FEBD9">
+          <svg class="ic" width="14" height="14" viewBox="0 0 24 24" stroke="#3DD6B5" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg>
+          Synchronisé en direct
+        </span>
+      </div>
+    </main>
+
+    <aside style="flex: 1 1 320px; background: #121317; border-left: 1px solid #22242B; padding: 24px 22px; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px">
+      <sc-if value="{{selEmpty}}" hint-placeholder-val="{{false}}">
+        <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-start">
+          <span style="font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600">Case vide</span>
+          <span style="font-size: 14px; color: #A3ABBD; line-height: 1.5">Glisse une action depuis la bibliothèque à gauche pour créer un bouton à cet emplacement.</span>
+        </div>
+      </sc-if>
+      <sc-if value="{{selFilled}}" hint-placeholder-val="{{true}}">
+        <div style="display: flex; align-items: center; gap: 14px">
+          <span style="width: 64px; height: 64px; border-radius: 18px; background: #17181D; border: 1px solid #24262E; display: flex; align-items: center; justify-content: center">
+            <span style="width: 44px; height: 44px; border-radius: 12px; background: {{sel.bg}}; display: flex; align-items: center; justify-content: center">
+              <svg class="ic" width="22" height="22" viewBox="0 0 24 24" stroke="{{sel.fg}}" aria-hidden="true"><path d="{{sel.d}}"></path></svg>
+            </span>
+          </span>
+          <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0">
+            <span style="font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 600">{{sel.label}}</span>
+            <span style="font-size: 13px; color: #8A90A0">{{sel.pos}}</span>
+          </div>
+        </div>
+
+        <label style="display: flex; flex-direction: column; gap: 8px">
+          <span style="font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8A90A0">Libellé</span>
+          <input value="{{sel.label}}" onChange="{{onLabel}}" style="background: #0E0F12; border: 1px solid #2A2D36; border-radius: 10px; padding: 10px 12px; color: #E8EAF0; font-size: 15px">
+        </label>
+
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <span style="font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8A90A0">Icône</span>
+          <div style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px">
+            <sc-for list="{{iconChoices}}" as="ic" hint-placeholder-count="8">
+              <button class="hov" onClick="{{ic.pick}}" aria-label="{{ic.name}}" style="aspect-ratio: 1; border-radius: 9px; background: #0E0F12; border: 1px solid {{ic.ring}}; display: flex; align-items: center; justify-content: center; padding: 0">
+                <svg class="ic" width="16" height="16" viewBox="0 0 24 24" stroke="{{ic.fg}}" aria-hidden="true"><path d="{{ic.d}}"></path></svg>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <span style="font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8A90A0">Couleur</span>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            <sc-for list="{{swatches}}" as="sw" hint-placeholder-count="7">
+              <button class="hov" onClick="{{sw.pick}}" aria-label="{{sw.name}}" style="width: 32px; height: 32px; border-radius: 16px; background: {{sw.color}}; border: 3px solid {{sw.ring}}; padding: 0; box-sizing: border-box"></button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px; background: #17181D; border: 1px solid #24262E; border-radius: 14px; padding: 16px">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+            <span style="font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8A90A0">Action</span>
+            <span style="font-size: 12px; color: {{sel.fg}}; background: {{sel.bg}}; border-radius: 999px; padding: 3px 10px">{{sel.cat}}</span>
+          </div>
+          <button class="hov" style="display: flex; align-items: center; justify-content: space-between; background: #0E0F12; border: 1px solid #2A2D36; border-radius: 10px; padding: 10px 12px; color: #E8EAF0; font-size: 15px; text-align: left">
+            {{sel.type}}
+            <svg class="ic" width="14" height="14" viewBox="0 0 24 24" stroke="#8A90A0" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+          </button>
+          <label style="display: flex; flex-direction: column; gap: 6px">
+            <span style="font-size: 13px; color: #A3ABBD">{{sel.paramLabel}}</span>
+            <input value="{{sel.param}}" onChange="{{onParam}}" style="background: #0E0F12; border: 1px solid #2A2D36; border-radius: 10px; padding: 10px 12px; color: #E8EAF0; font-size: 14px">
+          </label>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 4px">
+            <div style="display: flex; flex-direction: column; gap: 2px">
+              <span style="font-size: 14px; font-weight: 500">Bouton à état</span>
+              <span style="font-size: 12px; color: #8A90A0">L’icône change selon l’état (ex. micro coupé)</span>
+            </div>
+            <button role="switch" aria-checked="{{sel.statefulStr}}" aria-label="Bouton à état" onClick="{{onStateful}}" style="width: 44px; height: 26px; flex: none; border-radius: 13px; background: {{sel.switchBg}}; border: 0; padding: 3px; display: flex; justify-content: {{sel.switchJustify}}; cursor: pointer; transition: background-color .2s ease">
+              <span style="width: 20px; height: 20px; border-radius: 10px; background: #FFFFFF"></span>
+            </button>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; flex-wrap: wrap">
+          <button class="hov" onClick="{{onTest}}" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; background: #8B7CFF; border: 0; color: #0E0F12; border-radius: 11px; padding: 12px 16px; font-size: 15px; font-weight: 600">
+            <svg class="ic" width="16" height="16" viewBox="0 0 24 24" stroke="#0E0F12" aria-hidden="true"><path d="M6 4l14 8-14 8V4z"></path></svg>
+            {{testLabel}}
+          </button>
+          <button class="hov" style="background: transparent; border: 1px solid #3A2A2E; color: #FF8A8A; border-radius: 11px; padding: 12px 16px; font-size: 15px">Supprimer</button>
+        </div>
+      </sc-if>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { sel: 0, q: '', over: {}, tested: false };
+  }
+  renderVals() {
+    var self = this;
+    var s = this.state;
+    var T = {
+      violet: ['#8B7CFF', 'rgba(139,124,255,.16)', 'Violet'],
+      blue: ['#5AA9FF', 'rgba(90,169,255,.16)', 'Bleu'],
+      teal: ['#3DD6B5', 'rgba(61,214,181,.16)', 'Turquoise'],
+      orange: ['#FF9F5A', 'rgba(255,159,90,.16)', 'Orange'],
+      pink: ['#FF6FAE', 'rgba(255,111,174,.16)', 'Rose'],
+      red: ['#FF5C5C', 'rgba(255,92,92,.18)', 'Rouge'],
+      slate: ['#A3ABBD', 'rgba(163,171,189,.14)', 'Gris']
+    };
+    var I = {
+      mic: 'M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2 M12 19v3',
+      volume: 'M11 5L6 9H2v6h4l5 4V5z M15.54 8.46a5 5 0 0 1 0 7.07 M19.07 4.93a10 10 0 0 1 0 14.14',
+      play: 'M5 4l8 8-8 8V4z M17 5v14 M21 5v14',
+      next: 'M5 4l10 8-10 8V4z M19 5v14',
+      headset: 'M3 18v-6a9 9 0 0 1 18 0v6 M21 19a2 2 0 0 1-2 2h-1v-6h3z M3 19a2 2 0 0 0 2 2h1v-6H3z',
+      camera: 'M23 7l-7 5 7 5V7z M1 5h15v14H1z',
+      scene: 'M3 4h18v12H3z M8 20h8 M12 16v4',
+      clock: 'M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20z M12 6v6l4 2',
+      record: 'M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16z M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6z',
+      live: 'M4.93 19.07a10 10 0 0 1 0-14.14 M7.76 16.24a6 6 0 0 1 0-8.49 M16.24 7.76a6 6 0 0 1 0 8.49 M19.07 4.93a10 10 0 0 1 0 14.14 M12 11a1 1 0 1 0 0 2a1 1 0 1 0 0-2z',
+      globe: 'M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20z M2 12h20 M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20z',
+      terminal: 'M4 17l6-6-6-6 M12 19h8',
+      folder: 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z',
+      lock: 'M5 11h14v10H5z M8 11V7a4 4 0 0 1 8 0v4',
+      keyboard: 'M2 6h20v12H2z M6 10h.01 M10 10h.01 M14 10h.01 M18 10h.01 M7 14h10',
+      app: 'M4 4h16v16H4z M4 9h16',
+      layers: 'M12 2L2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5',
+      moon: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'
+    };
+    var base = [
+      { label: 'Micro', icon: 'mic', tone: 'violet', cat: 'Audio', type: 'Micro on/off', paramLabel: 'Périphérique', param: 'Micro par défaut (Windows)', stateful: true },
+      { label: 'Son PC', icon: 'volume', tone: 'blue', cat: 'Audio', type: 'Volume', paramLabel: 'Pas', param: '± 5 %', stateful: false },
+      { label: 'Lecture / Pause', icon: 'play', tone: 'orange', cat: 'Médias', type: 'Lecture / Pause', paramLabel: 'Cible', param: 'Lecteur actif (Spotify, navigateur…)', stateful: false },
+      { label: 'Piste suivante', icon: 'next', tone: 'orange', cat: 'Médias', type: 'Piste suivante', paramLabel: 'Cible', param: 'Lecteur actif', stateful: false },
+      { label: 'Discord', icon: 'headset', tone: 'blue', cat: 'Discord', type: 'Raccourci clavier', paramLabel: 'Raccourci', param: 'Ctrl + Shift + D', stateful: true },
+      { label: 'Caméra', icon: 'camera', tone: 'teal', cat: 'OBS', type: 'Changer de scène', paramLabel: 'Scène', param: 'Caméra', stateful: true },
+      { label: 'Jeu', icon: 'scene', tone: 'teal', cat: 'OBS', type: 'Changer de scène', paramLabel: 'Scène', param: 'Jeu', stateful: true },
+      { label: 'Pause', icon: 'clock', tone: 'teal', cat: 'OBS', type: 'Changer de scène', paramLabel: 'Scène', param: 'Pause', stateful: true },
+      { label: 'Enregistrer', icon: 'record', tone: 'red', cat: 'OBS', type: 'Enregistrement', paramLabel: 'Mode', param: 'Démarrer / arrêter', stateful: true },
+      { label: 'Live', icon: 'live', tone: 'pink', cat: 'OBS', type: 'Diffusion', paramLabel: 'Mode', param: 'Démarrer / arrêter', stateful: true },
+      { label: 'Navigateur', icon: 'globe', tone: 'slate', cat: 'Système', type: 'Lancer une application', paramLabel: 'Programme', param: 'firefox.exe', stateful: false },
+      { label: 'Terminal', icon: 'terminal', tone: 'slate', cat: 'Système', type: 'Lancer une application', paramLabel: 'Programme', param: 'wt.exe', stateful: false },
+      { label: 'Gaming', icon: 'folder', tone: 'violet', cat: 'Organisation', type: 'Dossier', paramLabel: 'Contenu', param: '6 boutons', stateful: false },
+      { label: 'Verrouiller', icon: 'lock', tone: 'slate', cat: 'Système', type: 'Verrouiller le PC', paramLabel: 'Raccourci', param: 'Win + L', stateful: false },
+      null
+    ];
+    var items = base.map(function (b, i) {
+      if (!b) return null;
+      var o = s.over[i] || {};
+      var m = {};
+      for (var k in b) m[k] = b[k];
+      for (var k2 in o) m[k2] = o[k2];
+      return m;
+    });
+    function setOver(patch) {
+      var over = {};
+      for (var k in s.over) over[k] = s.over[k];
+      var cur = {};
+      var prev = s.over[s.sel] || {};
+      for (var a in prev) cur[a] = prev[a];
+      for (var b in patch) cur[b] = patch[b];
+      over[s.sel] = cur;
+      self.setState({ over: over, tested: false });
+    }
+    var cells = items.map(function (it, i) {
+      var pick = function () { self.setState({ sel: i, tested: false }); };
+      var ring = i === s.sel ? '#8B7CFF' : (it ? '#24262E' : '#34374A');
+      if (!it) return { filled: false, empty: true, ring: ring, pick: pick };
+      var t = T[it.tone];
+      return { filled: true, empty: false, label: it.label || ' ', d: I[it.icon], fg: t[0], bg: t[1], ring: ring, pick: pick };
+    });
+    var cur = items[s.sel];
+    var sel = null;
+    if (cur) {
+      var tt = T[cur.tone];
+      sel = {
+        label: cur.label, d: I[cur.icon], fg: tt[0], bg: tt[1], cat: cur.cat, type: cur.type,
+        paramLabel: cur.paramLabel, param: cur.param,
+        pos: 'Ligne ' + (Math.floor(s.sel / 5) + 1) + ' · Colonne ' + (s.sel % 5 + 1),
+        statefulStr: cur.stateful ? 'true' : 'false',
+        switchBg: cur.stateful ? '#8B7CFF' : '#2E313B',
+        switchJustify: cur.stateful ? 'flex-end' : 'flex-start'
+      };
+    }
+    var iconKeys = ['mic', 'volume', 'play', 'scene', 'record', 'folder', 'globe', 'moon'];
+    var iconChoices = iconKeys.map(function (k) {
+      var on = cur && cur.icon === k;
+      return { name: 'Icône ' + k, d: I[k], fg: on ? '#8B7CFF' : '#A3ABBD', ring: on ? '#8B7CFF' : '#24262E',
+        pick: function () { setOver({ icon: k }); } };
+    });
+    var swatches = Object.keys(T).map(function (k) {
+      var on = cur && cur.tone === k;
+      return { name: T[k][2], color: T[k][0], ring: on ? '#E8EAF0' : '#121317',
+        pick: function () { setOver({ tone: k }); } };
+    });
+    var lib = [
+      { name: 'Système', items: [['Raccourci clavier', 'Simule une combinaison de touches', 'keyboard', 'slate'], ['Lancer une application', 'Ouvre un programme', 'app', 'slate'], ['Ouvrir un site', 'Dans le navigateur par défaut', 'globe', 'slate'], ['Verrouiller le PC', 'Win + L', 'lock', 'slate']] },
+      { name: 'Audio et médias', items: [['Micro on/off', 'Coupe ou active le micro', 'mic', 'violet'], ['Volume', 'Monter, baisser, couper', 'volume', 'blue'], ['Lecture / Pause', 'Spotify, YouTube, VLC…', 'play', 'orange'], ['Piste suivante', 'Lecteur actif', 'next', 'orange']] },
+      { name: 'OBS Studio', items: [['Changer de scène', 'Bascule vers une scène', 'scene', 'teal'], ['Enregistrement', 'Démarrer / arrêter', 'record', 'red'], ['Diffusion', 'Lancer le live', 'live', 'pink']] },
+      { name: 'Discord', items: [['Sourdine', 'Via raccourci global', 'headset', 'blue']] },
+      { name: 'Organisation', items: [['Dossier', 'Regroupe des boutons', 'folder', 'violet'], ['Multi-actions', 'Plusieurs actions d’un coup', 'layers', 'violet']] }
+    ];
+    var q = (s.q || '').toLowerCase();
+    var groups = lib.map(function (g) {
+      var its = g.items.filter(function (a) { return !q || a[0].toLowerCase().indexOf(q) !== -1 || a[1].toLowerCase().indexOf(q) !== -1; })
+        .map(function (a) { return { name: a[0], desc: a[1], d: I[a[2]], fg: T[a[3]][0], bg: T[a[3]][1] }; });
+      return { name: g.name, items: its };
+    }).filter(function (g) { return g.items.length > 0; });
+    return {
+      q: s.q,
+      onSearch: function (e) { self.setState({ q: e.target.value }); },
+      groups: groups,
+      cells: cells,
+      sel: sel || {},
+      selFilled: !!cur,
+      selEmpty: !cur,
+      iconChoices: iconChoices,
+      swatches: swatches,
+      onLabel: function (e) { setOver({ label: e.target.value }); },
+      onParam: function (e) { setOver({ param: e.target.value }); },
+      onStateful: function () { setOver({ stateful: !(cur && cur.stateful) }); },
+      onTest: function () {
+        self.setState({ tested: true });
+        clearTimeout(self._t);
+        self._t = setTimeout(function () { self.setState({ tested: false }); }, 1600);
+      },
+      testLabel: s.tested ? 'Action exécutée' : 'Tester l’action'
+    };
+  }
+  componentWillUnmount() { clearTimeout(this._t); }
+}
+</script>
+</body>
+</html>

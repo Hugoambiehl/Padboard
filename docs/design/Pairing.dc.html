@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Appairage</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#8B7CFF}a:hover{color:#B3A9FF}
+button{font:inherit}
+.key{cursor:pointer;transition:transform .1s ease, background-color .15s ease}
+.key:active{transform:scale(.93);background-color:#2A2D38}
+.ic{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{animation:spin 1s linear infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.caret{animation:blink 1s steps(1) infinite}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; padding: 56px 64px; background: #0E0F12; color: #E8EAF0; font-family: Inter, system-ui, sans-serif; display: flex; gap: 64px; align-items: stretch">
+  <div style="flex: 1; display: flex; flex-direction: column; gap: 28px; justify-content: center">
+    <span style="width: 52px; height: 52px; border-radius: 16px; background: #8B7CFF; display: flex; align-items: center; justify-content: center">
+      <svg class="ic" width="26" height="26" viewBox="0 0 24 24" stroke="#0E0F12" aria-hidden="true"><path d="M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z"></path></svg>
+    </span>
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 44px; font-weight: 600; line-height: 1.1">Associer la tablette<br>à ton PC</h1>
+      <p style="margin: 0; font-size: 17px; line-height: 1.55; color: #A3ABBD; max-width: 440px">Ouvre l’application sur ton PC : un code à 6 chiffres s’affiche. Tape-le ici pour relier les deux appareils. Tu ne le feras qu’une fois.</p>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px; max-width: 460px">
+      <span style="font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #8A90A0">PC trouvés sur le réseau</span>
+      <div style="display: flex; align-items: center; gap: 14px; background: #1E2029; border: 1px solid #8B7CFF; border-radius: 16px; padding: 16px 18px">
+        <span style="width: 40px; height: 40px; border-radius: 12px; background: rgba(139,124,255,.16); display: flex; align-items: center; justify-content: center">
+          <svg class="ic" width="20" height="20" viewBox="0 0 24 24" stroke="#8B7CFF" aria-hidden="true"><path d="M3 4h18v12H3z M8 20h8 M12 16v4"></path></svg>
+        </span>
+        <div style="display: flex; flex-direction: column; gap: 2px; flex: 1">
+          <span style="font-size: 16px; font-weight: 600">PC-HUGO</span>
+          <span style="font-size: 13px; color: #8A90A0">192.168.1.24 · Windows</span>
+        </div>
+        <svg class="ic" width="20" height="20" viewBox="0 0 24 24" stroke="#8B7CFF" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; padding: 12px 18px; color: #8A90A0; font-size: 14px">
+        <svg class="ic spin" width="16" height="16" viewBox="0 0 24 24" stroke="#8A90A0" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.22-8.56"></path></svg>
+        Recherche d’autres PC…
+      </div>
+    </div>
+  </div>
+  <div style="width: 500px; background: #17181D; border: 1px solid #24262E; border-radius: 28px; padding: 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px; justify-content: center">
+    <sc-if value="{{done}}" hint-placeholder-val="{{false}}">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center">
+        <span style="width: 96px; height: 96px; border-radius: 48px; background: rgba(61,214,181,.16); display: flex; align-items: center; justify-content: center">
+          <svg class="ic" width="44" height="44" viewBox="0 0 24 24" stroke="#3DD6B5" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg>
+        </span>
+        <span style="font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600">Connecté à PC-HUGO</span>
+        <span style="font-size: 15px; color: #A3ABBD">Ta grille de boutons arrive…</span>
+        <button class="key" onClick="{{reset}}" style="margin-top: 8px; background: #22242C; border: 1px solid #2E313B; color: #E8EAF0; border-radius: 12px; padding: 12px 20px; font-size: 15px">Recommencer la démo</button>
+      </div>
+    </sc-if>
+    <sc-if value="{{notDone}}" hint-placeholder-val="{{true}}">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span style="font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 600">Code affiché sur ton PC</span>
+        <span style="font-size: 14px; color: #8A90A0">Il expire dans 1:52</span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px">
+        <sc-for list="{{digits}}" as="d" hint-placeholder-count="6">
+          <div style="height: 68px; border-radius: 14px; background: #0E0F12; border: 2px solid {{d.border}}; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 600">
+            {{d.ch}}
+            <sc-if value="{{d.current}}" hint-placeholder-val="{{false}}"><span class="caret" style="width: 2px; height: 28px; background: #8B7CFF"></span></sc-if>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+        <sc-for list="{{keys}}" as="k" hint-placeholder-count="12">
+          <button class="key" onClick="{{k.press}}" aria-label="{{k.aria}}" style="height: 64px; border-radius: 14px; background: {{k.bg}}; border: 1px solid {{k.border}}; color: #E8EAF0; font-family: 'Space Grotesk', sans-serif; font-size: {{k.size}}; font-weight: 500">{{k.label}}</button>
+        </sc-for>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { pin: '482' };
+  }
+  renderVals() {
+    var self = this;
+    var pin = this.state.pin;
+    var done = pin.length === 6;
+    var digits = [0, 1, 2, 3, 4, 5].map(function (i) {
+      return { ch: pin[i] || '', current: i === pin.length, border: i === pin.length ? '#8B7CFF' : (pin[i] ? '#3A3D47' : '#24262E') };
+    });
+    var labels = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'Effacer'];
+    var keys = labels.map(function (l) {
+      if (l === '') return { label: '', aria: 'Vide', bg: 'transparent', border: 'transparent', size: '24px', press: function () {} };
+      if (l === 'Effacer') return { label: l, aria: 'Effacer un chiffre', bg: '#1E2029', border: '#2E313B', size: '16px',
+        press: function () { self.setState({ pin: pin.slice(0, -1) }); } };
+      return { label: l, aria: 'Chiffre ' + l, bg: '#22242C', border: '#2E313B', size: '24px',
+        press: function () { if (pin.length < 6) self.setState({ pin: pin + l }); } };
+    });
+    return { digits: digits, keys: keys, done: done, notDone: !done,
+      reset: function () { self.setState({ pin: '' }); } };
+  }
+}
+</script>
+</body>
+</html>
