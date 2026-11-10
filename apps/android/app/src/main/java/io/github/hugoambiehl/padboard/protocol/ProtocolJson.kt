@@ -3,7 +3,7 @@ package io.github.hugoambiehl.padboard.protocol
 import kotlinx.serialization.json.Json
 
 /** Version of the wire protocol, checked by the desktop during the handshake. Mirrors `PROTOCOL_VERSION`. */
-const val PROTOCOL_VERSION: UInt = 1u
+const val PROTOCOL_VERSION: UInt = 2u
 
 /**
  * JSON configuration matching the Rust side (`crates/protocol`):

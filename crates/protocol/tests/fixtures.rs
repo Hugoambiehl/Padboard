@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
 
-use padboard_protocol::Message;
+use padboard_protocol::{Message, short_fingerprint, spki_sha256};
 use serde_json::Value;
 
 fn fixtures_dir() -> PathBuf {
@@ -30,6 +30,9 @@ fn fixture_stem(message: &Message) -> &'static str {
         Message::ButtonRelease(_) => "button_release",
         Message::Ping(_) => "ping",
         Message::Pong(_) => "pong",
+        Message::PairRequest(_) => "pair_request",
+        Message::PairSuccess(_) => "pair_success",
+        Message::PairFailure(_) => "pair_failure",
     }
 }
 
@@ -83,6 +86,9 @@ fn every_message_type_has_a_fixture() {
         "button_release",
         "ping",
         "pong",
+        "pair_request",
+        "pair_success",
+        "pair_failure",
     ]
     .into_iter()
     .map(String::from)
@@ -100,4 +106,26 @@ fn layout_fixture_is_valid() {
         panic!("layout_sync.json is not a layout:sync message");
     };
     layout.validate().unwrap();
+}
+
+/// Test vector shared with the tablet (`fixtures/vectors/fingerprint.json`).
+#[test]
+fn fingerprint_vector() {
+    let path = fixtures_dir().join("vectors").join("fingerprint.json");
+    let vector: Value = serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+    let spki = hex(vector["spkiDerHex"].as_str().unwrap());
+    let sha = hex(vector["sha256Hex"].as_str().unwrap());
+
+    assert_eq!(spki_sha256(&spki).as_slice(), sha.as_slice());
+    assert_eq!(
+        short_fingerprint(&spki),
+        vector["shortFingerprint"].as_str().unwrap()
+    );
+}
+
+fn hex(s: &str) -> Vec<u8> {
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+        .collect()
 }

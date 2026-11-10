@@ -2,6 +2,6 @@
   "type": "error",
   "payload": {
     "code": "unsupported_version",
-    "message": "protocol version 2 is not supported (expected 1)"
+    "message": "protocol version 1 is not supported (expected 2)"
   }
 }

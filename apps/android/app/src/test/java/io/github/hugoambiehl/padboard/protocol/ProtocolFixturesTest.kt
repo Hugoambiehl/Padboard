@@ -70,6 +70,11 @@ class ProtocolFixturesTest {
     fun handshakeFixturesDecode() {
         val hello = (fixture("hello") as Message.Hello).payload
         assertEquals(PROTOCOL_VERSION, hello.protocolVersion)
+        assertEquals("3f2c8a9e-5b1d-4c7e-9a06-2d8f4b1e7c53", hello.deviceId)
+        val welcome = (fixture("welcome") as Message.Welcome).payload
+        assertEquals(AuthStatus.Authenticated, welcome.auth)
+        val failure = (fixture("pair_failure") as Message.PairFailure).payload
+        assertEquals(PairFailurePayload(PairFailureReason.InvalidPin, 3u), failure)
         val error = (fixture("error") as Message.Error).payload
         assertEquals(ErrorCode.UnsupportedVersion, error.code)
         assertEquals(Message.ButtonPress(ButtonEvent("terminal")), fixture("button_press"))

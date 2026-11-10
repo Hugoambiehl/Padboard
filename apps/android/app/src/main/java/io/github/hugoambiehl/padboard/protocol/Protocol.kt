@@ -61,6 +61,17 @@ enum class ErrorCode(val string: String) {
 	/// The action bound to the button failed on the PC.
 	@SerialName("action_failed")
 	ActionFailed("action_failed"),
+	/// The message requires an authenticated connection. Fatal.
+	@SerialName("unauthorized")
+	Unauthorized("unauthorized"),
+	/// This device's pairing was revoked from the desktop. Fatal; the tablet
+	/// forgets its token.
+	@SerialName("revoked")
+	Revoked("revoked"),
+	/// A newer connection of the same device replaced this one (e.g. USB
+	/// plugged in while on Wi-Fi). Fatal; the tablet keeps the newer one.
+	@SerialName("superseded")
+	Superseded("superseded"),
 }
 
 @Serializable
@@ -87,7 +98,11 @@ data class Heartbeat (
 data class HelloPayload (
 	val protocolVersion: UInt,
 	/// Human-readable name of the tablet (e.g. "Galaxy Tab A").
-	val deviceName: String
+	val deviceName: String,
+	/// Stable random identifier of the tablet (UUID), created on first launch.
+	val deviceId: String,
+	/// Token received in `pair:success`. Absent before pairing.
+	val token: String? = null
 )
 
 @Serializable
@@ -112,10 +127,64 @@ data class Layout (
 )
 
 @Serializable
+enum class PairFailureReason(val string: String) {
+	/// Wrong PIN; retry while `attemptsLeft` > 0.
+	@SerialName("invalid_pin")
+	InvalidPin("invalid_pin"),
+	/// The PIN expired: a new one must be generated on the desktop.
+	@SerialName("expired")
+	Expired("expired"),
+	/// Too many wrong attempts: a new PIN must be generated on the desktop.
+	@SerialName("locked")
+	Locked("locked"),
+	/// No pairing in progress on the desktop.
+	@SerialName("no_active_pin")
+	NoActivePin("no_active_pin"),
+}
+
+@Serializable
+data class PairFailurePayload (
+	val reason: PairFailureReason,
+	/// Attempts left with the current PIN (0 when it can no longer be used).
+	val attemptsLeft: UInt
+)
+
+@Serializable
+data class PairRequestPayload (
+	/// The 6 digits shown on the desktop.
+	val pin: String
+)
+
+@Serializable
+data class PairSuccessPayload (
+	/// Secret to present in the next `hello`s (base64url, 32 random bytes).
+	val token: String
+)
+
+/// Authentication state of a connection, announced in `welcome`.
+@Serializable
+enum class AuthStatus(val string: String) {
+	/// Valid token, or USB connection: everything is allowed.
+	@SerialName("authenticated")
+	Authenticated("authenticated"),
+	/// No token: only `pair:request` is allowed.
+	@SerialName("pairing_required")
+	PairingRequired("pairing_required"),
+	/// The token is unknown (revoked, or the PC was reset). The tablet forgets
+	/// it; only `pair:request` is allowed.
+	@SerialName("token_rejected")
+	TokenRejected("token_rejected"),
+}
+
+@Serializable
 data class WelcomePayload (
 	val protocolVersion: UInt,
 	/// Human-readable name of the PC (hostname), shown in the tablet's top bar.
-	val serverName: String
+	val serverName: String,
+	/// Stable random identifier of the PC (UUID). The tablet only presents its
+	/// token to the PC it paired with.
+	val serverId: String,
+	val auth: AuthStatus
 )
 
 /// Envelope of every message exchanged over the WebSocket.
@@ -153,5 +222,19 @@ sealed class Message {
 	@Serializable
 	@SerialName("pong")
 	data class Pong(val payload: Heartbeat): Message()
+	/// Tablet → desktop: pairing attempt with the PIN shown on the desktop.
+	@Serializable
+	@SerialName("pair:request")
+	data class PairRequest(val payload: PairRequestPayload): Message()
+	/// Desktop → tablet: the PIN was right. The connection is now
+	/// authenticated; the tablet stores the token for its next `hello`s.
+	@Serializable
+	@SerialName("pair:success")
+	data class PairSuccess(val payload: PairSuccessPayload): Message()
+	/// Desktop → tablet: the PIN was refused. The connection stays open
+	/// (unauthenticated) so the user can try again.
+	@Serializable
+	@SerialName("pair:failure")
+	data class PairFailure(val payload: PairFailurePayload): Message()
 }
 

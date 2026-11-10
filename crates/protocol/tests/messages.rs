@@ -1,6 +1,8 @@
 use padboard_protocol::{
-    ButtonEvent, ButtonView, Category, ErrorCode, ErrorPayload, GridSize, Heartbeat, HelloPayload,
-    Layout, Message, PROTOCOL_VERSION, Page, ProfileInfo, WelcomePayload, is_compatible,
+    AuthStatus, ButtonEvent, ButtonView, Category, ErrorCode, ErrorPayload, GridSize, Heartbeat,
+    HelloPayload, Layout, Message, PROTOCOL_VERSION, Page, PairFailurePayload, PairFailureReason,
+    PairRequestPayload, PairSuccessPayload, ProfileInfo, WelcomePayload, is_compatible,
+    short_fingerprint,
 };
 use serde_json::json;
 
@@ -38,10 +40,20 @@ fn all_messages() -> Vec<Message> {
         Message::Hello(HelloPayload {
             protocol_version: PROTOCOL_VERSION,
             device_name: "Tab".into(),
+            device_id: "dev-1".into(),
+            token: None,
+        }),
+        Message::Hello(HelloPayload {
+            protocol_version: PROTOCOL_VERSION,
+            device_name: "Tab".into(),
+            device_id: "dev-1".into(),
+            token: Some("secret".into()),
         }),
         Message::Welcome(WelcomePayload {
             protocol_version: PROTOCOL_VERSION,
             server_name: "PC".into(),
+            server_id: "pc-1".into(),
+            auth: AuthStatus::PairingRequired,
         }),
         Message::Error(ErrorPayload {
             code: ErrorCode::UnknownButton,
@@ -56,6 +68,16 @@ fn all_messages() -> Vec<Message> {
         }),
         Message::Ping(Heartbeat { seq: 1 }),
         Message::Pong(Heartbeat { seq: u32::MAX }),
+        Message::PairRequest(PairRequestPayload {
+            pin: "012345".into(),
+        }),
+        Message::PairSuccess(PairSuccessPayload {
+            token: "secret".into(),
+        }),
+        Message::PairFailure(PairFailurePayload {
+            reason: PairFailureReason::Locked,
+            attempts_left: 0,
+        }),
     ]
 }
 
@@ -158,4 +180,44 @@ fn layout_validation_rejects_bad_layouts() {
     for (name, l) in cases {
         assert!(l.validate().is_err(), "{name} should be rejected");
     }
+}
+
+#[test]
+fn hello_token_is_omitted_before_pairing() {
+    let value = serde_json::to_value(HelloPayload {
+        protocol_version: PROTOCOL_VERSION,
+        device_name: "Tab".into(),
+        device_id: "dev-1".into(),
+        token: None,
+    })
+    .unwrap();
+    assert!(value.get("token").is_none());
+}
+
+#[test]
+fn enum_values_are_snake_case() {
+    assert_eq!(json!(AuthStatus::TokenRejected), json!("token_rejected"));
+    assert_eq!(
+        json!(PairFailureReason::NoActivePin),
+        json!("no_active_pin")
+    );
+    assert_eq!(json!(ErrorCode::Superseded), json!("superseded"));
+}
+
+#[test]
+fn short_fingerprint_format() {
+    for spki in [&b""[..], b"padboard", &[0xff; 91]] {
+        let code = short_fingerprint(spki);
+        assert_eq!(code.len(), 14, "{code}");
+        let groups: Vec<_> = code.split('-').collect();
+        assert_eq!(groups.len(), 3, "{code}");
+        assert!(groups.iter().all(|g| g.len() == 4), "{code}");
+        // Crockford base32: no ambiguous I, L, O, U.
+        assert!(
+            code.chars()
+                .all(|c| c == '-' || c.is_ascii_digit() || "ABCDEFGHJKMNPQRSTVWXYZ".contains(c)),
+            "{code}"
+        );
+    }
+    assert_ne!(short_fingerprint(b"a"), short_fingerprint(b"b"));
 }

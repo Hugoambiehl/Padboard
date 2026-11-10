@@ -1,0 +1,7 @@
+{
+  "type": "pair:failure",
+  "payload": {
+    "reason": "invalid_pin",
+    "attemptsLeft": 3
+  }
+}

@@ -17,16 +17,27 @@
 //!   `sealed class Message` would refer to itself. Use a `…Payload` suffix.
 //! - JSON fields are `camelCase`, enum values `snake_case`.
 //! - Every message type has a fixture in `fixtures/` (decoded by Rust and Kotlin tests).
+//!
+//! Authentication (protocol 2):
+//! - The tablet sends `hello` with its `deviceId` and, once paired, its token.
+//! - `welcome.auth` tells whether the session is authenticated. Connections on
+//!   the USB port (loopback, via `adb reverse`) are always authenticated.
+//! - Until authenticated, the tablet may only send `pair:request`; anything
+//!   else gets an `unauthorized` error and the connection is closed.
+//! - `pair:success` authenticates the current connection and carries the
+//!   token to present in the next `hello`s.
 
 use serde::{Deserialize, Serialize};
 use typeshare::typeshare;
 
+mod fingerprint;
 mod layout;
 
+pub use fingerprint::{short_fingerprint, spki_sha256};
 pub use layout::{ButtonView, Category, GridSize, Layout, Page, ProfileInfo};
 
 /// Version of the wire protocol. Checked during the `hello` / `welcome` handshake.
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 
 /// Returns `true` if a peer speaking `version` can talk to us.
 #[must_use]
@@ -63,6 +74,17 @@ pub enum Message {
     /// Either direction: heartbeat answer, echoing the `ping` sequence number.
     #[serde(rename = "pong")]
     Pong(Heartbeat),
+    /// Tablet → desktop: pairing attempt with the PIN shown on the desktop.
+    #[serde(rename = "pair:request")]
+    PairRequest(PairRequestPayload),
+    /// Desktop → tablet: the PIN was right. The connection is now
+    /// authenticated; the tablet stores the token for its next `hello`s.
+    #[serde(rename = "pair:success")]
+    PairSuccess(PairSuccessPayload),
+    /// Desktop → tablet: the PIN was refused. The connection stays open
+    /// (unauthenticated) so the user can try again.
+    #[serde(rename = "pair:failure")]
+    PairFailure(PairFailurePayload),
 }
 
 #[typeshare]
@@ -72,6 +94,11 @@ pub struct HelloPayload {
     pub protocol_version: u32,
     /// Human-readable name of the tablet (e.g. "Galaxy Tab A").
     pub device_name: String,
+    /// Stable random identifier of the tablet (UUID), created on first launch.
+    pub device_id: String,
+    /// Token received in `pair:success`. Absent before pairing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
 }
 
 #[typeshare]
@@ -81,6 +108,63 @@ pub struct WelcomePayload {
     pub protocol_version: u32,
     /// Human-readable name of the PC (hostname), shown in the tablet's top bar.
     pub server_name: String,
+    /// Stable random identifier of the PC (UUID). The tablet only presents its
+    /// token to the PC it paired with.
+    pub server_id: String,
+    pub auth: AuthStatus,
+}
+
+/// Authentication state of a connection, announced in `welcome`.
+#[typeshare]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthStatus {
+    /// Valid token, or USB connection: everything is allowed.
+    Authenticated,
+    /// No token: only `pair:request` is allowed.
+    PairingRequired,
+    /// The token is unknown (revoked, or the PC was reset). The tablet forgets
+    /// it; only `pair:request` is allowed.
+    TokenRejected,
+}
+
+#[typeshare]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairRequestPayload {
+    /// The 6 digits shown on the desktop.
+    pub pin: String,
+}
+
+#[typeshare]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairSuccessPayload {
+    /// Secret to present in the next `hello`s (base64url, 32 random bytes).
+    pub token: String,
+}
+
+#[typeshare]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairFailurePayload {
+    pub reason: PairFailureReason,
+    /// Attempts left with the current PIN (0 when it can no longer be used).
+    pub attempts_left: u32,
+}
+
+#[typeshare]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PairFailureReason {
+    /// Wrong PIN; retry while `attemptsLeft` > 0.
+    InvalidPin,
+    /// The PIN expired: a new one must be generated on the desktop.
+    Expired,
+    /// Too many wrong attempts: a new PIN must be generated on the desktop.
+    Locked,
+    /// No pairing in progress on the desktop.
+    NoActivePin,
 }
 
 #[typeshare]
@@ -105,6 +189,14 @@ pub enum ErrorCode {
     UnknownButton,
     /// The action bound to the button failed on the PC.
     ActionFailed,
+    /// The message requires an authenticated connection. Fatal.
+    Unauthorized,
+    /// This device's pairing was revoked from the desktop. Fatal; the tablet
+    /// forgets its token.
+    Revoked,
+    /// A newer connection of the same device replaced this one (e.g. USB
+    /// plugged in while on Wi-Fi). Fatal; the tablet keeps the newer one.
+    Superseded,
 }
 
 #[typeshare]
@@ -152,6 +244,9 @@ impl Message {
             Self::ButtonRelease(_) => "button:release",
             Self::Ping(_) => "ping",
             Self::Pong(_) => "pong",
+            Self::PairRequest(_) => "pair:request",
+            Self::PairSuccess(_) => "pair:success",
+            Self::PairFailure(_) => "pair:failure",
         }
     }
 }

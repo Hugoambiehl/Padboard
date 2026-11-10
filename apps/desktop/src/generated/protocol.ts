@@ -43,6 +43,18 @@ export enum ErrorCode {
 	UnknownButton = "unknown_button",
 	/** The action bound to the button failed on the PC. */
 	ActionFailed = "action_failed",
+	/** The message requires an authenticated connection. Fatal. */
+	Unauthorized = "unauthorized",
+	/**
+	 * This device's pairing was revoked from the desktop. Fatal; the tablet
+	 * forgets its token.
+	 */
+	Revoked = "revoked",
+	/**
+	 * A newer connection of the same device replaced this one (e.g. USB
+	 * plugged in while on Wi-Fi). Fatal; the tablet keeps the newer one.
+	 */
+	Superseded = "superseded",
 }
 
 export interface ErrorPayload {
@@ -68,6 +80,10 @@ export interface HelloPayload {
 	protocolVersion: number;
 	/** Human-readable name of the tablet (e.g. "Galaxy Tab A"). */
 	deviceName: string;
+	/** Stable random identifier of the tablet (UUID), created on first launch. */
+	deviceId: string;
+	/** Token received in `pair:success`. Absent before pairing. */
+	token?: string;
 }
 
 export interface ProfileInfo {
@@ -88,10 +104,56 @@ export interface Layout {
 	pages: Page[];
 }
 
+export enum PairFailureReason {
+	/** Wrong PIN; retry while `attemptsLeft` > 0. */
+	InvalidPin = "invalid_pin",
+	/** The PIN expired: a new one must be generated on the desktop. */
+	Expired = "expired",
+	/** Too many wrong attempts: a new PIN must be generated on the desktop. */
+	Locked = "locked",
+	/** No pairing in progress on the desktop. */
+	NoActivePin = "no_active_pin",
+}
+
+export interface PairFailurePayload {
+	reason: PairFailureReason;
+	/** Attempts left with the current PIN (0 when it can no longer be used). */
+	attemptsLeft: number;
+}
+
+export interface PairRequestPayload {
+	/** The 6 digits shown on the desktop. */
+	pin: string;
+}
+
+export interface PairSuccessPayload {
+	/** Secret to present in the next `hello`s (base64url, 32 random bytes). */
+	token: string;
+}
+
+/** Authentication state of a connection, announced in `welcome`. */
+export enum AuthStatus {
+	/** Valid token, or USB connection: everything is allowed. */
+	Authenticated = "authenticated",
+	/** No token: only `pair:request` is allowed. */
+	PairingRequired = "pairing_required",
+	/**
+	 * The token is unknown (revoked, or the PC was reset). The tablet forgets
+	 * it; only `pair:request` is allowed.
+	 */
+	TokenRejected = "token_rejected",
+}
+
 export interface WelcomePayload {
 	protocolVersion: number;
 	/** Human-readable name of the PC (hostname), shown in the tablet's top bar. */
 	serverName: string;
+	/**
+	 * Stable random identifier of the PC (UUID). The tablet only presents its
+	 * token to the PC it paired with.
+	 */
+	serverId: string;
+	auth: AuthStatus;
 }
 
 /** Envelope of every message exchanged over the WebSocket. */
@@ -111,5 +173,17 @@ export type Message =
 	/** Either direction: heartbeat request. */
 	| { type: "ping", payload: Heartbeat }
 	/** Either direction: heartbeat answer, echoing the `ping` sequence number. */
-	| { type: "pong", payload: Heartbeat };
+	| { type: "pong", payload: Heartbeat }
+	/** Tablet → desktop: pairing attempt with the PIN shown on the desktop. */
+	| { type: "pair:request", payload: PairRequestPayload }
+	/**
+	 * Desktop → tablet: the PIN was right. The connection is now
+	 * authenticated; the tablet stores the token for its next `hello`s.
+	 */
+	| { type: "pair:success", payload: PairSuccessPayload }
+	/**
+	 * Desktop → tablet: the PIN was refused. The connection stays open
+	 * (unauthenticated) so the user can try again.
+	 */
+	| { type: "pair:failure", payload: PairFailurePayload };
 

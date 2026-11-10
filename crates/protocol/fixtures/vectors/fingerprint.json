@@ -1,0 +1,6 @@
+{
+  "description": "Short fingerprint test vector: SPKI of an ECDSA P-256 public key (DER, hex). See crates/protocol/src/fingerprint.rs.",
+  "spkiDerHex": "3059301306072a8648ce3d020106082a8648ce3d03010703420004e32df4b90c254f593188e26de034898501bbbe41262aab56fcba75f71f495947d19454c24d63c9addcd3c08c7b240a26575a4678375c1633a97e8a92edee5dca",
+  "sha256Hex": "5536273a50f3c80a4acb1eebd62a82f12a0875d3dc8f5158e4c942d8a4976571",
+  "shortFingerprint": "AMV2-EEJG-YF40"
+}
