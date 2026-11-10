@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/* Design tokens (docs/design, CLAUDE.md). Dark theme only for now. */
+@theme {
+  --color-bg: #0e0f12;
+  --color-surface: #121317;
+  --color-surface-2: #17181d;
+  --color-surface-active: #1e2029;
+  --color-line: #22242b;
+  --color-line-2: #24262e;
+  --color-fg: #e8eaf0;
+  --color-muted: #8a90a0;
+  --color-muted-2: #a3abbd;
+  --color-accent: #8b7cff;
+
+  --color-cat-violet: #8b7cff;
+  --color-cat-blue: #5aa9ff;
+  --color-cat-teal: #3dd6b5;
+  --color-cat-orange: #ff9f5a;
+  --color-cat-pink: #ff6fae;
+  --color-cat-red: #ff5c5c;
+  --color-cat-grey: #a3abbd;
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Space Grotesk", "Inter", sans-serif;
+}
+
+html,
+body {
+  @apply bg-bg text-fg font-sans antialiased;
+  color-scheme: dark;
+}

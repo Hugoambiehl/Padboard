@@ -1,0 +1,60 @@
+{
+  "app": {
+    "name": "Padboard",
+    "loading": "Chargement…",
+    "loadError": "Impossible de joindre le backend Padboard.",
+    "tablets": "Aucune tablette | 1 tablette | {count} tablettes"
+  },
+  "server": {
+    "title": "Serveur",
+    "state": {
+      "starting": "Démarrage…",
+      "listening": "En écoute",
+      "error": "Erreur"
+    },
+    "address": "Adresse",
+    "mode": "Mode",
+    "modes": {
+      "loopback": "Ce PC uniquement (USB)",
+      "lan": "Réseau local (Wi-Fi et USB)"
+    },
+    "bindError": "Impossible d’écouter sur {address}. Le port est peut-être déjà utilisé, par exemple par une autre instance de Padboard.",
+    "invalidSetting": "Valeur ignorée : {variable}={value}. La valeur par défaut est utilisée.",
+    "copy": "Copier",
+    "copied": "Copié"
+  },
+  "usb": {
+    "title": "Connexion USB",
+    "hint": "Branche la tablette (débogage USB activé), lance cette commande, puis saisis l’adresse {address} sur la tablette."
+  },
+  "lan": {
+    "title": "Connexion Wi-Fi",
+    "hint": "Saisis l’une de ces adresses sur la tablette, avec le port {port} :",
+    "none": "Aucune adresse réseau détectée.",
+    "disabled": "Désactivée : le serveur n’écoute que sur ce PC. Pour l’activer, relance Padboard avec la variable d’environnement :",
+    "warningTitle": "Écoute sur le réseau local sans appairage",
+    "warningBody": "Tant que l’appairage n’existe pas, n’importe quel appareil de ce réseau peut se connecter et déclencher des raccourcis sur ce PC. N’utilise ce mode que sur un réseau de confiance."
+  },
+  "clients": {
+    "title": "Tablettes connectées",
+    "empty": "Aucune tablette connectée.",
+    "since": "Connectée à {time}",
+    "via": {
+      "usb": "USB",
+      "wifi": "Wi-Fi"
+    }
+  },
+  "activity": {
+    "title": "Activité",
+    "empty": "Aucun appui pour l’instant.",
+    "unknownButton": "Bouton inconnu ({id})",
+    "unknownDevice": "Appareil déconnecté",
+    "ok": "Exécuté",
+    "errors": {
+      "invalid": "Action invalide",
+      "unsupported": "Action non prise en charge sur ce système",
+      "unavailable": "Fonction système indisponible",
+      "failed": "Échec de l’action"
+    }
+  }
+}

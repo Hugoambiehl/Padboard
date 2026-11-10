@@ -1,7 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*"]
-# apps/desktop/src-tauri is added once the Tauri app exists (phase 1, step E).
+members = ["crates/*", "apps/desktop/src-tauri"]
 
 [workspace.package]
 version = "0.1.0"
