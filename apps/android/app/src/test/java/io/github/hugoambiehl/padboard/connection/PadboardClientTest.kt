@@ -70,6 +70,12 @@ class PadboardClientTest {
                     }
 
                     override fun onOpen(webSocket: WebSocket, response: Response) = Unit
+
+                    // Answer the client's close frame like the real desktop does; otherwise
+                    // the socket stays half-open and MockWebServer.close() may give up.
+                    override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                        webSocket.close(code, null)
+                    }
                 }
             ).build()
     )
