@@ -1,29 +1,63 @@
 // Hand-written mirror of apps/desktop/src-tauri/src/state.rs (UI state, not the
 // tablet protocol). Keep both in sync.
 
-export type ServerState = "starting" | "listening" | "error";
-export type BindMode = "loopback" | "lan";
+export type ListenerState = "off" | "starting" | "listening" | "error";
+export type Transport = "usb" | "wifi";
 
 export interface InvalidSetting {
   variable: string;
   value: string;
 }
 
-export interface ServerStatus {
-  state: ServerState;
-  bindMode: BindMode;
+export interface ListenerStatus {
+  state: ListenerState;
   port: number;
   address: string;
-  lanAddresses: string[];
   errorDetail: string | null;
+}
+
+export type MdnsStatus =
+  { state: "off" } | { state: "announced" } | { state: "error"; detail: string };
+
+export interface WifiStatus {
+  enabled: boolean;
+  /** Set when PADBOARD_BIND forces Wi-Fi on (true) or off (false). */
+  forced: boolean | null;
+  listener: ListenerStatus;
+  lanAddresses: string[];
+  fingerprint: string | null;
+  tlsError: string | null;
+  mdns: MdnsStatus;
+}
+
+export interface ServerStatus {
+  name: string;
+  usb: ListenerStatus;
+  wifi: WifiStatus;
   invalidSettings: InvalidSetting[];
 }
 
 export interface ClientInfo {
   id: number;
+  deviceId: string;
   deviceName: string;
+  transport: Transport;
   peer: string;
   connectedAtMs: number;
+}
+
+export type PairingView =
+  | { state: "idle" }
+  | { state: "active"; pin: string; expiresAtMs: number; attemptsLeft: number }
+  | { state: "expired" }
+  | { state: "locked" }
+  | { state: "paired"; deviceName: string };
+
+export interface PairedDevice {
+  deviceId: string;
+  name: string;
+  pairedAtMs: number;
+  lastSeenMs: number | null;
 }
 
 export type ActionErrorCode = "invalid" | "unsupported" | "unavailable" | "failed";
@@ -43,5 +77,7 @@ export interface ActivityEntry {
 export interface Snapshot {
   server: ServerStatus;
   clients: ClientInfo[];
+  pairing: PairingView;
+  pairedDevices: PairedDevice[];
   activity: ActivityEntry[];
 }

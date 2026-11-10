@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
 import AppHeader from "./components/AppHeader.vue";
-import LanWarning from "./components/LanWarning.vue";
 import ServerCard from "./components/ServerCard.vue";
 import ClientsCard from "./components/ClientsCard.vue";
 import ActivityCard from "./components/ActivityCard.vue";
@@ -18,7 +17,6 @@ const { snapshot, failed } = useStatus();
       <p v-if="failed" class="text-sm text-cat-red">{{ t("app.loadError") }}</p>
       <p v-else-if="!snapshot" class="text-sm text-muted">{{ t("app.loading") }}</p>
       <template v-else>
-        <LanWarning v-if="snapshot.server.bindMode === 'lan'" />
         <div class="grid gap-5 md:grid-cols-2">
           <ServerCard :server="snapshot.server" />
           <ClientsCard :clients="snapshot.clients" />

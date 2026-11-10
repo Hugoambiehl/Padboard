@@ -125,10 +125,19 @@ SM-T580, always measure in release builds.
 
 - **Linux keyboard injection: uinput** (`evdev` crate), works on X11 and Wayland.
   The udev rule granting access to `/dev/uinput` is documented in the README.
-- **Default port 47321.** Server binds **`127.0.0.1` by default** (enough for USB
-  via `adb reverse`). LAN bind (`0.0.0.0`) only on explicit opt-in
-  (`PADBOARD_BIND` env var or setting), with a visible warning in the frontend
-  as long as pairing does not exist.
+- **Ports**: USB 47321 on `127.0.0.1` only (plain `ws://`, trusted), Wi-Fi
+  47322 on `0.0.0.0` (TLS, pairing required), constants in `crates/protocol`.
+  Wi-Fi is a persisted UI setting (`preferences.json`); `PADBOARD_BIND`
+  (`lan` / `loopback`) forces it on or off, `PADBOARD_PORT` / `PADBOARD_WIFI_PORT`
+  change the ports. Turning Wi-Fi off aborts the listener task, which owns and
+  therefore closes every Wi-Fi connection.
+- **Desktop config**: versioned JSON documents (`storage.rs`: step-by-step
+  migrations, atomic writes, owner-only secrets, unreadable files moved aside)
+  in Tauri's app config dir. The TLS private key is stored alone
+  (`tls-key.pem`); the certificate is rebuilt from it at each launch.
+- **Unauthenticated Wi-Fi clients are bounded**: connections before `hello`
+  and connections in the pairing phase have separate caps and timeouts, so
+  pairing attempts can never lock a paired tablet out.
 - **Keys are stored by physical position**: W3C `KeyboardEvent.code` names
   (`KeyA`, `ControlLeft`…), mapped to evdev keycodes / Windows scancodes.
 - **Generated types are committed**: `apps/desktop/src/generated/` (TS) and the

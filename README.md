@@ -26,20 +26,32 @@ Wi-Fi or USB, no cloud, free and open-source tools only.
 scripts/desktop-dev.sh             # = npm run tauri dev, with a clean environment
 ```
 
-The WebSocket server listens on `127.0.0.1:47321` by default: enough for a tablet
-plugged over USB, after `adb reverse tcp:47321 tcp:47321`. Pairing does not exist
-yet, so listening on the local network (Wi-Fi) is an explicit opt-in, and the app
-shows a warning while it is enabled:
+The app serves tablets on two ports:
 
-```sh
-PADBOARD_BIND=lan scripts/desktop-dev.sh
-```
+- **USB**: `127.0.0.1:47321`, always on, loopback only. The tablet reaches it
+  through `adb reverse tcp:47321 tcp:47321` and needs no pairing (the cable is
+  the proof).
+- **Wi-Fi**: `0.0.0.0:47322`, **off by default**, WebSocket over TLS. A tablet
+  must pair once with a PIN shown on the PC; it then pins the PC's public key.
+  When on, the PC is announced over mDNS (`_padboard._tcp`). Your firewall must
+  allow TCP 47322 and UDP 5353 (mDNS); Windows asks the first time.
 
 | Variable | Values | Default |
 |---|---|---|
-| `PADBOARD_BIND` | `loopback`, `lan` | `loopback` |
-| `PADBOARD_PORT` | TCP port | `47321` |
+| `PADBOARD_BIND` | `lan` (force Wi-Fi on), `loopback` (force it off) | the setting in the app |
+| `PADBOARD_PORT` | USB port | `47321` |
+| `PADBOARD_WIFI_PORT` | Wi-Fi port | `47322` |
 | `PADBOARD_LOG` | `tracing` filter, e.g. `debug` | `info` (debug for Padboard) |
+
+The configuration (PC identity, Wi-Fi TLS key, paired devices, settings) lives in
+`~/.config/io.github.hugoambiehl.padboard/` (Linux) or
+`%APPDATA%\io.github.hugoambiehl.padboard\` (Windows). Deleting
+`tls-key.pem` or `identity.json` makes every tablet pair again.
+
+**Shared PCs:** any program running on the PC can connect to the USB port, like
+the tablet does through `adb reverse`, without pairing. On a PC used by several
+user accounts at the same time, another account could therefore send keyboard
+shortcuts into your session while Padboard runs.
 
 Use `scripts/desktop-dev.sh` rather than `npm run tauri dev` when your terminal
 belongs to an app installed as a **snap** (e.g. VS Code): snap terminals leak GTK

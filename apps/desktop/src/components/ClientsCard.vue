@@ -6,13 +6,6 @@ import type { ClientInfo } from "../types/status";
 
 defineProps<{ clients: ClientInfo[] }>();
 const { t, d } = useI18n();
-
-/** Through `adb reverse`, a USB tablet reaches the server from the loopback address. */
-function via(peer: string) {
-  return peer.startsWith("127.") || peer.startsWith("[::1]")
-    ? t("clients.via.usb")
-    : t("clients.via.wifi");
-}
 </script>
 
 <template>
@@ -32,7 +25,7 @@ function via(peer: string) {
           </span>
         </div>
         <span class="rounded-full bg-surface-active px-2.5 py-1 text-xs text-muted-2">
-          {{ via(c.peer) }}
+          {{ t(`clients.via.${c.transport}`) }}
         </span>
       </li>
     </ul>

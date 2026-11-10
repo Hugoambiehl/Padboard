@@ -8,15 +8,10 @@
   "server": {
     "title": "Serveur",
     "state": {
+      "off": "Désactivée",
       "starting": "Démarrage…",
       "listening": "En écoute",
       "error": "Erreur"
-    },
-    "address": "Adresse",
-    "mode": "Mode",
-    "modes": {
-      "loopback": "Ce PC uniquement (USB)",
-      "lan": "Réseau local (Wi-Fi et USB)"
     },
     "bindError": "Impossible d’écouter sur {address}. Le port est peut-être déjà utilisé, par exemple par une autre instance de Padboard.",
     "invalidSetting": "Valeur ignorée : {variable}={value}. La valeur par défaut est utilisée.",
@@ -29,11 +24,10 @@
   },
   "lan": {
     "title": "Connexion Wi-Fi",
-    "hint": "Saisis l’une de ces adresses sur la tablette, avec le port {port} :",
+    "hint": "Les tablettes appairées trouvent ce PC automatiquement. Adresses de ce PC (port {port}) :",
     "none": "Aucune adresse réseau détectée.",
-    "disabled": "Désactivée : le serveur n’écoute que sur ce PC. Pour l’activer, relance Padboard avec la variable d’environnement :",
-    "warningTitle": "Écoute sur le réseau local sans appairage",
-    "warningBody": "Tant que l’appairage n’existe pas, n’importe quel appareil de ce réseau peut se connecter et déclencher des raccourcis sur ce PC. N’utilise ce mode que sur un réseau de confiance."
+    "disabled": "Désactivée : seule la connexion USB est possible. Pour l’activer, relance Padboard avec la variable d’environnement :",
+    "tlsError": "Le Wi-Fi est indisponible : impossible de créer la clé de chiffrement de ce PC."
   },
   "clients": {
     "title": "Tablettes connectées",

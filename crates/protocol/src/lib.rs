@@ -250,3 +250,21 @@ impl Message {
         }
     }
 }
+
+/// Default port of the USB transport: plain WebSocket on the PC's loopback
+/// interface, reached by the tablet through `adb reverse` at `127.0.0.1`.
+pub const USB_PORT: u16 = 47321;
+/// Default port of the Wi-Fi transport: WebSocket over TLS (`wss://`), the
+/// tablet pins the PC's public key (see [`short_fingerprint`]).
+pub const WIFI_PORT: u16 = 47322;
+/// DNS-SD service type announced over mDNS while Wi-Fi is enabled.
+pub const MDNS_SERVICE_TYPE: &str = "_padboard._tcp.local.";
+/// TXT record keys of the mDNS announcement.
+pub mod txt {
+    /// Protocol version spoken by the PC (decimal).
+    pub const PROTOCOL_VERSION: &str = "v";
+    /// `serverId` of the PC, as in `welcome`.
+    pub const SERVER_ID: &str = "id";
+    /// Human-readable name of the PC, as in `welcome`.
+    pub const SERVER_NAME: &str = "name";
+}

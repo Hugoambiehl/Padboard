@@ -12,7 +12,8 @@ use serde::Serialize;
 
 use crate::auth::{AuthChange, PairedDeviceView, PairingView, Transport};
 use crate::server::{ActionOutcome, ServerEvent};
-use crate::settings::{BindMode, Settings};
+use crate::settings::Settings;
+use crate::wifi::MdnsStatus;
 
 /// Number of entries kept in the activity log.
 const MAX_ACTIVITY: usize = 50;
@@ -35,25 +36,61 @@ pub struct Snapshot {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerStatus {
-    pub state: ServerState,
-    pub bind_mode: BindMode,
-    pub port: u16,
-    /// Address the server tries to bind / is bound to, e.g. `127.0.0.1:47321`.
-    pub address: String,
-    /// IPv4 addresses of this PC on the local network (what to type on the tablet).
-    pub lan_addresses: Vec<String>,
-    /// OS error when binding failed (English, shown as a detail).
-    pub error_detail: Option<String>,
+    /// Name announced to tablets (hostname).
+    pub name: String,
+    pub usb: ListenerStatus,
+    pub wifi: WifiStatus,
     /// Environment values that were ignored.
     pub invalid_settings: Vec<InvalidSetting>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListenerStatus {
+    pub state: ListenerState,
+    pub port: u16,
+    /// Address the listener tries to bind / is bound to, e.g. `127.0.0.1:47321`.
+    pub address: String,
+    /// OS error when binding failed (English, shown as a detail).
+    pub error_detail: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub enum ServerState {
+pub enum ListenerState {
+    Off,
     Starting,
     Listening,
     Error,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WifiStatus {
+    /// Effective state: the UI setting, unless `PADBOARD_BIND` forces it.
+    pub enabled: bool,
+    /// `Some` when `PADBOARD_BIND` forces Wi-Fi on or off (the toggle is locked).
+    pub forced: Option<bool>,
+    pub listener: ListenerStatus,
+    /// IPv4 addresses of this PC on the local network.
+    pub lan_addresses: Vec<String>,
+    /// Short fingerprint of the TLS key, shown when pairing.
+    pub fingerprint: Option<String>,
+    /// Why the TLS identity could not be created (Wi-Fi unavailable).
+    pub tls_error: Option<String>,
+    pub mdns: MdnsStatus,
+}
+
+/// Initial values of [`Snapshot::new`].
+#[derive(Debug, Clone)]
+pub struct Init<'a> {
+    pub settings: &'a Settings,
+    pub server_name: String,
+    pub lan_addresses: Vec<String>,
+    pub layout: &'a Layout,
+    pub wifi_enabled: bool,
+    pub fingerprint: Option<String>,
+    pub tls_error: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -88,21 +125,50 @@ pub struct ActivityEntry {
 
 impl Snapshot {
     #[must_use]
-    pub fn new(settings: &Settings, lan_addresses: Vec<String>, layout: &Layout) -> Self {
+    pub fn new(init: Init<'_>) -> Self {
+        let Init {
+            settings,
+            server_name,
+            lan_addresses,
+            layout,
+            wifi_enabled,
+            fingerprint,
+            tls_error,
+        } = init;
         let labels = layout
             .pages
             .iter()
             .flat_map(|p| &p.buttons)
             .map(|b| (b.id.clone(), b.label.clone()))
             .collect();
+        let wifi_starting = wifi_enabled && tls_error.is_none();
         Self {
             server: ServerStatus {
-                state: ServerState::Starting,
-                bind_mode: settings.bind,
-                port: settings.port,
-                address: settings.socket_addr().to_string(),
-                lan_addresses,
-                error_detail: None,
+                name: server_name,
+                usb: ListenerStatus {
+                    state: ListenerState::Starting,
+                    port: settings.usb_port,
+                    address: settings.usb_addr().to_string(),
+                    error_detail: None,
+                },
+                wifi: WifiStatus {
+                    enabled: wifi_enabled,
+                    forced: settings.wifi_forced,
+                    listener: ListenerStatus {
+                        state: if wifi_starting {
+                            ListenerState::Starting
+                        } else {
+                            ListenerState::Off
+                        },
+                        port: settings.wifi_port,
+                        address: settings.wifi_addr().to_string(),
+                        error_detail: None,
+                    },
+                    lan_addresses,
+                    fingerprint,
+                    tls_error,
+                    mdns: MdnsStatus::Off,
+                },
                 invalid_settings: settings
                     .invalid
                     .iter()
@@ -121,18 +187,47 @@ impl Snapshot {
         }
     }
 
+    fn listener(&mut self, transport: Transport) -> &mut ListenerStatus {
+        match transport {
+            Transport::Usb => &mut self.server.usb,
+            Transport::Wifi => &mut self.server.wifi.listener,
+        }
+    }
+
     pub fn apply(&mut self, event: ServerEvent) {
         match event {
-            ServerEvent::Listening { addr, .. } => {
-                self.server.state = ServerState::Listening;
-                self.server.address = addr.to_string();
-                self.server.error_detail = None;
+            ServerEvent::Listening { transport, addr } => {
+                let listener = self.listener(transport);
+                listener.state = ListenerState::Listening;
+                listener.address = addr.to_string();
+                listener.error_detail = None;
             }
-            ServerEvent::BindFailed { addr, error, .. } => {
-                self.server.state = ServerState::Error;
-                self.server.address = addr.to_string();
-                self.server.error_detail = Some(error);
+            ServerEvent::BindFailed {
+                transport,
+                addr,
+                error,
+            } => {
+                let listener = self.listener(transport);
+                listener.state = ListenerState::Error;
+                listener.address = addr.to_string();
+                listener.error_detail = Some(error);
             }
+            ServerEvent::Stopped { transport } => {
+                let listener = self.listener(transport);
+                listener.state = ListenerState::Off;
+                listener.error_detail = None;
+                // Connections of that transport were closed with the listener.
+                self.clients.retain(|c| c.transport != transport);
+            }
+            ServerEvent::WifiEnabled(enabled) => {
+                self.server.wifi.enabled = enabled;
+                let wifi = &mut self.server.wifi;
+                if enabled && wifi.listener.state == ListenerState::Off && wifi.tls_error.is_none()
+                {
+                    wifi.listener.state = ListenerState::Starting;
+                }
+            }
+            ServerEvent::Mdns(status) => self.server.wifi.mdns = status,
             ServerEvent::ClientConnected {
                 id,
                 device_id,
@@ -191,12 +286,17 @@ mod tests {
     use super::*;
 
     fn snapshot() -> Snapshot {
-        let settings = Settings::from_vars(Some("bogus"), None);
-        Snapshot::new(
-            &settings,
-            vec!["192.168.1.20".into()],
-            &crate::demo::profile().layout,
-        )
+        let settings = Settings::from_vars(Some("bogus"), None, None);
+        let layout = crate::demo::profile().layout;
+        Snapshot::new(Init {
+            settings: &settings,
+            server_name: "PC".into(),
+            lan_addresses: vec!["192.168.1.20".into()],
+            layout: &layout,
+            wifi_enabled: false,
+            fingerprint: Some("AAAA-BBBB-CCCC".into()),
+            tls_error: None,
+        })
     }
 
     fn peer() -> SocketAddr {
@@ -206,8 +306,8 @@ mod tests {
     #[test]
     fn starts_in_starting_state_and_reports_invalid_settings() {
         let s = snapshot();
-        assert_eq!(s.server.state, ServerState::Starting);
-        assert_eq!(s.server.bind_mode, BindMode::Loopback);
+        assert_eq!(s.server.usb.state, ListenerState::Starting);
+        assert_eq!(s.server.wifi.listener.state, ListenerState::Off);
         assert_eq!(
             s.server.invalid_settings,
             [InvalidSetting {
@@ -226,14 +326,14 @@ mod tests {
             addr,
             error: "address in use".into(),
         });
-        assert_eq!(s.server.state, ServerState::Error);
-        assert_eq!(s.server.error_detail.as_deref(), Some("address in use"));
+        assert_eq!(s.server.usb.state, ListenerState::Error);
+        assert_eq!(s.server.usb.error_detail.as_deref(), Some("address in use"));
         s.apply(ServerEvent::Listening {
             transport: Transport::Usb,
             addr,
         });
-        assert_eq!(s.server.state, ServerState::Listening);
-        assert_eq!(s.server.error_detail, None);
+        assert_eq!(s.server.usb.state, ListenerState::Listening);
+        assert_eq!(s.server.usb.error_detail, None);
     }
 
     #[test]
@@ -275,6 +375,42 @@ mod tests {
     }
 
     #[test]
+    fn tracks_wifi_toggle_and_its_clients() {
+        let mut s = snapshot();
+        s.apply(ServerEvent::WifiEnabled(true));
+        assert!(s.server.wifi.enabled);
+        assert_eq!(s.server.wifi.listener.state, ListenerState::Starting);
+        s.apply(ServerEvent::Listening {
+            transport: Transport::Wifi,
+            addr: "0.0.0.0:47322".parse().unwrap(),
+        });
+        s.apply(ServerEvent::ClientConnected {
+            id: 1,
+            device_id: "a".into(),
+            device_name: "A".into(),
+            peer: peer(),
+            transport: Transport::Wifi,
+        });
+        s.apply(ServerEvent::ClientConnected {
+            id: 2,
+            device_id: "b".into(),
+            device_name: "B".into(),
+            peer: peer(),
+            transport: Transport::Usb,
+        });
+        s.apply(ServerEvent::Mdns(MdnsStatus::Announced));
+        assert_eq!(s.server.wifi.mdns, MdnsStatus::Announced);
+
+        s.apply(ServerEvent::WifiEnabled(false));
+        s.apply(ServerEvent::Stopped {
+            transport: Transport::Wifi,
+        });
+        assert_eq!(s.server.wifi.listener.state, ListenerState::Off);
+        assert_eq!(s.clients.len(), 1);
+        assert_eq!(s.clients[0].transport, Transport::Usb);
+    }
+
+    #[test]
     fn tracks_pairing_and_paired_devices() {
         let mut s = snapshot();
         let view = PairingView::Active {
@@ -302,9 +438,11 @@ mod tests {
     #[test]
     fn serializes_in_camel_case() {
         let v = serde_json::to_value(snapshot()).unwrap();
-        assert_eq!(v["server"]["bindMode"], "loopback");
-        assert_eq!(v["server"]["state"], "starting");
-        assert!(v["server"]["lanAddresses"].is_array());
+        assert_eq!(v["server"]["usb"]["state"], "starting");
+        assert_eq!(v["server"]["wifi"]["listener"]["state"], "off");
+        assert_eq!(v["server"]["wifi"]["fingerprint"], "AAAA-BBBB-CCCC");
+        assert_eq!(v["server"]["wifi"]["mdns"]["state"], "off");
+        assert!(v["server"]["wifi"]["lanAddresses"].is_array());
         assert!(v.get("labels").is_none());
     }
 }

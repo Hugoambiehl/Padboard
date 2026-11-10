@@ -199,17 +199,48 @@ impl ConfigDir {
         write_atomic(&path, text.as_bytes(), D::PRIVATE).map_err(io_error)
     }
 
-    fn move_aside<D: Document>(&self) {
-        let path = self.path_of::<D>();
-        let stamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or_default();
-        let aside = self.root.join(format!("{}.unreadable-{stamp}", D::FILE));
-        match fs::rename(&path, &aside) {
-            Ok(()) => tracing::warn!("moved the unreadable file to {}", aside.display()),
-            Err(e) => tracing::error!("cannot move {} aside: {e}", path.display()),
+    /// Reads a raw (non-JSON) file; `Ok(None)` if it does not exist.
+    ///
+    /// # Errors
+    /// If the file exists but cannot be read.
+    pub fn read_raw(&self, file: &str) -> Result<Option<Vec<u8>>, StorageError> {
+        let path = self.root.join(file);
+        match fs::read(&path) {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(source) => Err(StorageError::Io { path, source }),
         }
+    }
+
+    /// Writes a raw secret file atomically, owner-only on Unix.
+    ///
+    /// # Errors
+    /// If the file cannot be written.
+    pub fn write_secret(&self, file: &str, bytes: &[u8]) -> Result<(), StorageError> {
+        let path = self.root.join(file);
+        write_atomic(&path, bytes, true).map_err(|source| StorageError::Io { path, source })
+    }
+
+    /// Moves an unusable file aside (see the module docs).
+    pub fn move_raw_aside(&self, file: &str) {
+        move_aside(&self.root, file);
+    }
+
+    fn move_aside<D: Document>(&self) {
+        move_aside(&self.root, D::FILE);
+    }
+}
+
+fn move_aside(root: &Path, file: &str) {
+    let path = root.join(file);
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or_default();
+    let aside = root.join(format!("{file}.unreadable-{stamp}"));
+    match fs::rename(&path, &aside) {
+        Ok(()) => tracing::warn!("moved the unreadable file to {}", aside.display()),
+        Err(e) => tracing::error!("cannot move {} aside: {e}", path.display()),
     }
 }
 

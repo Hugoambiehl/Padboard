@@ -25,8 +25,8 @@
 //! server (cross-site WebSocket hijacking).
 
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
@@ -40,6 +40,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::timeout;
+use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::WebSocketStream;
 use tokio_tungstenite::tungstenite::handshake::server::{ErrorResponse, Request, Response};
 use tokio_tungstenite::tungstenite::http::StatusCode;
@@ -83,7 +84,8 @@ pub struct ServerContext {
     pub server_name: String,
     pub server_id: String,
     pub profile: Profile,
-    pub executor: Arc<dyn ActionExecutor>,
+    /// Set once created (creating it may take a moment, see `lib.rs`).
+    pub executor: OnceLock<Arc<dyn ActionExecutor>>,
     pub auth: Arc<Auth>,
     pub events: UnboundedSender<ServerEvent>,
     pub limits: Limits,
@@ -107,6 +109,13 @@ pub enum ServerEvent {
         addr: SocketAddr,
         error: String,
     },
+    /// The listener was stopped (Wi-Fi turned off).
+    Stopped {
+        transport: Transport,
+    },
+    /// Wi-Fi turned on or off from the UI.
+    WifiEnabled(bool),
+    Mdns(crate::wifi::MdnsStatus),
     ClientConnected {
         id: u64,
         device_id: String,
@@ -154,10 +163,16 @@ impl ActionOutcome {
 }
 
 /// Binds `addr` and serves forever. Reports [`ServerEvent::BindFailed`] and
-/// returns if the address cannot be bound.
-pub async fn run(addr: SocketAddr, transport: Transport, ctx: Arc<ServerContext>) {
+/// returns if the address cannot be bound. `tls`: wrap connections in TLS
+/// (the Wi-Fi port).
+pub async fn run(
+    addr: SocketAddr,
+    transport: Transport,
+    tls: Option<TlsAcceptor>,
+    ctx: Arc<ServerContext>,
+) {
     match TcpListener::bind(addr).await {
-        Ok(listener) => serve(listener, transport, ctx).await,
+        Ok(listener) => serve(listener, transport, tls, ctx).await,
         Err(e) => {
             tracing::error!(%addr, ?transport, "cannot listen: {e}");
             emit(
@@ -174,7 +189,12 @@ pub async fn run(addr: SocketAddr, transport: Transport, ctx: Arc<ServerContext>
 
 /// Serves connections accepted on an already bound listener. Connection tasks
 /// are owned by this future: dropping it (e.g. aborting its task) closes them.
-pub async fn serve(listener: TcpListener, transport: Transport, ctx: Arc<ServerContext>) {
+pub async fn serve(
+    listener: TcpListener,
+    transport: Transport,
+    tls: Option<TlsAcceptor>,
+    ctx: Arc<ServerContext>,
+) {
     match listener.local_addr() {
         Ok(addr) => {
             tracing::info!(%addr, ?transport, "WebSocket server listening");
@@ -202,8 +222,19 @@ pub async fn serve(listener: TcpListener, transport: Transport, ctx: Arc<ServerC
                     };
                     let id = ctx.next_connection_id.fetch_add(1, Ordering::Relaxed);
                     let ctx = Arc::clone(&ctx);
+                    let tls = tls.clone();
                     connections.spawn(async move {
-                        if let Err(e) = handle_connection(stream, peer, id, transport, guard, &ctx).await {
+                        let result = match tls {
+                            None => handle_connection(stream, peer, id, transport, guard, &ctx).await,
+                            Some(tls) => match timeout(ctx.limits.handshake, tls.accept(stream)).await {
+                                Ok(Ok(stream)) => {
+                                    handle_connection(stream, peer, id, transport, guard, &ctx).await
+                                }
+                                Ok(Err(e)) => Err(ConnectionError::Tls(e)),
+                                Err(_) => Err(ConnectionError::HandshakeTimeout),
+                            },
+                        };
+                        if let Err(e) = result {
                             tracing::info!(%peer, client = id, "connection ended: {e}");
                         }
                     });
@@ -259,6 +290,8 @@ fn emit(ctx: &ServerContext, event: ServerEvent) {
 enum ConnectionError {
     #[error("websocket error: {0}")]
     Ws(#[from] tungstenite::Error),
+    #[error("TLS handshake failed: {0}")]
+    Tls(std::io::Error),
     #[error("no hello in time")]
     HandshakeTimeout,
     #[error("rejected: {0}")]
@@ -524,7 +557,12 @@ where
 
 /// Runs the action on a blocking thread (executors are blocking).
 async fn execute(ctx: &ServerContext, action: Action) -> ActionOutcome {
-    let executor = Arc::clone(&ctx.executor);
+    let Some(executor) = ctx.executor.get().map(Arc::clone) else {
+        return ActionOutcome::Error {
+            code: "unavailable".to_owned(),
+            detail: "the action executor is still starting".to_owned(),
+        };
+    };
     match tokio::task::spawn_blocking(move || executor.execute(&action)).await {
         Ok(Ok(())) => ActionOutcome::Ok,
         Ok(Err(e)) => ActionOutcome::from_error(&e),
@@ -653,7 +691,7 @@ mod tests {
             server_name: "TEST-PC".into(),
             server_id: "test-server".into(),
             profile: crate::demo::profile(),
-            executor: executor as Arc<dyn ActionExecutor>,
+            executor: OnceLock::from(executor as Arc<dyn ActionExecutor>),
             auth: Arc::new(Auth::new(None, Box::new(|_| {}))),
             events,
             limits: Limits {
@@ -678,7 +716,7 @@ mod tests {
         let (tx, events) = unbounded_channel();
         let ctx = context(Arc::clone(&executor), tx);
         let auth = Arc::clone(&ctx.auth);
-        tokio::spawn(serve(listener, transport, ctx));
+        tokio::spawn(serve(listener, transport, None, ctx));
         Harness {
             url,
             executor,
@@ -966,11 +1004,114 @@ mod tests {
         let addr = taken.local_addr().unwrap();
         let (tx, mut rx) = unbounded_channel();
         let ctx = context(Arc::new(FakeExecutor::default()), tx);
-        run(addr, Transport::Usb, ctx).await;
+        run(addr, Transport::Usb, None, ctx).await;
         assert!(matches!(
             rx.recv().await,
             Some(ServerEvent::BindFailed { addr: a, transport: Transport::Usb, .. }) if a == addr
         ));
+    }
+
+    // ─── TLS (Wi-Fi port) ─────────────────────────────────────────────────
+
+    struct TlsHarness {
+        addr: SocketAddr,
+        identity: crate::tls::TlsIdentity,
+        _config: tempfile::TempDir,
+    }
+
+    async fn start_tls() -> TlsHarness {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = crate::storage::ConfigDir::open(tmp.path()).unwrap();
+        let identity = crate::tls::TlsIdentity::load_or_create(&config).unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, _events) = unbounded_channel();
+        let ctx = context(Arc::new(FakeExecutor::default()), tx);
+        tokio::spawn(serve(
+            listener,
+            Transport::Wifi,
+            Some(identity.acceptor.clone()),
+            ctx,
+        ));
+        TlsHarness {
+            addr,
+            identity,
+            _config: tmp,
+        }
+    }
+
+    /// TLS connection pinned like the tablet, then the WebSocket handshake.
+    async fn tls_client(
+        addr: SocketAddr,
+        pin: crate::pinning::Pin,
+    ) -> Result<
+        (
+            WebSocketStream<tokio_rustls::client::TlsStream<TcpStream>>,
+            String,
+        ),
+        String,
+    > {
+        let connector =
+            tokio_rustls::TlsConnector::from(Arc::new(crate::pinning::client_config(pin)));
+        let tcp = TcpStream::connect(addr).await.unwrap();
+        let name = rustls::pki_types::ServerName::try_from("padboard.local").unwrap();
+        let tls = connector
+            .connect(name, tcp)
+            .await
+            .map_err(|e| e.to_string())?;
+        let certificate = tls.get_ref().1.peer_certificates().unwrap()[0].clone();
+        let (_, code) = crate::pinning::certificate_key(&certificate).unwrap();
+        let (ws, _) = tokio_tungstenite::client_async(format!("wss://{addr}"), tls)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok((ws, code))
+    }
+
+    #[tokio::test]
+    async fn wifi_speaks_tls_with_the_pinned_key() {
+        let h = start_tls().await;
+        let (mut ws, code) = tls_client(h.addr, crate::pinning::Pin::TrustOnFirstUse)
+            .await
+            .unwrap();
+        // What the tablet shows is what the desktop shows.
+        assert_eq!(code, h.identity.fingerprint);
+        ws.send(WsMessage::text(hello(PROTOCOL_VERSION).to_json().unwrap()))
+            .await
+            .unwrap();
+        let frame = timeout(Duration::from_secs(5), ws.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        let Message::Welcome(w) = Message::from_json(frame.to_text().unwrap()).unwrap() else {
+            panic!("expected welcome");
+        };
+        assert_eq!(w.auth, AuthStatus::PairingRequired);
+
+        // Pinned to the right key: accepted.
+        let pin = crate::pinning::Pin::Spki(h.identity.spki_sha256);
+        assert!(tls_client(h.addr, pin).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn another_key_is_refused_by_a_pinned_client() {
+        let h = start_tls().await;
+        let err = tls_client(h.addr, crate::pinning::Pin::Spki([0; 32]))
+            .await
+            .unwrap_err();
+        assert!(err.contains("does not match the pin"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn plain_websocket_is_refused_on_the_tls_port() {
+        let h = start_tls().await;
+        let result = timeout(
+            Duration::from_secs(10),
+            connect_async(format!("ws://{}", h.addr)),
+        )
+        .await
+        .expect("plain connection attempt hung");
+        assert!(result.is_err());
     }
 
     // ─── Wi-Fi authentication ─────────────────────────────────────────────
@@ -1175,7 +1316,7 @@ mod tests {
         let (tx, _events) = unbounded_channel();
         let mut ctx = context(Arc::new(FakeExecutor::default()), tx);
         Arc::get_mut(&mut ctx).unwrap().limits.handshake = Duration::from_millis(200);
-        tokio::spawn(serve(listener, Transport::Wifi, ctx));
+        tokio::spawn(serve(listener, Transport::Wifi, None, ctx));
         // Raw TCP, no HTTP upgrade: the server must hang up after the timeout.
         let mut raw = TcpStream::connect(addr).await.unwrap();
         let mut buf = [0u8; 1];
