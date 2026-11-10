@@ -209,8 +209,11 @@ impl Drop for Wifi {
     }
 }
 
+/// IPv6 is excluded too: Android before 14 resolves a service to a single
+/// address, often an IPv6 one the tablet cannot always use; IPv4 only keeps
+/// the announced address usable.
 fn exclude(daemon: &ServiceDaemon, names: Vec<String>) {
-    let mut kinds = vec![IfKind::LoopbackV4, IfKind::LoopbackV6];
+    let mut kinds = vec![IfKind::IPv6, IfKind::LoopbackV4];
     kinds.extend(names.into_iter().map(IfKind::Name));
     if let Err(e) = daemon.disable_interface(kinds) {
         tracing::warn!("cannot exclude interfaces from mDNS: {e}");
