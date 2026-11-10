@@ -294,7 +294,7 @@ mod tests {
 
     fn snapshot() -> Snapshot {
         let settings = Settings::from_vars(Some("bogus"), None, None);
-        let layout = crate::demo::profile().layout;
+        let layout = crate::config::seed::config().active_layout().layout;
         Snapshot::new(Init {
             settings: &settings,
             server_name: "PC".into(),

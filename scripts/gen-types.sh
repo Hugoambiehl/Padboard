@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Generates the TypeScript and Kotlin protocol types from crates/protocol.
+# Generates TypeScript and Kotlin types with typeshare:
+# - Kotlin (tablet): the protocol only (crates/protocol);
+# - TypeScript (desktop frontend): the protocol, the actions (crates/actions)
+#   and the editable configuration (apps/desktop/src-tauri/src/config).
 #
 #   scripts/gen-types.sh          regenerate the committed files
 #   scripts/gen-types.sh --check  fail if the committed files are out of date (CI)
@@ -12,8 +15,9 @@ TYPESHARE_VERSION="1.13.4"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROTOCOL_DIR="$ROOT/crates/protocol"
+TS_DIRS=("$PROTOCOL_DIR" "$ROOT/crates/actions" "$ROOT/apps/desktop/src-tauri/src/config")
 CONFIG="$ROOT/typeshare.toml"
-TS_OUT="$ROOT/apps/desktop/src/generated/protocol.ts"
+TS_OUT="$ROOT/apps/desktop/src/generated/types.ts"
 KT_OUT="$ROOT/apps/android/app/src/main/java/io/github/hugoambiehl/padboard/protocol/Protocol.kt"
 
 CHECK=false
@@ -35,19 +39,21 @@ if [[ "$installed" != "$TYPESHARE_VERSION" ]]; then
   exit 1
 fi
 
-# generate <lang> <output file>
+# generate <lang> <output file> <input dirs...>
 generate() {
-  mkdir -p "$(dirname "$2")"
-  RUST_LOG=error typeshare "$PROTOCOL_DIR" --config-file="$CONFIG" --lang="$1" --output-file="$2" >/dev/null
+  local lang="$1" out="$2"
+  shift 2
+  mkdir -p "$(dirname "$out")"
+  RUST_LOG=error typeshare "$@" --config-file="$CONFIG" --lang="$lang" --output-file="$out" >/dev/null
 }
 
 if $CHECK; then
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
-  generate typescript "$tmp/protocol.ts"
-  generate kotlin "$tmp/Protocol.kt"
+  generate typescript "$tmp/types.ts" "${TS_DIRS[@]}"
+  generate kotlin "$tmp/Protocol.kt" "$PROTOCOL_DIR"
   status=0
-  for pair in "$tmp/protocol.ts|$TS_OUT" "$tmp/Protocol.kt|$KT_OUT"; do
+  for pair in "$tmp/types.ts|$TS_OUT" "$tmp/Protocol.kt|$KT_OUT"; do
     fresh="${pair%%|*}"
     committed="${pair#*|}"
     if ! diff -u --label "${committed#"$ROOT"/} (committed)" --label "(regenerated)" \
@@ -61,8 +67,8 @@ if $CHECK; then
   fi
   echo "Generated protocol types are up to date."
 else
-  generate typescript "$TS_OUT"
-  generate kotlin "$KT_OUT"
+  generate typescript "$TS_OUT" "${TS_DIRS[@]}"
+  generate kotlin "$KT_OUT" "$PROTOCOL_DIR"
   echo "Generated:"
   echo "  ${TS_OUT#"$ROOT"/}"
   echo "  ${KT_OUT#"$ROOT"/}"

@@ -82,7 +82,7 @@ fn action_json_shape() {
     let value = serde_json::to_value(&action).unwrap();
     assert_eq!(
         value,
-        json!({ "type": "hotkey", "keys": ["ControlLeft", "AltLeft", "KeyT"] })
+        json!({ "type": "hotkey", "params": { "keys": ["ControlLeft", "AltLeft", "KeyT"] } })
     );
     assert_eq!(serde_json::from_value::<Action>(value).unwrap(), action);
 }

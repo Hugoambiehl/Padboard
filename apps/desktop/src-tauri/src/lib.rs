@@ -8,7 +8,7 @@
 
 mod adb;
 mod auth;
-mod demo;
+mod config;
 mod identity;
 mod netif;
 mod paired;
@@ -162,7 +162,8 @@ pub fn run() {
                     (None, Some(e.to_string()))
                 }
             };
-            let profile = demo::profile();
+            let profiles = config::load(&config);
+            let profile = profiles.active_layout();
             let server_name = server_name();
             let interfaces = netif::scan();
 

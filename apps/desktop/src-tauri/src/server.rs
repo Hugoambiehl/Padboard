@@ -48,7 +48,7 @@ use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::{self, Message as WsMessage};
 
 use crate::auth::{Auth, AuthChange, Transport};
-use crate::demo::Profile;
+use crate::config::ActiveLayout;
 
 /// Messages from the tablet are tiny; this bounds memory per connection.
 const MAX_MESSAGE_SIZE: usize = 64 * 1024;
@@ -87,7 +87,7 @@ impl Default for Limits {
 pub struct ServerContext {
     pub server_name: String,
     pub server_id: String,
-    pub profile: Profile,
+    pub profile: ActiveLayout,
     /// Set once created (creating it may take a moment, see `lib.rs`).
     pub executor: OnceLock<Arc<dyn ActionExecutor>>,
     pub auth: Arc<Auth>,
@@ -703,7 +703,7 @@ mod tests {
         Arc::new(ServerContext {
             server_name: "TEST-PC".into(),
             server_id: "test-server".into(),
-            profile: crate::demo::profile(),
+            profile: crate::config::seed::config().active_layout(),
             executor: OnceLock::from(executor as Arc<dyn ActionExecutor>),
             auth: Arc::new(Auth::new(None, Box::new(|_| {}))),
             events,
