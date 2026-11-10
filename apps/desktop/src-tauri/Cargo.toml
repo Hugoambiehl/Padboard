@@ -22,6 +22,8 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+base64 = "0.22.1"
+getrandom = "0.4.3"
 sha2.workspace = true
 subtle = "2.6.1"
 tauri = { version = "~2.11", features = [] }

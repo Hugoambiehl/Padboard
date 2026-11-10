@@ -2211,8 +2211,10 @@ dependencies = [
 name = "padboard-desktop"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "futures-util",
  "gethostname",
+ "getrandom 0.4.3",
  "if-addrs",
  "padboard-actions",
  "padboard-protocol",

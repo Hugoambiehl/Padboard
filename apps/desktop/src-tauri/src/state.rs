@@ -10,6 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use padboard_protocol::Layout;
 use serde::Serialize;
 
+use crate::auth::{AuthChange, PairedDeviceView, PairingView, Transport};
 use crate::server::{ActionOutcome, ServerEvent};
 use crate::settings::{BindMode, Settings};
 
@@ -21,6 +22,8 @@ const MAX_ACTIVITY: usize = 50;
 pub struct Snapshot {
     pub server: ServerStatus,
     pub clients: Vec<ClientInfo>,
+    pub pairing: PairingView,
+    pub paired_devices: Vec<PairedDeviceView>,
     /// Most recent first.
     pub activity: VecDeque<ActivityEntry>,
     #[serde(skip)]
@@ -64,7 +67,9 @@ pub struct InvalidSetting {
 #[serde(rename_all = "camelCase")]
 pub struct ClientInfo {
     pub id: u64,
+    pub device_id: String,
     pub device_name: String,
+    pub transport: Transport,
     pub peer: String,
     pub connected_at_ms: u64,
 }
@@ -108,6 +113,8 @@ impl Snapshot {
                     .collect(),
             },
             clients: Vec::new(),
+            pairing: PairingView::Idle,
+            paired_devices: Vec::new(),
             activity: VecDeque::new(),
             labels,
             next_activity_id: 1,
@@ -116,23 +123,27 @@ impl Snapshot {
 
     pub fn apply(&mut self, event: ServerEvent) {
         match event {
-            ServerEvent::Listening(addr) => {
+            ServerEvent::Listening { addr, .. } => {
                 self.server.state = ServerState::Listening;
                 self.server.address = addr.to_string();
                 self.server.error_detail = None;
             }
-            ServerEvent::BindFailed { addr, error } => {
+            ServerEvent::BindFailed { addr, error, .. } => {
                 self.server.state = ServerState::Error;
                 self.server.address = addr.to_string();
                 self.server.error_detail = Some(error);
             }
             ServerEvent::ClientConnected {
                 id,
+                device_id,
                 device_name,
                 peer,
+                transport,
             } => self.clients.push(ClientInfo {
                 id,
+                device_id,
                 device_name,
+                transport,
                 peer: peer.to_string(),
                 connected_at_ms: now_ms(),
             }),
@@ -157,6 +168,10 @@ impl Snapshot {
                 self.next_activity_id += 1;
                 self.activity.push_front(entry);
                 self.activity.truncate(MAX_ACTIVITY);
+            }
+            ServerEvent::Auth(AuthChange::Pairing(view)) => self.pairing = view,
+            ServerEvent::Auth(AuthChange::PairedDevices(devices)) => {
+                self.paired_devices = devices;
             }
         }
     }
@@ -207,12 +222,16 @@ mod tests {
         let mut s = snapshot();
         let addr: SocketAddr = "127.0.0.1:47321".parse().unwrap();
         s.apply(ServerEvent::BindFailed {
+            transport: Transport::Usb,
             addr,
             error: "address in use".into(),
         });
         assert_eq!(s.server.state, ServerState::Error);
         assert_eq!(s.server.error_detail.as_deref(), Some("address in use"));
-        s.apply(ServerEvent::Listening(addr));
+        s.apply(ServerEvent::Listening {
+            transport: Transport::Usb,
+            addr,
+        });
         assert_eq!(s.server.state, ServerState::Listening);
         assert_eq!(s.server.error_detail, None);
     }
@@ -222,8 +241,10 @@ mod tests {
         let mut s = snapshot();
         s.apply(ServerEvent::ClientConnected {
             id: 1,
+            device_id: "tab".into(),
             device_name: "Tab".into(),
             peer: peer(),
+            transport: Transport::Usb,
         });
         assert_eq!(s.clients.len(), 1);
         s.apply(ServerEvent::ButtonPressed {
@@ -251,6 +272,31 @@ mod tests {
         assert_eq!(s.activity.len(), MAX_ACTIVITY);
         assert_eq!(s.activity[0].button_id, format!("b{}", MAX_ACTIVITY + 9));
         assert_eq!(s.activity[0].label, None);
+    }
+
+    #[test]
+    fn tracks_pairing_and_paired_devices() {
+        let mut s = snapshot();
+        let view = PairingView::Active {
+            pin: "123456".into(),
+            expires_at_ms: 1,
+            attempts_left: 5,
+        };
+        s.apply(ServerEvent::Auth(AuthChange::Pairing(view.clone())));
+        assert_eq!(s.pairing, view);
+        s.apply(ServerEvent::Auth(AuthChange::PairedDevices(vec![
+            PairedDeviceView {
+                device_id: "tab".into(),
+                name: "Tab".into(),
+                paired_at_ms: 1000,
+                last_seen_ms: None,
+            },
+        ])));
+        assert_eq!(s.paired_devices.len(), 1);
+        let v = serde_json::to_value(&s).unwrap();
+        assert_eq!(v["pairing"]["state"], "active");
+        assert_eq!(v["pairing"]["expiresAtMs"], 1);
+        assert_eq!(v["pairedDevices"][0]["deviceId"], "tab");
     }
 
     #[test]
