@@ -34,7 +34,7 @@ mod fingerprint;
 mod layout;
 
 pub use fingerprint::{short_fingerprint, spki_sha256};
-pub use layout::{ButtonView, Category, GridSize, Layout, Page, ProfileInfo};
+pub use layout::{ButtonIcon, ButtonView, Category, GridSize, Layout, Page, ProfileInfo};
 
 /// Version of the wire protocol. Checked during the `hello` / `welcome` handshake.
 pub const PROTOCOL_VERSION: u32 = 2;

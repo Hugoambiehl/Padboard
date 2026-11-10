@@ -12,6 +12,14 @@ data class ButtonEvent (
 	val buttonId: String
 )
 
+/// A stroke icon on a 24 × 24 grid, Lucide style: drawn with a 2-unit stroke
+/// in the category color, round caps and joins, no fill. Each entry is SVG
+/// path data (`d` attribute). The desktop validates it before sending.
+@Serializable
+data class ButtonIcon (
+	val paths: List<String>
+)
+
 /// Color category of a button. The tablet maps it to its theme colors
 /// (icon color + background at ~16 % opacity).
 @Serializable
@@ -44,7 +52,9 @@ data class ButtonView (
 	val label: String,
 	/// Optional secondary line (e.g. "Scène 2", "-5 %").
 	val subtitle: String? = null,
-	val category: Category
+	val category: Category,
+	/// Icon drawn above the label. Absent: the tablet shows the label's initial.
+	val icon: ButtonIcon? = null
 )
 
 @Serializable

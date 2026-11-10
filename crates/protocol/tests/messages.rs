@@ -14,6 +14,7 @@ fn button(id: &str, row: u32, col: u32) -> ButtonView {
         label: id.into(),
         subtitle: None,
         category: Category::Grey,
+        icon: None,
     }
 }
 

@@ -55,6 +55,19 @@ pub struct ButtonView {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subtitle: Option<String>,
     pub category: Category,
+    /// Icon drawn above the label. Absent: the tablet shows the label's initial.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<ButtonIcon>,
+}
+
+/// A stroke icon on a 24 × 24 grid, Lucide style: drawn with a 2-unit stroke
+/// in the category color, round caps and joins, no fill. Each entry is SVG
+/// path data (`d` attribute). The desktop validates it before sending.
+#[typeshare]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ButtonIcon {
+    pub paths: Vec<String>,
 }
 
 /// Color category of a button. The tablet maps it to its theme colors
