@@ -29,6 +29,9 @@ jobs:
     name: Rust + desktop frontend (Linux)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      # No debug info: faster builds and links, smaller cache. Not needed in CI.
+      CARGO_PROFILE_DEV_DEBUG: 0
     steps:
       - uses: actions/checkout@v7
 
@@ -136,6 +139,9 @@ jobs:
     if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     runs-on: windows-2025
     timeout-minutes: 40
+    env:
+      # No debug info: faster builds and links, smaller cache. Not needed in CI.
+      CARGO_PROFILE_DEV_DEBUG: 0
     steps:
       - uses: actions/checkout@v7
 
