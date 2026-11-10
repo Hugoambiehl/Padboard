@@ -62,8 +62,10 @@ Same WebSocket protocol over two transports:
   `pair:request`. Paired devices are revocable from the status screen (live
   connection closed with `revoked`). The `Origin` check (403) applies to both
   ports. Tablet: token in DataStore, `allowBackup=false`, **one paired PC**.
-- **LAN default**: leaning towards "off by default, enabled at the first Wi-Fi
-  pairing" — to be confirmed at the end of phase 2.
+- **Wi-Fi default (decided)**: off at first launch; turned on and remembered
+  (`preferences.json`) when the user clicks "Activer le Wi-Fi" (pairing dialog)
+  or the toggle of the status screen. `PADBOARD_BIND` (`lan` / `loopback`) still
+  forces it, for development.
 - Auto-reconnect with backoff, transparent USB ↔ Wi-Fi switch (make-before-break,
   the desktop closes the older connection with `superseded`), ping/pong
   heartbeat (latency shown in UI).
@@ -214,10 +216,10 @@ SM-T580, always measure in release builds.
 
 ## Roadmap
 
-1. **Foundations** — workspace, protocol + typeshare, minimal WS server in Tauri
+1. **Foundations** ✅ — workspace, protocol + typeshare, minimal WS server in Tauri
    running a keyboard shortcut (testable on Linux), Android app connecting by manual
    IP and showing a fixed grid.
-2. **Connection** — mDNS + PIN pairing, USB via adb reverse, auto-switch,
+2. **Connection** ✅ — mDNS + PIN pairing, USB via adb reverse, auto-switch,
    reconnection, heartbeat.
 3. **Editor** — replica, library, inspector, drag & drop, persistence, live sync,
    undo/redo. Backlog: dark window title bar (GNOME shows a light one while

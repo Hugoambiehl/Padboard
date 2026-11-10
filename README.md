@@ -31,7 +31,9 @@ The app serves tablets on two ports:
 - **USB**: `127.0.0.1:47321`, always on, loopback only. The tablet reaches it
   through `adb reverse tcp:47321 tcp:47321` and needs no pairing (the cable is
   the proof).
-- **Wi-Fi**: `0.0.0.0:47322`, **off by default**, WebSocket over TLS. A tablet
+- **Wi-Fi**: `0.0.0.0:47322`, **off at first launch**, WebSocket over TLS. It is
+  turned on, and stays on across restarts, from the status screen toggle or the
+  **Activer le Wi-Fi** button of the pairing dialog. A tablet
   must pair once with a PIN shown on the PC; it then pins the PC's public key.
   When on, the PC is announced over mDNS (`_padboard._tcp`). Your firewall must
   allow TCP 47322 and UDP 5353 (mDNS); Windows asks the first time.
