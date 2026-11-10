@@ -95,6 +95,28 @@ reproduce layout, colors, sizes and texts faithfully.
 `graphicsLayer`. Never animate layout, never animate blur. Target 60 fps on the
 SM-T580, always measure in release builds.
 
+## Durable decisions
+
+- **Linux keyboard injection: uinput** (`evdev` crate), works on X11 and Wayland.
+  The udev rule granting access to `/dev/uinput` is documented in the README.
+- **Default port 47321.** Server binds **`127.0.0.1` by default** (enough for USB
+  via `adb reverse`). LAN bind (`0.0.0.0`) only on explicit opt-in
+  (`PADBOARD_BIND` env var or setting), with a visible warning in the frontend
+  as long as pairing does not exist.
+- **Keys are stored by physical position**: W3C `KeyboardEvent.code` names
+  (`KeyA`, `ControlLeft`…), mapped to evdev keycodes / Windows scancodes.
+- **Generated types are committed**: `apps/desktop/src/generated/` (TS) and the
+  Android package `io.github.hugoambiehl.padboard.protocol` (Kotlin). CI checks
+  they are up to date.
+- **Shared JSON fixtures** in `crates/protocol/fixtures/`, tested both on the Rust
+  side and the Kotlin side.
+- **Android package**: `io.github.hugoambiehl.padboard`.
+- **i18n**: French by default, **no hard-coded UI text**. Android: `strings.xml`
+  resources; desktop: `vue-i18n`. English to be added before open-sourcing.
+- **CI (private repo, Windows minutes count double)**: Windows job only on push
+  to `main` and on pull requests; cache Cargo, npm and Gradle; `concurrency`
+  with `cancel-in-progress`.
+
 ## Conventions
 
 - **Paths contain a space** (`Projets persos`): always quote paths in shell scripts,
