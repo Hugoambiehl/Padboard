@@ -6,9 +6,16 @@
 //! fetched with the `get_status` command.
 
 mod demo;
+mod identity;
+// Wired into the server and the UI in the next steps of phase 2.
+#[allow(dead_code)]
+mod paired;
+#[allow(dead_code)]
+mod preferences;
 mod server;
 mod settings;
 mod state;
+mod storage;
 
 use std::net::IpAddr;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -16,9 +23,11 @@ use std::sync::{Arc, Mutex, PoisonError};
 use tauri::{Emitter, Manager};
 use tokio::sync::mpsc::unbounded_channel;
 
+use crate::identity::Identity;
 use crate::server::ServerContext;
 use crate::settings::Settings;
 use crate::state::Snapshot;
+use crate::storage::ConfigDir;
 
 /// Name of the event carrying a fresh [`Snapshot`] to the frontend.
 const STATUS_EVENT: &str = "status";
@@ -50,6 +59,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![get_status])
         .setup(move |app| {
             let handle = app.handle().clone();
+            let config = ConfigDir::open(app.path().app_config_dir()?)?;
+            tracing::info!(dir = %config.root().display(), "config directory");
+            let identity = Identity::load_or_create(&config);
             let (events_tx, mut events_rx) = unbounded_channel();
 
             // Fold server events into the snapshot and push it to the UI.
@@ -79,8 +91,7 @@ pub fn run() {
                     };
                 let ctx = Arc::new(ServerContext {
                     server_name: server_name(),
-                    // Per launch for now; persisted with the pairings (phase 2, step B).
-                    server_id: uuid::Uuid::new_v4().to_string(),
+                    server_id: identity.server_id,
                     profile,
                     executor,
                     events: events_tx,
