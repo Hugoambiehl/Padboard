@@ -168,6 +168,17 @@ SM-T580, always measure in release builds.
 - **Android code style**: ktlint (`android_studio` style, `.editorconfig`), the
   generated `protocol/Protocol.kt` is excluded. Logging through
   `java.util.logging` so non-UI code stays testable on the JVM.
+- **Tablet connection** (`connection/ConnectionManager.kt`): one manager owns the
+  link, on a single-threaded dispatcher (no locks). USB first (no token sent
+  outside TLS), then the paired PC's addresses in order (mDNS, then the last
+  that worked), accepted only with the right `serverId` over the pinned key.
+  USB is probed while on Wi-Fi and taken over before Wi-Fi closes
+  (`superseded` from the PC is expected then). The TLS key is captured by the
+  trust manager (`Pinning.kt`): OkHttp does not expose the handshake of a
+  WebSocket upgrade. mDNS: Android < 14 resolves one address per service, so
+  the desktop announces IPv4 only and the tablet accumulates addresses.
+- **Desktop session liveness**: tablets ping every 5 s; the desktop closes an
+  authenticated session silent for 20 s.
 - **Tablet press feedback**: `button:press` on touch down, `button:release` on
   lift, released in a `finally` so a cancelled gesture never leaves a key held.
 - **Manual tests without the tablet**: the `fake-tablet` example of the desktop
@@ -214,5 +225,6 @@ SM-T580, always measure in release builds.
 4. **Actions** — all MVP actions (Linux + Windows), stateful buttons, folders,
    pages, multi-actions.
 5. **Tablet polish** — launcher, lock task, animations, disconnected overlay,
-   screensaver, performance.
+   screensaver, performance. Backlog: the Android 12L taskbar stays drawn over
+   the app in immersive mode on the SM-T580 (no inset reported); QR code pairing.
 6. **Distribution** — Windows installer, signed release APK, CI, README, open source.

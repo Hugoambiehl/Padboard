@@ -73,29 +73,36 @@ cargo run -p padboard-desktop --example fake-tablet -- forget            # drop 
 `--id NAME` simulates another tablet. Once connected, type a button id (e.g.
 `terminal`) and Enter to press it.
 
-### Run the tablet app (USB)
+### Run the tablet app
 
-Requirements: JDK 17+ and the Android SDK (`ANDROID_HOME`), `adb` in the PATH,
-USB debugging enabled on the tablet. Phase 1 only connects by manual address;
-the desktop will run `adb reverse` by itself in phase 2.
+Requirements: JDK 17+ and the Android SDK (`ANDROID_HOME`), `adb`, USB debugging
+enabled on the tablet.
 
 ```sh
 cd apps/android
 ./gradlew :app:assembleDebug                      # builds app/build/outputs/apk/debug/app-debug.apk
 adb devices                                       # the tablet must be listed as "device" (accept the prompt on it)
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb reverse tcp:47321 tcp:47321                   # tablet 127.0.0.1:47321 -> PC 127.0.0.1:47321
 adb shell am start -n io.github.hugoambiehl.padboard/.MainActivity
 ```
 
-On the tablet, tap **Utiliser l’USB** (or type `127.0.0.1`, port `47321`). The
-address is remembered and the app reconnects to it at startup.
+How the tablet connects:
 
-`adb reverse` is lost when the cable is unplugged or the adb server restarts:
-run it again. Logs: `adb logcat --pid="$(adb shell pidof io.github.hugoambiehl.padboard)"`.
+- **USB** (tried first): with the desktop app running, plugging the tablet is
+  enough. The desktop runs `adb reverse` by itself and the tablet connects to
+  `127.0.0.1:47321`, without pairing.
+- **Wi-Fi**: enable Wi-Fi in the desktop app, click **Associer un appareil**, pick
+  the PC in the list on the tablet (found over mDNS, or type its address) and
+  type the 6-digit code. Both screens show the PC's key fingerprint: they must
+  match. The tablet then reconnects by itself.
+- Plugging the cable while on Wi-Fi switches to USB without a gap; unplugging it
+  falls back to Wi-Fi. Revoking the tablet on the PC makes it pair again.
 
-Checks: `./gradlew :app:testDebugUnitTest` (includes the shared protocol fixtures)
-and `./gradlew :app:ktlintCheck` (`ktlintFormat` to fix).
+Logs: `adb logcat --pid="$(adb shell pidof io.github.hugoambiehl.padboard)"`.
+
+Checks: `./gradlew :app:testDebugUnitTest` (shared protocol fixtures and the
+connection manager against a fake PC with both transports) and
+`./gradlew :app:ktlintCheck` (`ktlintFormat` to fix).
 
 ### Linux: uinput access
 
