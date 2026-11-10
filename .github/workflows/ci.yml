@@ -1,0 +1,164 @@
+# Continuous integration.
+#
+# Private repo: Windows minutes count double, so the Windows job only runs on
+# pushes to main, on pull requests and on manual runs. Everything else runs on
+# every push. A newer run on the same ref cancels the previous one.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  # Must match TYPESHARE_VERSION in scripts/gen-types.sh.
+  TYPESHARE_VERSION: 1.13.4
+  NODE_VERSION: 24
+
+jobs:
+  linux:
+    name: Rust + desktop frontend (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libdbus-1-dev pkg-config
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - name: Frontend - install
+        working-directory: apps/desktop
+        run: npm ci
+
+      - name: Frontend - lint and format
+        working-directory: apps/desktop
+        run: |
+          npm run lint
+          npm run format:check
+
+      # Type-checks (vue-tsc) and produces dist/, which the Tauri crate embeds.
+      - name: Frontend - build
+        working-directory: apps/desktop
+        run: npm run build
+
+      - name: Rust toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: cargo fmt
+        run: cargo fmt --all --check
+
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: cargo test
+        run: cargo test --workspace --locked
+
+  types:
+    name: Generated protocol types
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Rust toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+
+      - name: Cache typeshare-cli
+        id: typeshare-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/typeshare
+          key: typeshare-${{ runner.os }}-${{ env.TYPESHARE_VERSION }}
+
+      - name: Install typeshare-cli
+        if: steps.typeshare-cache.outputs.cache-hit != 'true'
+        run: cargo install typeshare-cli --version "$TYPESHARE_VERSION" --locked
+
+      - name: Check generated TS and Kotlin types are up to date
+        run: scripts/gen-types.sh --check
+
+  android:
+    name: Android
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/android
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # "basic" = the MIT provider built on actions/cache (the default one is
+      # proprietary, see CLAUDE.md).
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      # The runner image ships the Android SDK (ANDROID_HOME) with accepted
+      # licenses; AGP downloads a missing platform if needed.
+      - name: ktlint, unit tests, Android Lint, debug APK
+        run: ./gradlew ktlintCheck testDebugUnitTest lintDebug assembleDebug
+
+      - name: Upload reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-reports
+          path: apps/android/app/build/reports/
+          retention-days: 7
+
+  windows:
+    name: Rust (Windows)
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      # dist/ is embedded by the Tauri crate; lint and format already ran on Linux.
+      - name: Frontend - build
+        working-directory: apps/desktop
+        run: |
+          npm ci
+          npm run build
+
+      - name: Rust toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: cargo test
+        run: cargo test --workspace --locked
