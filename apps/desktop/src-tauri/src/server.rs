@@ -65,6 +65,9 @@ pub struct Limits {
     pub max_handshaking: usize,
     /// Connections in the pairing phase (no valid token).
     pub max_pairing: usize,
+    /// An authenticated session silent for this long is closed (the tablet
+    /// pings every 5 s; a Wi-Fi drop leaves no TCP close behind).
+    pub idle: Duration,
 }
 
 impl Default for Limits {
@@ -74,6 +77,7 @@ impl Default for Limits {
             unauthenticated: crate::auth::PIN_LIFETIME,
             max_handshaking: 32,
             max_pairing: 4,
+            idle: Duration::from_secs(20),
         }
     }
 }
@@ -306,6 +310,8 @@ enum ConnectionError {
     Closed,
     #[error("session ended by the server: {0:?}")]
     Kicked(crate::auth::Kick),
+    #[error("no message for too long")]
+    Idle,
 }
 
 async fn handle_connection<S>(
@@ -489,7 +495,10 @@ where
     let mut kick_pending = true;
     loop {
         let message = tokio::select! {
-            message = next_message(ws) => message?,
+            message = timeout(ctx.limits.idle, next_message(ws)) => match message {
+                Ok(message) => message?,
+                Err(_) => return Err(ConnectionError::Idle),
+            },
             kicked = &mut kick, if kick_pending => {
                 kick_pending = false;
                 // Err: the registry was dropped (shutdown); keep serving.
@@ -703,6 +712,7 @@ mod tests {
                 unauthenticated: Duration::from_millis(500),
                 max_handshaking: 3,
                 max_pairing: 2,
+                idle: Duration::from_secs(2),
             },
             next_connection_id: AtomicU64::new(1),
             handshaking: AtomicUsize::new(0),
@@ -1266,6 +1276,28 @@ mod tests {
             recv_msg(&mut second).await,
             Message::Pong(Heartbeat { seq: 3 })
         );
+    }
+
+    #[tokio::test]
+    async fn silent_sessions_are_closed() {
+        let mut h = start(Transport::Usb, false).await;
+        let mut client = connected(&h).await;
+        // Limits::idle is 2 s in tests; a ping keeps the session alive.
+        tokio::time::sleep(Duration::from_millis(1200)).await;
+        send_msg(&mut client, &Message::Ping(Heartbeat { seq: 1 })).await;
+        assert!(matches!(recv_msg(&mut client).await, Message::Pong(_)));
+        tokio::time::sleep(Duration::from_millis(1200)).await;
+        send_msg(&mut client, &Message::Ping(Heartbeat { seq: 2 })).await;
+        assert!(matches!(recv_msg(&mut client).await, Message::Pong(_)));
+        assert_closed(&mut client).await;
+        loop {
+            if matches!(
+                next_event(&mut h).await,
+                ServerEvent::ClientDisconnected { .. }
+            ) {
+                break;
+            }
+        }
     }
 
     #[tokio::test]

@@ -283,8 +283,15 @@ async fn session<S: AsyncRead + AsyncWrite + Unpin>(
 ) -> Result<()> {
     let (mut sink, mut stream) = ws.split();
     println!("Type a button id and Enter to press it (Ctrl+C to quit).");
+    // Like the tablet: a ping every 5 s, or the PC closes a silent session.
+    let mut heartbeat = tokio::time::interval(Duration::from_secs(5));
+    let mut seq = 0u32;
     loop {
         tokio::select! {
+            _ = heartbeat.tick() => {
+                seq = seq.wrapping_add(1);
+                sink.send(WsMessage::text(Message::Ping(padboard_protocol::Heartbeat { seq }).to_json()?)).await?;
+            }
             frame = stream.next() => {
                 let Some(frame) = frame else {
                     println!("Connection closed by the PC.");
@@ -304,6 +311,7 @@ async fn session<S: AsyncRead + AsyncWrite + Unpin>(
                                 _ => {}
                             }
                         }
+                        Message::Pong(_) => {}
                         other => println!("<- {}", other.type_tag()),
                     },
                     WsMessage::Close(_) => {
