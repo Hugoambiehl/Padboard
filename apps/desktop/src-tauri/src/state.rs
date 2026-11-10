@@ -369,11 +369,12 @@ mod tests {
         assert_eq!(s.clients.len(), 1);
         s.apply(ServerEvent::ButtonPressed {
             client_id: 1,
-            button_id: "terminal".into(),
+            // Same on every OS (the first demo button differs on Windows).
+            button_id: "copy".into(),
             outcome: ActionOutcome::Ok,
         });
         let entry = &s.activity[0];
-        assert_eq!(entry.label.as_deref(), Some("Terminal"));
+        assert_eq!(entry.label.as_deref(), Some("Copier"));
         assert_eq!(entry.device_name.as_deref(), Some("Tab"));
         s.apply(ServerEvent::ClientDisconnected { id: 1 });
         assert!(s.clients.is_empty());

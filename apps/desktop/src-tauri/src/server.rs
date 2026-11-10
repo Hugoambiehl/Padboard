@@ -945,24 +945,20 @@ mod tests {
     async fn press_runs_the_bound_action() {
         let mut h = start(Transport::Usb, false).await;
         let mut client = connected(&h).await;
-        send_msg(&mut client, &press("terminal")).await;
+        send_msg(&mut client, &press("copy")).await;
         loop {
             if let ServerEvent::ButtonPressed {
                 button_id, outcome, ..
             } = next_event(&mut h).await
             {
-                assert_eq!(button_id, "terminal");
+                assert_eq!(button_id, "copy");
                 assert_eq!(outcome, ActionOutcome::Ok);
                 break;
             }
         }
         assert_eq!(
             *h.executor.executed.lock().unwrap(),
-            [Action::Hotkey(Hotkey::new([
-                Key::ControlLeft,
-                Key::AltLeft,
-                Key::KeyT
-            ]))]
+            [Action::Hotkey(Hotkey::new([Key::ControlLeft, Key::KeyC]))]
         );
     }
 
@@ -1178,7 +1174,7 @@ mod tests {
         let h = start(Transport::Wifi, false).await;
         let (mut client, welcome) = greet(&h, &hello(PROTOCOL_VERSION)).await;
         assert_eq!(welcome.auth, AuthStatus::PairingRequired);
-        send_msg(&mut client, &press("terminal")).await;
+        send_msg(&mut client, &press("copy")).await;
         let Message::Error(e) = recv_msg(&mut client).await else {
             panic!("expected error");
         };
@@ -1217,7 +1213,7 @@ mod tests {
             panic!("expected pair:success");
         };
         expect_layout(&mut client).await;
-        send_msg(&mut client, &press("terminal")).await;
+        send_msg(&mut client, &press("copy")).await;
         loop {
             if let ServerEvent::ButtonPressed { outcome, .. } = next_event(&mut h).await {
                 assert_eq!(outcome, ActionOutcome::Ok);
