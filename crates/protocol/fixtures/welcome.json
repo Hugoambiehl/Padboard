@@ -1,0 +1,7 @@
+{
+  "type": "welcome",
+  "payload": {
+    "protocolVersion": 1,
+    "serverName": "PC-HUGO"
+  }
+}

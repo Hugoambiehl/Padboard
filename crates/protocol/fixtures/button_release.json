@@ -1,0 +1,6 @@
+{
+  "type": "button:release",
+  "payload": {
+    "buttonId": "terminal"
+  }
+}

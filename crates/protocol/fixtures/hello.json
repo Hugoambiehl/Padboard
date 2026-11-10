@@ -1,0 +1,7 @@
+{
+  "type": "hello",
+  "payload": {
+    "protocolVersion": 1,
+    "deviceName": "Galaxy Tab A"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "type": "pong",
+  "payload": {
+    "seq": 42
+  }
+}

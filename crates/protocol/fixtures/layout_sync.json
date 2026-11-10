@@ -1,0 +1,25 @@
+{
+  "type": "layout:sync",
+  "payload": {
+    "profile": { "id": "streaming", "name": "Streaming" },
+    "grid": { "cols": 5, "rows": 3 },
+    "pages": [
+      {
+        "id": "page-1",
+        "buttons": [
+          { "id": "mic", "row": 0, "col": 0, "label": "Micro", "subtitle": "Actif", "category": "violet" },
+          { "id": "volume", "row": 0, "col": 1, "label": "Son PC", "subtitle": "Volume 64 %", "category": "blue" },
+          { "id": "scene-main", "row": 0, "col": 2, "label": "Caméra", "subtitle": "Scène active", "category": "teal" },
+          { "id": "play-pause", "row": 0, "col": 3, "label": "Lecture / Pause", "subtitle": "Médias", "category": "orange" },
+          { "id": "live", "row": 1, "col": 0, "label": "Live", "subtitle": "OBS · Hors ligne", "category": "pink" },
+          { "id": "record", "row": 1, "col": 1, "label": "Enregistrer", "subtitle": "OBS · Arrêté", "category": "red" },
+          { "id": "terminal", "row": 2, "col": 2, "label": "Terminal", "category": "grey" }
+        ]
+      },
+      {
+        "id": "page-2",
+        "buttons": []
+      }
+    ]
+  }
+}

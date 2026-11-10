@@ -1,0 +1,6 @@
+{
+  "type": "ping",
+  "payload": {
+    "seq": 42
+  }
+}

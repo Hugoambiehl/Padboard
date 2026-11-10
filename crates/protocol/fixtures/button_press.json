@@ -1,0 +1,6 @@
+{
+  "type": "button:press",
+  "payload": {
+    "buttonId": "terminal"
+  }
+}
