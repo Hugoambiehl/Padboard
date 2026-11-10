@@ -150,6 +150,8 @@ SM-T580, always measure in release builds.
   typeshare output.
 - **Tauri versions**: the `tauri` crate and the `@tauri-apps/*` npm packages must
   stay on the same minor (currently `~2.11` on both sides); bump them together.
+  Tauri plugins follow their own versions but require a minimum `@tauri-apps/api`:
+  `tauri-plugin-dialog` / `@tauri-apps/plugin-dialog` stay on `~2.7` (2.8 needs 2.12).
 - **Desktop dev launch**: `scripts/desktop-dev.sh`. It strips the GTK/GIO
   variables leaked by snap terminals (VS Code snap), which crash WebKitGTK.
 - **WebSocket server**: rejects handshakes carrying an `Origin` header (browsers),
@@ -168,6 +170,9 @@ SM-T580, always measure in release builds.
   `java.util.logging` so non-UI code stays testable on the JVM.
 - **Tablet press feedback**: `button:press` on touch down, `button:release` on
   lift, released in a `finally` so a cancelled gesture never leaves a key held.
+- **Manual tests without the tablet**: the `fake-tablet` example of the desktop
+  crate implements the tablet side (discovery, pinning, pairing, token); its
+  pinning logic (`pinning.rs`) is the reference for the Android implementation.
 - **Shared JSON fixtures** in `crates/protocol/fixtures/`, tested both on the Rust
   side and the Kotlin side.
 - **Android package**: `io.github.hugoambiehl.padboard`.

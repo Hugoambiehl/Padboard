@@ -19,15 +19,27 @@
     "copied": "Copié"
   },
   "usb": {
-    "title": "Connexion USB",
-    "hint": "Branche la tablette (débogage USB activé), lance cette commande, puis saisis l’adresse {address} sur la tablette."
+    "title": "USB",
+    "hint": "Branche la tablette (débogage USB activé) : elle est détectée et redirigée automatiquement. Aucune association n’est nécessaire."
   },
   "lan": {
-    "title": "Connexion Wi-Fi",
-    "hint": "Les tablettes appairées trouvent ce PC automatiquement. Adresses de ce PC (port {port}) :",
+    "title": "Wi-Fi",
+    "toggle": "Accepter les connexions Wi-Fi",
+    "forcedOn": "Activé par la variable d’environnement PADBOARD_BIND.",
+    "forcedOff": "Désactivé par la variable d’environnement PADBOARD_BIND.",
+    "hint": "Seules les tablettes associées peuvent se connecter. Elles trouvent ce PC automatiquement sur le réseau.",
+    "addresses": "Adresses",
     "none": "Aucune adresse réseau détectée.",
-    "disabled": "Désactivée : seule la connexion USB est possible. Pour l’activer, relance Padboard avec la variable d’environnement :",
-    "tlsError": "Le Wi-Fi est indisponible : impossible de créer la clé de chiffrement de ce PC."
+    "discovery": "Découverte",
+    "mdns": {
+      "off": "Inactive",
+      "announced": "Ce PC est visible sur le réseau",
+      "error": "Indisponible (les tablettes peuvent saisir l’adresse)"
+    },
+    "disabled": "Désactivé : seule la connexion USB est possible.",
+    "tlsError": "Le Wi-Fi est indisponible : impossible de créer la clé de chiffrement de ce PC.",
+    "fingerprint": "Empreinte de ce PC :",
+    "fingerprintHint": "La tablette affiche ce même code au moment de l’association."
   },
   "clients": {
     "title": "Tablettes connectées",
@@ -49,6 +61,61 @@
       "unsupported": "Action non prise en charge sur ce système",
       "unavailable": "Fonction système indisponible",
       "failed": "Échec de l’action"
+    }
+  },
+  "pairing": {
+    "open": "Associer un appareil",
+    "title": "Associer une tablette",
+    "intro": "Sur la tablette, choisis ce PC puis tape le code ci-dessous. Tu ne le feras qu’une fois.",
+    "close": "Fermer",
+    "wifiOff": "L’association se fait en Wi-Fi, qui est désactivé. En USB, aucune association n’est nécessaire.",
+    "wifiStarting": "Démarrage du Wi-Fi…",
+    "wifiLocked": "Le Wi-Fi est imposé par la variable d’environnement PADBOARD_BIND.",
+    "enableWifi": "Activer le Wi-Fi",
+    "codeLabel": "Code à taper sur la tablette",
+    "expiresIn": "Il expire dans {time}",
+    "attemptsLeft": "aucun essai restant | 1 essai restant | {count} essais restants",
+    "checkTitle": "Vérifie que la tablette affiche ce code",
+    "checkHint": "S’il est différent, ne tape pas le code et ferme cette fenêtre : un autre appareil se fait passer pour ce PC.",
+    "expired": "Le code a expiré.",
+    "locked": "Trop d’essais incorrects : ce code n’est plus valable.",
+    "newCode": "Nouveau code",
+    "paired": "{name} est associée. Elle se reconnectera toute seule.",
+    "done": "Terminer"
+  },
+  "paired": {
+    "title": "Appareils associés",
+    "empty": "Aucune tablette associée en Wi-Fi.",
+    "pairNow": "Associer un appareil",
+    "online": "Connectée en {via}",
+    "lastSeen": "Vue le {date}",
+    "pairedAt": "Associée le {date}",
+    "revoke": "Révoquer",
+    "confirmRevoke": "Confirmer",
+    "revokeHint": "Une tablette révoquée est déconnectée du Wi-Fi et doit être associée de nouveau. L’USB reste possible."
+  },
+  "usbDevices": {
+    "title": "Appareils USB",
+    "adb": {
+      "searching": "Recherche d’adb…",
+      "missing": "adb est introuvable. Installe les outils Android (paquet adb sous Ubuntu) ou indique son emplacement.",
+      "chosenMissing": "adb est introuvable à l’emplacement choisi : {path}",
+      "error": "Le serveur adb ne répond pas. Nouvelle tentative automatique…"
+    },
+    "choose": "Choisir l’emplacement d’adb…",
+    "chooseTitle": "Emplacement d’adb",
+    "automatic": "Recherche automatique",
+    "none": "Aucun appareil branché.",
+    "noneWithoutAdb": "Les appareils branchés apparaîtront ici une fois adb trouvé.",
+    "state": {
+      "unauthorized": "Autorise le débogage USB sur la tablette (fenêtre affichée sur son écran).",
+      "noPermission": "Accès refusé à l’appareil : il manque une règle udev pour ton utilisateur.",
+      "offline": "Hors ligne",
+      "checking": "Vérification…",
+      "noPadboard": "Padboard n’est pas installé : appareil ignoré.",
+      "ready": "Prête : port {port} redirigé.",
+      "failed": "Échec de la redirection.",
+      "other": "État adb : {state}"
     }
   }
 }

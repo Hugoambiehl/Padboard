@@ -12,6 +12,7 @@ export const i18n = createI18n<[MessageSchema], "fr">({
   datetimeFormats: {
     fr: {
       time: { hour: "2-digit", minute: "2-digit", second: "2-digit" },
+      dateTime: { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" },
     },
   },
 });

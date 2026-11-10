@@ -58,6 +58,21 @@ belongs to an app installed as a **snap** (e.g. VS Code): snap terminals leak GT
 variables that make WebKitGTK abort at startup (`Settings schema … does not
 contain a key named 'antialiasing'`). The script removes them.
 
+### Test without the tablet
+
+`fake-tablet` speaks the protocol like the Android app (mDNS discovery, TLS with
+the PC's key pinned, PIN pairing, token, USB without pairing):
+
+```sh
+cargo run -p padboard-desktop --example fake-tablet -- discover          # PCs announced over mDNS
+cargo run -p padboard-desktop --example fake-tablet -- wifi 127.0.0.1    # pair, then reconnect with the token
+cargo run -p padboard-desktop --example fake-tablet -- usb               # loopback port, no pairing
+cargo run -p padboard-desktop --example fake-tablet -- forget            # drop its pairing
+```
+
+`--id NAME` simulates another tablet. Once connected, type a button id (e.g.
+`terminal`) and Enter to press it.
+
 ### Run the tablet app (USB)
 
 Requirements: JDK 17+ and the Android SDK (`ANDROID_HOME`), `adb` in the PATH,
