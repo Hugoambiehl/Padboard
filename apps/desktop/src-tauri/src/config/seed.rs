@@ -20,7 +20,9 @@ struct Seed {
     icon: (&'static str, &'static [&'static str]),
 }
 
+#[cfg(not(windows))]
 const TERMINAL: &[&str] = &["M12 19h8", "m4 17 6-6-6-6"];
+#[cfg(windows)]
 const FOLDER_OPEN: &[&str] = &[
     "m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2",
 ];
@@ -118,8 +120,6 @@ fn seeds() -> Vec<Seed> {
         keys,
         icon,
     };
-    // `FOLDER_OPEN` is only used on Windows.
-    let _ = FOLDER_OPEN;
     vec![
         FIRST,
         s(
