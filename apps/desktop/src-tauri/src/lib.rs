@@ -9,6 +9,7 @@
 mod adb;
 mod auth;
 mod config;
+mod editor_service;
 mod identity;
 mod netif;
 mod paired;
@@ -30,9 +31,12 @@ use tauri::{Emitter, Manager};
 use tokio::sync::mpsc::unbounded_channel;
 
 use crate::auth::{Auth, AuthChange, PairingView, Transport};
+use crate::config::EditError;
+use crate::config::edit::{Edit, EditOutcome, EditorState};
+use crate::editor_service::EditorService;
 use crate::identity::Identity;
 use crate::preferences::Preferences;
-use crate::server::{Limits, ServerContext, ServerEvent};
+use crate::server::{ActionOutcome, Limits, ServerContext, ServerEvent};
 use crate::settings::Settings;
 use crate::state::Snapshot;
 use crate::storage::ConfigDir;
@@ -41,6 +45,8 @@ use crate::wifi::Wifi;
 
 /// Name of the event carrying a fresh [`Snapshot`] to the frontend.
 const STATUS_EVENT: &str = "status";
+/// Name of the event carrying a fresh [`EditorState`] to the frontend.
+const EDITOR_EVENT: &str = "editor";
 
 type SharedSnapshot = Arc<Mutex<Snapshot>>;
 
@@ -54,6 +60,8 @@ struct Backend {
     events: tokio::sync::mpsc::UnboundedSender<ServerEvent>,
     /// The `adb` chosen in the UI; the tracker restarts when it changes.
     adb_path: tokio::sync::watch::Sender<Option<PathBuf>>,
+    editor: Arc<EditorService>,
+    server: Arc<ServerContext>,
 }
 
 impl Backend {
@@ -129,6 +137,61 @@ fn set_adb_path(backend: tauri::State<'_, Backend>, path: Option<String>) -> Res
     backend.set_adb_path(path.map(PathBuf::from))
 }
 
+#[tauri::command]
+fn get_editor(backend: tauri::State<'_, Backend>) -> EditorState {
+    backend.editor.state()
+}
+
+/// Applies one edit; the new state follows in an `editor` event.
+#[tauri::command]
+fn edit(backend: tauri::State<'_, Backend>, edit: Edit) -> Result<EditOutcome, EditError> {
+    backend.editor.edit(edit)
+}
+
+#[tauri::command]
+fn undo(backend: tauri::State<'_, Backend>) -> bool {
+    backend.editor.undo()
+}
+
+#[tauri::command]
+fn redo(backend: tauri::State<'_, Backend>) -> bool {
+    backend.editor.redo()
+}
+
+/// The user left a text field: its next edit gets its own undo entry.
+#[tauri::command]
+fn checkpoint(backend: tauri::State<'_, Backend>) {
+    backend.editor.checkpoint();
+}
+
+/// Valid key names (W3C `KeyboardEvent.code`) for hotkeys.
+#[tauri::command]
+fn list_keys() -> Vec<&'static str> {
+    padboard_actions::Key::ALL
+        .iter()
+        .map(|k| k.code())
+        .collect()
+}
+
+/// Runs a button's action on this PC ("Tester l'action").
+#[tauri::command]
+async fn test_button(
+    backend: tauri::State<'_, Backend>,
+    button_id: String,
+) -> Result<ActionOutcome, String> {
+    let action = backend
+        .editor
+        .config()
+        .profiles
+        .iter()
+        .flat_map(|p| &p.pages)
+        .flat_map(|p| &p.buttons)
+        .find(|b| b.id == button_id)
+        .map(|b| b.action.clone())
+        .ok_or_else(|| format!("no button {button_id:?}"))?;
+    Ok(server::execute(&backend.server, action).await)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     init_tracing();
@@ -146,7 +209,14 @@ pub fn run() {
             cancel_pairing,
             revoke_device,
             set_wifi_enabled,
-            set_adb_path
+            set_adb_path,
+            get_editor,
+            edit,
+            undo,
+            redo,
+            checkpoint,
+            list_keys,
+            test_button
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -204,10 +274,23 @@ pub fn run() {
                 }
             });
 
+            let (layout_tx, _) = tokio::sync::watch::channel(Arc::new(profile));
+            let editor_handle = app.handle().clone();
+            let editor = EditorService::start(
+                profiles,
+                config.clone(),
+                layout_tx.clone(),
+                events_tx.clone(),
+                Box::new(move |state| {
+                    if let Err(e) = editor_handle.emit(EDITOR_EVENT, state) {
+                        tracing::warn!("cannot emit the editor state: {e}");
+                    }
+                }),
+            );
             let ctx = Arc::new(ServerContext {
                 server_name,
                 server_id: identity.server_id,
-                profile,
+                layout: layout_tx,
                 executor: OnceLock::new(),
                 auth: Arc::clone(&auth),
                 events: events_tx.clone(),
@@ -288,6 +371,8 @@ pub fn run() {
                 wifi,
                 events: events_tx,
                 adb_path,
+                editor,
+                server: Arc::clone(&ctx),
             });
 
             if let Some(window) = app.get_webview_window("main") {
@@ -295,8 +380,16 @@ pub fn run() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running the Tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building the Tauri application")
+        .run(|app, event| {
+            // Edits not saved yet (debounce) must not be lost.
+            if let tauri::RunEvent::Exit = event
+                && let Some(backend) = app.try_state::<Backend>()
+            {
+                backend.editor.flush();
+            }
+        });
 }
 
 fn init_tracing() {

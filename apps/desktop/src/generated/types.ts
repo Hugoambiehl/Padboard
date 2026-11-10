@@ -101,6 +101,27 @@ export interface Config {
 	profiles: ProfileConfig[];
 }
 
+/**
+ * What the frontend receives when an edit is refused: `code` is stable (the
+ * UI translates it), `detail` is the English developer message.
+ */
+export interface EditError {
+	code: string;
+	detail: string;
+}
+
+/** What an edit created, for the frontend to select it. */
+export interface EditOutcome {
+	createdId?: string;
+}
+
+/** What the editor UI shows, sent on every change (`editor` event). */
+export interface EditorState {
+	config: Config;
+	canUndo: boolean;
+	canRedo: boolean;
+}
+
 export enum ErrorCode {
 	/** The peer's protocol version is not supported. Fatal. */
 	UnsupportedVersion = "unsupported_version",
@@ -229,6 +250,95 @@ export interface WelcomePayload {
 	serverId: string;
 	auth: AuthStatus;
 }
+
+/** One change requested by the editor. */
+export type Edit = 
+	/** New profile with one empty page and a 5 × 3 grid. */
+	| { type: "addProfile", params: {
+	name: string;
+}}
+	/** Copy of a profile (new ids everywhere). */
+	| { type: "duplicateProfile", params: {
+	profileId: string;
+	name: string;
+}}
+	| { type: "renameProfile", params: {
+	profileId: string;
+	name: string;
+}}
+	/** Refused for the last profile. The active profile moves to the first one left. */
+	| { type: "deleteProfile", params: {
+	profileId: string;
+}}
+	| { type: "setActiveProfile", params: {
+	profileId: string;
+}}
+	/** Refused (`outsideGrid`) if buttons would fall outside. */
+	| { type: "setGrid", params: {
+	profileId: string;
+	cols: number;
+	rows: number;
+}}
+	| { type: "addPage", params: {
+	profileId: string;
+	name: string;
+}}
+	| { type: "renamePage", params: {
+	pageId: string;
+	name: string;
+}}
+	/** Moves a page to `index` within its profile. */
+	| { type: "movePage", params: {
+	pageId: string;
+	index: number;
+}}
+	/** Refused for the last page of a profile. */
+	| { type: "deletePage", params: {
+	pageId: string;
+}}
+	| { type: "addButton", params: {
+	pageId: string;
+	row: number;
+	col: number;
+	label: string;
+	subtitle?: string;
+	icon?: IconConfig;
+	color: Category;
+	action: Action;
+}}
+	/**
+	 * Moves a button to a cell of a page of the same profile. If the cell is
+	 * taken, the two buttons swap places.
+	 */
+	| { type: "moveButton", params: {
+	buttonId: string;
+	pageId: string;
+	row: number;
+	col: number;
+}}
+	| { type: "setLabel", params: {
+	buttonId: string;
+	label: string;
+}}
+	| { type: "setSubtitle", params: {
+	buttonId: string;
+	subtitle?: string;
+}}
+	| { type: "setIcon", params: {
+	buttonId: string;
+	icon?: IconConfig;
+}}
+	| { type: "setColor", params: {
+	buttonId: string;
+	color: Category;
+}}
+	| { type: "setAction", params: {
+	buttonId: string;
+	action: Action;
+}}
+	| { type: "deleteButton", params: {
+	buttonId: string;
+}};
 
 /** Envelope of every message exchanged over the WebSocket. */
 export type Message = 

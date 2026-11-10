@@ -2,6 +2,7 @@
 //! the server derives from it (the layout sent to tablets and the action of
 //! each button).
 
+pub mod edit;
 mod model;
 pub mod seed;
 mod svg_path;
@@ -15,6 +16,7 @@ use padboard_protocol::{ButtonIcon, ButtonView, Layout, Page, ProfileInfo};
 use crate::storage::{ConfigDir, Document};
 
 pub use model::{Config, PageConfig, ProfileConfig};
+pub use validate::EditError;
 
 impl Document for Config {
     const FILE: &'static str = "profiles.json";
@@ -42,7 +44,7 @@ pub fn load(dir: &ConfigDir) -> Config {
 }
 
 /// What the server needs from the active profile.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActiveLayout {
     pub layout: Layout,
     pub actions: HashMap<String, Action>,
@@ -116,7 +118,6 @@ impl Config {
 }
 
 /// A fresh id for a profile, page or button (12 hex characters).
-#[allow(dead_code)] // used by the editor operations (next step)
 #[must_use]
 pub fn new_id() -> String {
     uuid::Uuid::new_v4().simple().to_string()[..12].to_owned()

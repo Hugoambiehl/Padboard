@@ -234,6 +234,15 @@ impl Snapshot {
             }
             ServerEvent::Mdns(status) => self.server.wifi.mdns = status,
             ServerEvent::Usb(status) => self.usb = status,
+            ServerEvent::LayoutChanged(active) => {
+                self.labels = active
+                    .layout
+                    .pages
+                    .iter()
+                    .flat_map(|p| &p.buttons)
+                    .map(|b| (b.id.clone(), b.label.clone()))
+                    .collect();
+            }
             ServerEvent::LanAddresses(addresses) => self.server.wifi.lan_addresses = addresses,
             ServerEvent::ClientConnected {
                 id,

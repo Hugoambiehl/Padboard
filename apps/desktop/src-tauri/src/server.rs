@@ -39,6 +39,7 @@ use serde::Serialize;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::watch;
 use tokio::time::timeout;
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::WebSocketStream;
@@ -87,7 +88,9 @@ impl Default for Limits {
 pub struct ServerContext {
     pub server_name: String,
     pub server_id: String,
-    pub profile: ActiveLayout,
+    /// The active profile's layout and actions; sessions push every new
+    /// value to their tablet (`layout:sync`).
+    pub layout: watch::Sender<Arc<ActiveLayout>>,
     /// Set once created (creating it may take a moment, see `lib.rs`).
     pub executor: OnceLock<Arc<dyn ActionExecutor>>,
     pub auth: Arc<Auth>,
@@ -120,6 +123,8 @@ pub enum ServerEvent {
     /// Wi-Fi turned on or off from the UI.
     WifiEnabled(bool),
     Mdns(crate::wifi::MdnsStatus),
+    /// The active layout changed (edited, or another profile activated).
+    LayoutChanged(Arc<ActiveLayout>),
     /// IPv4 addresses of the PC changed (physical interfaces first).
     LanAddresses(Vec<crate::netif::LanAddress>),
     /// `adb` and the USB devices it sees.
@@ -414,7 +419,10 @@ where
     }
     drop(pairing_slot);
 
-    send(&mut ws, &Message::LayoutSync(ctx.profile.layout.clone())).await?;
+    // Subscribe before reading, so an edit landing in between is not missed.
+    let mut layouts = ctx.layout.subscribe();
+    let layout = layouts.borrow_and_update().layout.clone();
+    send(&mut ws, &Message::LayoutSync(layout)).await?;
     tracing::info!(%peer, client = id, ?transport, device = %device_name, "tablet connected");
     emit(
         ctx,
@@ -427,7 +435,7 @@ where
         },
     );
     let kick = ctx.auth.open_session(&device_id, id, transport);
-    let result = session(&mut ws, id, kick, ctx).await;
+    let result = session(&mut ws, id, kick, layouts, ctx).await;
     ctx.auth.close_session(&device_id, id);
     // Completes the closing handshake (replies to the peer's close frame, or
     // sends ours) so the tablet sees a clean close instead of a dropped socket.
@@ -487,18 +495,29 @@ async fn session<S>(
     ws: &mut WebSocketStream<S>,
     id: u64,
     mut kick: tokio::sync::oneshot::Receiver<crate::auth::Kick>,
+    mut layouts: watch::Receiver<Arc<ActiveLayout>>,
     ctx: &ServerContext,
 ) -> Result<(), ConnectionError>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     let mut kick_pending = true;
+    let mut layouts_open = true;
     loop {
         let message = tokio::select! {
             message = timeout(ctx.limits.idle, next_message(ws)) => match message {
                 Ok(message) => message?,
                 Err(_) => return Err(ConnectionError::Idle),
             },
+            changed = layouts.changed(), if layouts_open => {
+                if changed.is_ok() {
+                    let layout = layouts.borrow_and_update().layout.clone();
+                    send(ws, &Message::LayoutSync(layout)).await?;
+                } else {
+                    layouts_open = false; // the app is shutting down
+                }
+                continue;
+            }
             kicked = &mut kick, if kick_pending => {
                 kick_pending = false;
                 // Err: the registry was dropped (shutdown); keep serving.
@@ -549,7 +568,8 @@ async fn press<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let Some(action) = ctx.profile.actions.get(&button_id).cloned() else {
+    let action = ctx.layout.borrow().actions.get(&button_id).cloned();
+    let Some(action) = action else {
         let reason = format!("no button {button_id:?} in the current layout");
         return send_error(ws, ErrorCode::UnknownButton, reason).await;
     };
@@ -569,7 +589,7 @@ where
 }
 
 /// Runs the action on a blocking thread (executors are blocking).
-async fn execute(ctx: &ServerContext, action: Action) -> ActionOutcome {
+pub async fn execute(ctx: &ServerContext, action: Action) -> ActionOutcome {
     let Some(executor) = ctx.executor.get().map(Arc::clone) else {
         return ActionOutcome::Error {
             code: "unavailable".to_owned(),
@@ -693,6 +713,7 @@ mod tests {
         url: String,
         executor: Arc<FakeExecutor>,
         auth: Arc<Auth>,
+        layout: watch::Sender<Arc<ActiveLayout>>,
         events: UnboundedReceiver<ServerEvent>,
     }
 
@@ -703,7 +724,7 @@ mod tests {
         Arc::new(ServerContext {
             server_name: "TEST-PC".into(),
             server_id: "test-server".into(),
-            profile: crate::config::seed::config().active_layout(),
+            layout: watch::channel(Arc::new(crate::config::seed::config().active_layout())).0,
             executor: OnceLock::from(executor as Arc<dyn ActionExecutor>),
             auth: Arc::new(Auth::new(None, Box::new(|_| {}))),
             events,
@@ -730,11 +751,13 @@ mod tests {
         let (tx, events) = unbounded_channel();
         let ctx = context(Arc::clone(&executor), tx);
         let auth = Arc::clone(&ctx.auth);
+        let layout = ctx.layout.clone();
         tokio::spawn(serve(listener, transport, None, ctx));
         Harness {
             url,
             executor,
             auth,
+            layout,
             events,
         }
     }
@@ -940,6 +963,26 @@ mod tests {
                 Key::AltLeft,
                 Key::KeyT
             ]))]
+        );
+    }
+
+    #[tokio::test]
+    async fn an_edited_layout_is_pushed_and_its_actions_used() {
+        let h = start(Transport::Usb, false).await;
+        let mut client = connected(&h).await;
+        let mut config = crate::config::seed::config();
+        config.profiles[0].pages[0].buttons[1].label = "Edited".into();
+        config.profiles[0].pages[0].buttons[1].action = Action::Hotkey(Hotkey::new([Key::F14]));
+        h.layout.send_replace(Arc::new(config.active_layout()));
+        let Message::LayoutSync(layout) = recv_msg(&mut client).await else {
+            panic!("expected layout:sync");
+        };
+        assert_eq!(layout.pages[0].buttons[1].label, "Edited");
+        send_msg(&mut client, &press("copy")).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(
+            *h.executor.executed.lock().unwrap(),
+            [Action::Hotkey(Hotkey::new([Key::F14]))]
         );
     }
 

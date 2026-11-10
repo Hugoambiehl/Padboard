@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 use padboard_actions::Action;
 use serde::Serialize;
+use typeshare::typeshare;
 
 use super::model::{ButtonConfig, Config, IconConfig, ProfileConfig};
 use super::svg_path;
@@ -52,7 +53,6 @@ pub enum ConfigError {
     InvalidAction { button: String, detail: String },
 }
 
-#[allow(dead_code)] // used by the editor operations (next step)
 impl ConfigError {
     /// Stable identifier the UI translates.
     #[must_use]
@@ -75,20 +75,20 @@ impl ConfigError {
     }
 }
 
-/// What the frontend receives when an edit is refused.
-#[allow(dead_code)] // used by the editor operations (next step)
-#[derive(Debug, Clone, Serialize)]
+/// What the frontend receives when an edit is refused: `code` is stable (the
+/// UI translates it), `detail` is the English developer message.
+#[typeshare]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EditError {
-    pub code: &'static str,
+    pub code: String,
     pub detail: String,
 }
 
-#[allow(dead_code)]
 impl From<ConfigError> for EditError {
     fn from(e: ConfigError) -> Self {
         Self {
-            code: e.code(),
+            code: e.code().to_owned(),
             detail: e.to_string(),
         }
     }
