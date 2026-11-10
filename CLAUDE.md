@@ -224,6 +224,15 @@ SM-T580, always measure in release builds.
 - **Drag and drop** is hand-made with pointer events (WebKitGTK and WebView2
   behave differently with HTML5 DnD), with a keyboard alternative to move the
   selected button. Frontend logic is tested with Vitest.
+- **Editor frontend**: `useEditor()` is a read-only mirror of the Rust state
+  (`editor` event); every change goes through `edit()`. Text fields bound to
+  the configuration use `DraftInput` (keeps its draft while focused, since
+  edits round-trip through Rust). UI previews without the backend:
+  `npm run dev`, then `http://localhost:1420/?mock` (`src/dev/mock.ts`,
+  development only; `&view=connections`, `&select=row,col`).
+- **Lucide upgrades**: run `node scripts/export-icons.mts` then the ignored
+  Rust test `all_lucide_icons_are_valid` (see `svg_path.rs`), so every icon
+  still passes the desktop's path validator.
 
 ## Conventions
 
