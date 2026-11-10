@@ -98,8 +98,6 @@ fn hex(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::storage::ConfigDir;
-
     use super::*;
 
     #[test]
@@ -148,6 +146,8 @@ mod tests {
     #[test]
     fn file_is_owner_only() {
         use std::os::unix::fs::PermissionsExt;
+
+        use crate::storage::ConfigDir;
         let tmp = tempfile::tempdir().unwrap();
         let config = ConfigDir::open(tmp.path()).unwrap();
         let mut paired = PairedDevices::default();
