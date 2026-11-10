@@ -1,0 +1,5 @@
+# typeshare configuration — used by scripts/gen-types.sh.
+# The protocol is defined in crates/protocol; never edit the generated files.
+
+[kotlin]
+package = "io.github.hugoambiehl.padboard.protocol"

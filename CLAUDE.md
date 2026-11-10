@@ -108,6 +108,11 @@ SM-T580, always measure in release builds.
 - **Generated types are committed**: `apps/desktop/src/generated/` (TS) and the
   Android package `io.github.hugoambiehl.padboard.protocol` (Kotlin). CI checks
   they are up to date.
+- **Type generation**: `scripts/gen-types.sh` (`--check` in CI), config in
+  `typeshare.toml`, typeshare-cli version pinned in the script. typeshare has no
+  option to emit string unions, so it emits TS `enum`s: `erasableSyntaxOnly` is
+  disabled in the desktop tsconfig for that reason. No custom post-processing of
+  typeshare output.
 - **Shared JSON fixtures** in `crates/protocol/fixtures/`, tested both on the Rust
   side and the Kotlin side.
 - **Android package**: `io.github.hugoambiehl.padboard`.
