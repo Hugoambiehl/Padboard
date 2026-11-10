@@ -37,15 +37,36 @@ nothing that requires approval, no Google Play Services / Firebase / ML Kit.
 ## Connection (no Bluetooth)
 
 Same WebSocket protocol over two transports:
-- **USB** (tried first): desktop detects the tablet via `adb` and runs
-  `adb reverse tcp:PORT tcp:PORT`; tablet connects to `127.0.0.1:PORT`. No PIN
-  (the cable is the proof). `adb` from PATH, otherwise the app offers to download
-  Platform Tools or pick its location.
-- **Wi-Fi**: mDNS (`mdns-sd`) ↔ NsdManager. 6-digit PIN shown on desktop (expires
-  after 2 min) → persistent token. Paired devices list is revocable. Android needs
-  a `network_security_config` allowing cleartext `ws://` on the LAN.
-- Auto-reconnect with backoff, transparent USB ↔ Wi-Fi switch, ping/pong heartbeat
-  (latency shown in UI).
+- **USB** (tried first), port **47321**, plain `ws://`, bound to `127.0.0.1`
+  only: the desktop follows devices with `adb track-devices` and runs
+  `adb reverse tcp:47321 tcp:47321` on every (re)plug, **only on devices where
+  Padboard is installed**; the tablet connects to `127.0.0.1:47321`. Connections
+  on this port are authenticated without PIN (the cable is the proof). Accepted
+  risk, documented in the README: any local process can connect to loopback too,
+  so on a PC shared between several user accounts another account could send
+  keys into the session.
+- **`adb`**: from PATH or a location chosen in the settings. Downloading
+  Platform-Tools automatically is **postponed to phase 6**: Google's binaries
+  come under the Android SDK license, not a free license (to discuss then).
+- **Wi-Fi**, port **47322**, **TLS (`wss://`)**, opt-in (see LAN default below):
+  mDNS (`mdns-sd`) ↔ NsdManager. The desktop has its own long-lived self-signed
+  certificate; the tablet **pins the SHA-256 of its public key (SPKI)**, not
+  the certificate, so the certificate can be regenerated with the same key.
+  Pairing: 6-digit PIN shown on desktop on demand (one-time, expires after
+  2 min, 5 attempts in total then a new PIN is required) → token.
+  The desktop pairing dialog and the tablet PIN screen both show the **short
+  key fingerprint** (`crates/protocol/src/fingerprint.rs`, 60 bits,
+  `XXXX-XXXX-XXXX`) for the user to compare. QR code pairing: backlog.
+- **Tokens**: 32 bytes from the OS CSPRNG; the desktop stores only their
+  SHA-256 and compares in constant time. Unauthenticated clients may only send
+  `pair:request`. Paired devices are revocable from the status screen (live
+  connection closed with `revoked`). The `Origin` check (403) applies to both
+  ports. Tablet: token in DataStore, `allowBackup=false`, **one paired PC**.
+- **LAN default**: leaning towards "off by default, enabled at the first Wi-Fi
+  pairing" — to be confirmed at the end of phase 2.
+- Auto-reconnect with backoff, transparent USB ↔ Wi-Fi switch (make-before-break,
+  the desktop closes the older connection with `superseded`), ping/pong
+  heartbeat (latency shown in UI).
 
 ## Repo layout
 
