@@ -46,6 +46,30 @@ belongs to an app installed as a **snap** (e.g. VS Code): snap terminals leak GT
 variables that make WebKitGTK abort at startup (`Settings schema … does not
 contain a key named 'antialiasing'`). The script removes them.
 
+### Run the tablet app (USB)
+
+Requirements: JDK 17+ and the Android SDK (`ANDROID_HOME`), `adb` in the PATH,
+USB debugging enabled on the tablet. Phase 1 only connects by manual address;
+the desktop will run `adb reverse` by itself in phase 2.
+
+```sh
+cd apps/android
+./gradlew :app:assembleDebug                      # builds app/build/outputs/apk/debug/app-debug.apk
+adb devices                                       # the tablet must be listed as "device" (accept the prompt on it)
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb reverse tcp:47321 tcp:47321                   # tablet 127.0.0.1:47321 -> PC 127.0.0.1:47321
+adb shell am start -n io.github.hugoambiehl.padboard/.MainActivity
+```
+
+On the tablet, tap **Utiliser l’USB** (or type `127.0.0.1`, port `47321`). The
+address is remembered and the app reconnects to it at startup.
+
+`adb reverse` is lost when the cable is unplugged or the adb server restarts:
+run it again. Logs: `adb logcat --pid="$(adb shell pidof io.github.hugoambiehl.padboard)"`.
+
+Checks: `./gradlew :app:testDebugUnitTest` (includes the shared protocol fixtures)
+and `./gradlew :app:ktlintCheck` (`ktlintFormat` to fix).
+
 ### Linux: uinput access
 
 On Linux, Padboard sends keyboard shortcuts through a **uinput virtual keyboard**.

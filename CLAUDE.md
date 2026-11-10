@@ -128,6 +128,16 @@ SM-T580, always measure in release builds.
   `server.rs`). UI state (`state.rs`) is mirrored by hand in
   `apps/desktop/src/types/status.ts`; the backend sends codes, the frontend
   translates.
+- **Android dependencies**: every library must support minSdk 26 — check the
+  `minSdkVersion` in its AAR manifest before adding it (the manifest merger and
+  Android Lint `NewApi` check it again at build time). Kotlin is 2.2.10, so
+  libraries must be built with Kotlin ≤ 2.2/2.3 (kotlinx-serialization stays on
+  1.9.x until Kotlin is upgraded). Versions only in `gradle/libs.versions.toml`.
+- **Android code style**: ktlint (`android_studio` style, `.editorconfig`), the
+  generated `protocol/Protocol.kt` is excluded. Logging through
+  `java.util.logging` so non-UI code stays testable on the JVM.
+- **Tablet press feedback**: `button:press` on touch down, `button:release` on
+  lift, released in a `finally` so a cancelled gesture never leaves a key held.
 - **Shared JSON fixtures** in `crates/protocol/fixtures/`, tested both on the Rust
   side and the Kotlin side.
 - **Android package**: `io.github.hugoambiehl.padboard`.
