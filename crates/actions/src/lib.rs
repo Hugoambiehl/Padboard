@@ -183,9 +183,9 @@ pub(crate) fn run_hotkey(
 /// Logs the outcome of an action. Shared by the platform executors.
 pub(crate) fn log_outcome(action: &Action, result: &Result<(), ActionError>) {
     match result {
-        Ok(()) => tracing::debug!(action = action.kind(), ?action, "action executed"),
-        Err(e @ ActionError::Unsupported { .. }) => tracing::warn!(action = action.kind(), "{e}"),
-        Err(e) => tracing::error!(action = action.kind(), ?action, "{e}"),
+        Ok(()) => tracing::debug!(kind = action.kind(), ?action, "action executed"),
+        Err(e @ ActionError::Unsupported { .. }) => tracing::warn!(kind = action.kind(), "{e}"),
+        Err(e) => tracing::error!(kind = action.kind(), ?action, "{e}"),
     }
 }
 
