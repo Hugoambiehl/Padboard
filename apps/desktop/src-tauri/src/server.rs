@@ -9,7 +9,8 @@
 //! 2. the server answers `welcome` then `layout:sync`;
 //! 3. `button:press` runs the bound action, `ping` gets a `pong`.
 //!
-//! Phase 1 has no authentication (see `settings.rs` for the bind policy).
+//! No authentication yet: every connection is announced as authenticated
+//! (pairing arrives in phase 2, step C; see `settings.rs` for the bind policy).
 //! Handshakes carrying an `Origin` header are rejected: browsers always send
 //! one, the tablet never does, so a web page open on the PC cannot drive the
 //! server (cross-site WebSocket hijacking).
@@ -22,8 +23,8 @@ use std::time::Duration;
 use futures_util::{SinkExt, StreamExt};
 use padboard_actions::{Action, ActionError, ActionExecutor};
 use padboard_protocol::{
-    ButtonEvent, ErrorCode, ErrorPayload, Heartbeat, HelloPayload, Message, PROTOCOL_VERSION,
-    WelcomePayload, is_compatible,
+    AuthStatus, ButtonEvent, ErrorCode, ErrorPayload, Heartbeat, HelloPayload, Message,
+    PROTOCOL_VERSION, WelcomePayload, is_compatible,
 };
 use serde::Serialize;
 use tokio::net::{TcpListener, TcpStream};
@@ -45,6 +46,7 @@ const MAX_MESSAGE_SIZE: usize = 64 * 1024;
 #[derive(Debug)]
 pub struct ServerContext {
     pub server_name: String,
+    pub server_id: String,
     pub profile: Profile,
     pub executor: Arc<dyn ActionExecutor>,
     pub events: UnboundedSender<ServerEvent>,
@@ -196,6 +198,7 @@ async fn handle_connection(
     let HelloPayload {
         protocol_version,
         device_name,
+        ..
     } = hello;
     if !is_compatible(protocol_version) {
         let reason = format!(
@@ -209,6 +212,8 @@ async fn handle_connection(
         &Message::Welcome(WelcomePayload {
             protocol_version: PROTOCOL_VERSION,
             server_name: ctx.server_name.clone(),
+            server_id: ctx.server_id.clone(),
+            auth: AuthStatus::Authenticated,
         }),
     )
     .await?;
@@ -259,7 +264,10 @@ async fn session(ws: &mut Ws, id: u64, ctx: &ServerContext) -> Result<(), Connec
             other @ (Message::Hello(_)
             | Message::Welcome(_)
             | Message::Error(_)
-            | Message::LayoutSync(_)) => {
+            | Message::LayoutSync(_)
+            | Message::PairRequest(_)
+            | Message::PairSuccess(_)
+            | Message::PairFailure(_)) => {
                 let reason = format!("unexpected {} after handshake", other.type_tag());
                 send_error(ws, ErrorCode::BadRequest, reason).await?;
             }
@@ -399,6 +407,7 @@ mod tests {
         let (tx, events) = unbounded_channel();
         let ctx = Arc::new(ServerContext {
             server_name: "TEST-PC".into(),
+            server_id: "test-server".into(),
             profile: crate::demo::profile(),
             executor: Arc::clone(&executor) as Arc<dyn ActionExecutor>,
             events: tx,
@@ -431,6 +440,8 @@ mod tests {
         Message::Hello(HelloPayload {
             protocol_version: version,
             device_name: "Test tablet".into(),
+            device_id: "test-device".into(),
+            token: None,
         })
     }
 
@@ -441,6 +452,8 @@ mod tests {
             panic!("expected welcome");
         };
         assert_eq!(w.server_name, "TEST-PC");
+        assert_eq!(w.server_id, "test-server");
+        assert_eq!(w.auth, AuthStatus::Authenticated);
         assert!(matches!(
             recv_msg(&mut client).await,
             Message::LayoutSync(_)
@@ -616,6 +629,7 @@ mod tests {
         let (tx, mut rx) = unbounded_channel();
         let ctx = Arc::new(ServerContext {
             server_name: "TEST-PC".into(),
+            server_id: "test-server".into(),
             profile: crate::demo::profile(),
             executor: Arc::new(FakeExecutor::default()),
             events: tx,

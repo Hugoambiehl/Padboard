@@ -1,5 +1,6 @@
 package io.github.hugoambiehl.padboard.connection
 
+import io.github.hugoambiehl.padboard.protocol.AuthStatus
 import io.github.hugoambiehl.padboard.protocol.ButtonEvent
 import io.github.hugoambiehl.padboard.protocol.ButtonView
 import io.github.hugoambiehl.padboard.protocol.Category
@@ -87,10 +88,10 @@ class PadboardClientTest {
     @Test
     fun handshakeThenLayoutThenPress() = runBlocking {
         desktop { ws ->
-            ws.send(Message.Welcome(WelcomePayload(PROTOCOL_VERSION, "TEST-PC")).toJson())
+            ws.send(welcome())
             ws.send(Message.LayoutSync(layout).toJson())
         }
-        client.connect(address())
+        client.connect(address(), DEVICE_ID)
 
         val connected = withTimeout(5_000) { client.state.first { it is ConnectionState.Connected } }
         assertEquals("TEST-PC", (connected as ConnectionState.Connected).serverName)
@@ -99,6 +100,7 @@ class PadboardClientTest {
         val hello = nextReceived() as Message.Hello
         assertEquals(PROTOCOL_VERSION, hello.payload.protocolVersion)
         assertEquals("Test tablet", hello.payload.deviceName)
+        assertEquals(DEVICE_ID, hello.payload.deviceId)
 
         client.press("copy")
         client.release("copy")
@@ -112,7 +114,7 @@ class PadboardClientTest {
             ws.send(Message.Error(ErrorPayload(ErrorCode.UnsupportedVersion, "nope")).toJson())
             ws.close(1000, null)
         }
-        client.connect(address())
+        client.connect(address(), DEVICE_ID)
         val failed = withTimeout(5_000) { client.state.first { it is ConnectionState.Failed } }
         assertEquals(FailureReason.Incompatible, (failed as ConnectionState.Failed).reason)
     }
@@ -121,7 +123,7 @@ class PadboardClientTest {
     fun unreachableServerFails() = runBlocking {
         val port = server.port
         server.close()
-        client.connect(ServerAddress("127.0.0.1", port))
+        client.connect(ServerAddress("127.0.0.1", port), DEVICE_ID)
         val failed = withTimeout(5_000) { client.state.first { it is ConnectionState.Failed } }
         assertEquals(FailureReason.Unreachable, (failed as ConnectionState.Failed).reason)
     }
@@ -131,12 +133,19 @@ class PadboardClientTest {
         var desktopSocket: WebSocket? = null
         desktop { ws ->
             desktopSocket = ws
-            ws.send(Message.Welcome(WelcomePayload(PROTOCOL_VERSION, "TEST-PC")).toJson())
+            ws.send(welcome())
         }
-        client.connect(address())
+        client.connect(address(), DEVICE_ID)
         withTimeout(5_000) { client.state.first { it is ConnectionState.Connected } }
         desktopSocket!!.close(1001, "going away")
         val failed = withTimeout(5_000) { client.state.first { it is ConnectionState.Failed } }
         assertEquals(FailureReason.Lost, (failed as ConnectionState.Failed).reason)
+    }
+
+    private fun welcome() =
+        Message.Welcome(WelcomePayload(PROTOCOL_VERSION, "TEST-PC", "test-server", AuthStatus.Authenticated)).toJson()
+
+    private companion object {
+        const val DEVICE_ID = "test-device"
     }
 }

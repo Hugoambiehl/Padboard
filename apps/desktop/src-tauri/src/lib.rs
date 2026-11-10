@@ -79,6 +79,8 @@ pub fn run() {
                     };
                 let ctx = Arc::new(ServerContext {
                     server_name: server_name(),
+                    // Per launch for now; persisted with the pairings (phase 2, step B).
+                    server_id: uuid::Uuid::new_v4().to_string(),
                     profile,
                     executor,
                     events: events_tx,

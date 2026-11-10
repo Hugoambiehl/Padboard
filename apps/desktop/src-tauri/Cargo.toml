@@ -28,6 +28,7 @@ tokio-tungstenite = "0.30.0"
 futures-util = { version = "0.3.34", default-features = false, features = ["std", "sink"] }
 if-addrs = "0.15.0"
 gethostname = "1.1.0"
+uuid = { version = "1.26.1", features = ["v4"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 [lints]

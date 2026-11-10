@@ -6,11 +6,13 @@ import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.hugoambiehl.padboard.connection.ConnectionState
+import io.github.hugoambiehl.padboard.connection.DeviceIdStore
 import io.github.hugoambiehl.padboard.connection.PadboardClient
 import io.github.hugoambiehl.padboard.connection.ServerAddress
 import io.github.hugoambiehl.padboard.connection.ServerAddressStore
 import io.github.hugoambiehl.padboard.protocol.Layout
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +29,7 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
             .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .build()
     private val client = PadboardClient(okHttp, deviceName(application))
+    private val deviceId = viewModelScope.async { DeviceIdStore(application).deviceId() }
 
     val connection: StateFlow<ConnectionState> = client.state
     val layout: StateFlow<Layout?> = client.layout
@@ -38,12 +41,14 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
 
     init {
         // A dedicated tablet should come back to its PC by itself.
-        viewModelScope.launch { store.address.first()?.let(client::connect) }
+        viewModelScope.launch { store.address.first()?.let { client.connect(it, deviceId.await()) } }
     }
 
     fun connect(address: ServerAddress) {
-        viewModelScope.launch { store.save(address) }
-        client.connect(address)
+        viewModelScope.launch {
+            store.save(address)
+            client.connect(address, deviceId.await())
+        }
     }
 
     fun disconnect() = client.disconnect()

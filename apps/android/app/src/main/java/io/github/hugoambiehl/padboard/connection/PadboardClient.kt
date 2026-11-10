@@ -74,13 +74,14 @@ class PadboardClient(private val okHttp: OkHttpClient, private val deviceName: S
     private val lock = Any()
     private var socket: WebSocket? = null
 
-    fun connect(address: ServerAddress) {
+    /** [deviceId]: stable identifier of this tablet, see [DeviceIdStore]. */
+    fun connect(address: ServerAddress, deviceId: String) {
         synchronized(lock) {
             socket?.cancel()
             _layout.value = null
             _state.value = ConnectionState.Connecting(address)
             val request = Request.Builder().url(address.webSocketUrl).build()
-            socket = okHttp.newWebSocket(request, Listener(address))
+            socket = okHttp.newWebSocket(request, Listener(address, deviceId))
         }
     }
 
@@ -115,9 +116,11 @@ class PadboardClient(private val okHttp: OkHttpClient, private val deviceName: S
         _state.value = ConnectionState.Failed(address, reason)
     }
 
-    private inner class Listener(private val address: ServerAddress) : WebSocketListener() {
+    private inner class Listener(private val address: ServerAddress, private val deviceId: String) :
+        WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
-            webSocket.send(Message.Hello(HelloPayload(PROTOCOL_VERSION, deviceName)).toJson())
+            // Pairing and tokens arrive in phase 2 (step G); the desktop accepts everyone until then.
+            webSocket.send(Message.Hello(HelloPayload(PROTOCOL_VERSION, deviceName, deviceId)).toJson())
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
@@ -144,7 +147,13 @@ class PadboardClient(private val okHttp: OkHttpClient, private val deviceName: S
                 is Message.LayoutSync -> ifCurrent(webSocket) { _layout.value = message.payload }
                 is Message.Error -> handleError(webSocket, message)
                 is Message.Ping -> webSocket.send(Message.Pong(message.payload).toJson())
-                is Message.Pong, is Message.Hello, is Message.ButtonPress, is Message.ButtonRelease -> Unit
+                is Message.Pong,
+                is Message.Hello,
+                is Message.ButtonPress,
+                is Message.ButtonRelease,
+                is Message.PairRequest,
+                is Message.PairSuccess,
+                is Message.PairFailure -> Unit
             }
         }
 
