@@ -75,6 +75,11 @@ add/adjust round-trip serialization tests.
   `loginctl lock-session`.
 - An action with no Linux equivalent must **log clearly and return an error**,
   never panic.
+- Executors are **blocking** (a hotkey holds keys ~20 ms): call them from
+  `tokio::task::spawn_blocking`. Platform code only implements low-level key
+  down/up (`KeyInjector`); press/release sequencing is shared (`run_hotkey`)
+  and always releases already-pressed keys on failure.
+- Manual test: `cargo run -p padboard-actions --example hotkey -- ControlLeft AltLeft KeyT`.
 - Cross-platform: OBS WebSocket v5. Discord only via its global shortcuts (no RPC).
 
 ## Design

@@ -15,6 +15,8 @@ padboard-actions = { path = "crates/actions" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 typeshare = "1.0.5"
+thiserror = "2.0.21"
+tracing = "0.1.44"
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
