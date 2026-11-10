@@ -181,4 +181,23 @@ mod tests {
             assert!(!is_valid(d), "{d:?}");
         }
     }
+
+    /// Every Lucide icon, as converted by `src/icons/paths.ts`, must pass.
+    /// Run after upgrading `lucide`:
+    /// `PADBOARD_LUCIDE_JSON=<export> cargo test -p padboard-desktop -- --ignored lucide`
+    /// (the export maps icon names to their paths; see the README).
+    #[test]
+    #[ignore = "needs an export of the lucide icons"]
+    fn all_lucide_icons_are_valid() {
+        let path = std::env::var("PADBOARD_LUCIDE_JSON").expect("PADBOARD_LUCIDE_JSON");
+        let icons: std::collections::BTreeMap<String, Vec<String>> =
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        assert!(icons.len() > 1000);
+        let bad: Vec<_> = icons
+            .iter()
+            .filter(|(_, paths)| !paths.iter().all(|d| is_valid(d)))
+            .map(|(name, _)| name)
+            .collect();
+        assert!(bad.is_empty(), "{bad:?}");
+    }
 }

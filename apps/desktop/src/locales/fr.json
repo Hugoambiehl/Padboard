@@ -131,7 +131,11 @@
     "undo": "Annuler",
     "redo": "Rétablir",
     "undoShortcut": "Annuler (Ctrl+Z)",
-    "redoShortcut": "Rétablir (Ctrl+Maj+Z)"
+    "redoShortcut": "Rétablir (Ctrl+Maj+Z)",
+    "hint": "Clique sur une case pour la modifier · Glisse les cases pour les réorganiser",
+    "keyboardHint": "Flèches : changer de case · Alt + flèches : déplacer le bouton · Suppr : le supprimer",
+    "live": "Synchronisé en direct",
+    "noTablet": "Aucune tablette connectée : les modifications sont enregistrées"
   },
   "profiles": {
     "label": "Profil :",
@@ -153,5 +157,34 @@
       "action": "Supprimer",
       "confirm": "Confirmer la suppression"
     }
+  },
+  "pages": {
+    "label": "Pages",
+    "menu": "Options de la page",
+    "add": "Ajouter une page",
+    "rename": "Renommer la page",
+    "moveLeft": "Déplacer à gauche",
+    "moveRight": "Déplacer à droite",
+    "delete": "Supprimer la page",
+    "confirmDelete": "Confirmer la suppression",
+    "nameLabel": "Nom de la page",
+    "defaultName": "Page {n}"
+  },
+  "grid": {
+    "label": "Grille de boutons",
+    "size": "Grille {cols} × {rows}",
+    "cols": "Colonnes",
+    "rows": "Lignes",
+    "less": {
+      "cols": "Retirer une colonne",
+      "rows": "Retirer une ligne"
+    },
+    "more": {
+      "cols": "Ajouter une colonne",
+      "rows": "Ajouter une ligne"
+    },
+    "wouldCut": "Des boutons sortiraient de la grille : déplace-les ou supprime-les d’abord.",
+    "emptyCell": "Case vide, ligne {row}, colonne {col}",
+    "dropHere": "Déposer ici"
   }
 }
