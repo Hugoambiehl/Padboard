@@ -363,6 +363,7 @@ export enum PresetGroup {
 	System = "system",
 	Media = "media",
 	Navigation = "navigation",
+	Obs = "obs",
 }
 
 export interface Preset {

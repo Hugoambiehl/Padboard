@@ -121,7 +121,16 @@ add/adjust round-trip serialization tests.
   feed, media playing; read by the desktop to show button states.
 - Manual tests: `cargo run -p padboard-actions --example hotkey -- ControlLeft AltLeft KeyT`,
   `--example action -- '<action JSON>'`, `--example state [-- --watch]`.
-- Cross-platform: OBS WebSocket v5. Discord only via its global shortcuts (no RPC).
+- **OBS** (`apps/desktop/src-tauri/src/obs.rs`): our own obs-websocket v5
+  client (JSON over the app's tokio-tungstenite; `obws` needs Rust 1.89).
+  Settings in `obs.json` (owner-only, holds the password), edited in the
+  connections view. One task owns the connection, retries every 3 s while
+  OBS is closed (buttons unavailable meanwhile), waits for new settings after
+  a wrong password, publishes scene / recording / streaming / muted inputs
+  once all initial answers are in (OBS answers in any order). Tests use an
+  isolated OBS: `XDG_CONFIG_HOME=<dir> xvfb-run obs` with obs-websocket on
+  another port and its recording path in that dir.
+- Discord only via its global shortcuts (no RPC).
 
 ## Design
 

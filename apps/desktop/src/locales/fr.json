@@ -206,7 +206,8 @@
     "groups": {
       "system": "Système",
       "media": "Audio et médias",
-      "navigation": "Navigation"
+      "navigation": "Navigation",
+      "obs": "OBS Studio"
     },
     "presets": {
       "hotkey": {
@@ -304,6 +305,22 @@
       "multi": {
         "label": "Multi-action",
         "desc": "Plusieurs actions à la suite"
+      },
+      "obsScene": {
+        "label": "Scène OBS",
+        "desc": "Passe sur une scène"
+      },
+      "obsRecord": {
+        "label": "Enregistrer",
+        "desc": "Démarre ou arrête l’enregistrement"
+      },
+      "obsStream": {
+        "label": "Live",
+        "desc": "Démarre ou arrête le live"
+      },
+      "obsMute": {
+        "label": "Source OBS",
+        "desc": "Coupe ou rétablit une source audio"
       }
     }
   },
@@ -422,5 +439,25 @@
     "opens": "Ouvre le dossier « {name} »",
     "missing": "Ce dossier a été supprimé : le bouton ne fait plus rien.",
     "label": "Dossiers"
+  },
+  "obs": {
+    "title": "OBS Studio",
+    "toggle": "Piloter OBS",
+    "unavailable": "OBS ne peut pas être piloté dans ce mode.",
+    "host": "Adresse",
+    "port": "Port",
+    "password": "Mot de passe du serveur WebSocket",
+    "passwordSaved": "Enregistré (laisser vide pour le garder)",
+    "removePassword": "Retirer le mot de passe",
+    "save": "Enregistrer",
+    "saved": "Enregistré",
+    "hint": "Dans OBS : Outils → Paramètres du serveur WebSocket → Activer le serveur WebSocket, puis copie le port et le mot de passe ici.",
+    "status": {
+      "disabled": "Désactivé",
+      "connecting": "Connexion…",
+      "connected": "Connecté (obs-websocket {version})",
+      "unreachable": "OBS injoignable : il est fermé ou son serveur WebSocket est désactivé. Nouvel essai automatique.",
+      "authFailed": "Mot de passe refusé par OBS."
+    }
   }
 }

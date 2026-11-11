@@ -110,6 +110,8 @@ pub struct ServerContext {
     /// Multi actions running, by button: a second press while one runs is
     /// ignored (two sequences of keys would interleave).
     pub running: std::sync::Mutex<std::collections::HashSet<String>>,
+    /// Set once started (`lib.rs`); absent in tests and simulated test mode.
+    pub obs: OnceLock<crate::obs::Obs>,
 }
 
 /// What happened, for the UI.
@@ -599,7 +601,7 @@ struct Feeds {
 impl Feeds {
     fn resolved(&mut self) -> Layout {
         let active = Arc::clone(&self.layouts.borrow_and_update());
-        let state = *self.states.borrow_and_update();
+        let state = self.states.borrow_and_update().clone();
         appearance::resolve(&active.layout, &active.actions, &state)
     }
 
@@ -755,10 +757,23 @@ async fn perform_step(
         Action::Multi(_) => ActionOutcome::from_error(&ActionError::Invalid(
             "a multi action cannot be a step".into(),
         )),
-        Action::Obs(_) => ActionOutcome::from_error(&ActionError::Unsupported {
-            action: "obs",
-            platform: std::env::consts::OS,
-        }),
+        Action::Obs(obs) => {
+            if let Err(e) = Action::Obs(obs.clone()).validate() {
+                return ActionOutcome::from_error(&e);
+            }
+            let Some(client) = ctx.obs.get() else {
+                return ActionOutcome::from_error(&ActionError::Unavailable(
+                    "OBS is not set up".into(),
+                ));
+            };
+            match client.perform(&obs).await {
+                Ok(()) => ActionOutcome::Ok,
+                Err(e @ crate::obs::ObsError::Refused(_)) => {
+                    ActionOutcome::from_error(&ActionError::Failed(e.to_string()))
+                }
+                Err(e) => ActionOutcome::from_error(&ActionError::Unavailable(e.to_string())),
+            }
+        }
         action => execute(ctx, action).await,
     }
 }
@@ -929,6 +944,7 @@ mod tests {
             handshaking: AtomicUsize::new(0),
             pairing: AtomicUsize::new(0),
             running: std::sync::Mutex::default(),
+            obs: OnceLock::new(),
         })
     }
 

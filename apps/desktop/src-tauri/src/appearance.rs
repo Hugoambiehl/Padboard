@@ -12,7 +12,7 @@
 use std::collections::HashMap;
 
 use padboard_actions::state::AudioState;
-use padboard_actions::{Action, MediaCommand, VolumeCommand};
+use padboard_actions::{Action, MediaCommand, ObsCommand, VolumeCommand};
 use padboard_protocol::{ButtonIcon, ButtonView, Category, Layout};
 
 /// Something observed, or not.
@@ -26,17 +26,34 @@ pub enum Observed<T> {
     Known(T),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SystemState {
     pub audio: Observed<AudioState>,
     /// Whether a media player is playing (no player: `Known(false)`).
     pub media_playing: Observed<bool>,
+    /// OBS, when connected (`obs.rs`); unavailable while OBS is closed.
+    pub obs: Observed<crate::obs::ObsState>,
+}
+
+impl SystemState {
+    /// OBS scenes and inputs, for the editor's pickers (empty while OBS is
+    /// not connected).
+    #[must_use]
+    pub fn obs_names(&self) -> (Vec<String>, Vec<String>) {
+        match &self.obs {
+            Observed::Known(obs) => (obs.scenes.clone(), obs.inputs.clone()),
+            _ => (Vec::new(), Vec::new()),
+        }
+    }
 }
 
 /// Texts shown on the tablet by the state engine (French; English comes
 /// with the rest of the translations before open-sourcing).
 mod text {
     pub const MUTED: &str = "Muet";
+    pub const SCENE_ACTIVE: &str = "Scène active";
+    pub const RECORDING: &str = "REC";
+    pub const LIVE: &str = "EN DIRECT";
     pub const OUTPUT_MUTED: &str = "Coupé";
     pub fn volume(percent: u32) -> String {
         format!("Volume {percent} %")
@@ -106,6 +123,34 @@ fn apply(button: &mut ButtonView, action: &Action, state: &SystemState) {
                     });
                 }
             }
+        },
+        (Action::Obs(o), _) => match &state.obs {
+            Observed::Unknown => {}
+            Observed::Unavailable => button.unavailable = true,
+            Observed::Known(obs) => match o.command {
+                ObsCommand::SetScene if obs.scene.is_some() && obs.scene == o.target => {
+                    button.active = true;
+                    button.subtitle = Some(text::SCENE_ACTIVE.to_owned());
+                }
+                ObsCommand::ToggleRecord if obs.recording => {
+                    button.active = true;
+                    button.badge = Some(text::RECORDING.to_owned());
+                }
+                ObsCommand::ToggleStream if obs.streaming => {
+                    button.active = true;
+                    button.badge = Some(text::LIVE.to_owned());
+                }
+                ObsCommand::ToggleInputMute
+                    if o.target
+                        .as_ref()
+                        .is_some_and(|t| obs.muted_inputs.contains(t)) =>
+                {
+                    button.active = true;
+                    button.category = Category::Red;
+                    button.subtitle = Some(text::OUTPUT_MUTED.to_owned());
+                }
+                _ => {}
+            },
         },
         (Action::Media(m), _)
             if m.command == MediaCommand::PlayPause
@@ -305,13 +350,13 @@ mod tests {
         // subtitle, so nothing shows it either.
         let louder = SystemState {
             audio: audio(Some(false), false, 45),
-            ..quiet
+            ..quiet.clone()
         };
         assert!(changed(&before, &resolve(&layout, &actions, &louder)).is_empty());
         // The microphone is muted: that button only.
         let muted = SystemState {
             audio: audio(Some(true), false, 45),
-            ..quiet
+            ..quiet.clone()
         };
         let updates = changed(&before, &resolve(&layout, &actions, &muted));
         assert_eq!(updates.len(), 1);

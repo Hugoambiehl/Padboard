@@ -18,3 +18,29 @@ export const redo = () => invoke<boolean>("redo");
 export const checkpoint = () => invoke<void>("checkpoint");
 export const listKeys = () => invoke<string[]>("list_keys");
 export const testButton = (buttonId: string) => invoke<ActionOutcome>("test_button", { buttonId });
+
+export type ObsStatus =
+  | { state: "disabled" }
+  | { state: "connecting" }
+  | { state: "connected"; version: string }
+  | { state: "unreachable"; detail: string }
+  | { state: "authFailed" };
+
+/** OBS settings (the password itself never comes back) and state. */
+export type ObsInfo =
+  | { available: false }
+  | {
+      available: true;
+      enabled: boolean;
+      host: string;
+      port: number;
+      hasPassword: boolean;
+      status: ObsStatus;
+      scenes: string[];
+      inputs: string[];
+    };
+
+export const getObs = () => invoke<ObsInfo>("get_obs");
+/** `password`: undefined keeps the saved one, "" removes it. */
+export const setObs = (enabled: boolean, host: string, port: number, password?: string) =>
+  invoke<void>("set_obs", { enabled, host, port, password: password ?? null });

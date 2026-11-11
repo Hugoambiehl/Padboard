@@ -108,7 +108,11 @@ pub fn start_from_file(path: std::path::PathBuf, state: &watch::Sender<SystemSta
                     None => {}
                     Some(Ok(test)) => {
                         let next = test.into_state();
-                        tx.send_if_modified(|s| std::mem::replace(s, next) != next);
+                        tx.send_if_modified(|s| {
+                            let changed = *s != next;
+                            *s = next.clone();
+                            changed
+                        });
                     }
                     Some(Err(e)) => tracing::warn!("{}: {e}", path.display()),
                 }
@@ -124,6 +128,24 @@ pub fn start_from_file(path: std::path::PathBuf, state: &watch::Sender<SystemSta
 struct TestState {
     audio: Option<TestAudio>,
     media_playing: Option<bool>,
+    obs: Option<TestObs>,
+}
+
+/// `"obs": {"scene": "Jeu", "recording": true, "streaming": false, "mutedInputs": ["Mic/Aux"]}`
+/// or `"obs": "unavailable"`.
+#[derive(serde::Deserialize)]
+#[serde(untagged)]
+enum TestObs {
+    Known {
+        scene: Option<String>,
+        #[serde(default)]
+        recording: bool,
+        #[serde(default)]
+        streaming: bool,
+        #[serde(default, rename = "mutedInputs")]
+        muted_inputs: Vec<String>,
+    },
+    Missing(Unavailable),
 }
 
 #[derive(serde::Deserialize)]
@@ -166,6 +188,22 @@ impl TestState {
             media_playing: self
                 .media_playing
                 .map_or(Observed::Unknown, Observed::Known),
+            obs: match self.obs {
+                None => Observed::Unknown,
+                Some(TestObs::Missing(Unavailable::Unavailable)) => Observed::Unavailable,
+                Some(TestObs::Known {
+                    scene,
+                    recording,
+                    streaming,
+                    muted_inputs,
+                }) => Observed::Known(crate::obs::ObsState {
+                    scene,
+                    recording,
+                    streaming,
+                    muted_inputs: muted_inputs.into_iter().collect(),
+                    ..crate::obs::ObsState::default()
+                }),
+            },
         }
     }
 }

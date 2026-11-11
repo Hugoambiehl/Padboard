@@ -98,6 +98,19 @@ export function install() {
         case "undo":
         case "redo":
           return false;
+        case "get_obs":
+          return {
+            available: true,
+            enabled: true,
+            host: "127.0.0.1",
+            port: 4455,
+            hasPassword: true,
+            status: { state: "connected", version: "5.7.3" },
+            scenes: ["Caméra", "Jeu", "Pause"],
+            inputs: ["Mic/Aux", "Desktop Audio"],
+          };
+        case "set_obs":
+          return null;
         case "test_button":
           return { status: "ok" };
         default:

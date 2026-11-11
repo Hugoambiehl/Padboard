@@ -5,7 +5,7 @@
 
 use padboard_actions::{
     Action, Hotkey, Key, MediaAction, MediaCommand, MicrophoneAction, MicrophoneCommand,
-    MultiAction, NavigateAction, NavigateTo, VolumeAction, VolumeCommand,
+    MultiAction, NavigateAction, NavigateTo, ObsAction, ObsCommand, VolumeAction, VolumeCommand,
 };
 use padboard_protocol::Category;
 use serde::Serialize;
@@ -18,6 +18,7 @@ pub enum PresetGroup {
     System,
     Media,
     Navigation,
+    Obs,
 }
 
 #[typeshare]
@@ -70,6 +71,19 @@ fn navigate(id: &str, icon: &str, to: NavigateTo) -> Preset {
         Category::Violet,
         icon,
         Action::Navigate(NavigateAction { to, id: None }),
+    )
+}
+
+fn obs(id: &str, color: Category, icon: &str, command: ObsCommand) -> Preset {
+    with_action(
+        id,
+        PresetGroup::Obs,
+        color,
+        icon,
+        Action::Obs(ObsAction {
+            command,
+            target: None,
+        }),
     )
 }
 
@@ -171,6 +185,31 @@ pub fn presets() -> Vec<Preset> {
         navigate("nextPage", "ChevronRight", NavigateTo::Next),
         navigate("previousPage", "ChevronLeft", NavigateTo::Previous),
         navigate("back", "Undo2", NavigateTo::Back),
+        // Scene and source chosen in the inspector.
+        obs(
+            "obsScene",
+            Category::Teal,
+            "Clapperboard",
+            ObsCommand::SetScene,
+        ),
+        obs(
+            "obsRecord",
+            Category::Red,
+            "Circle",
+            ObsCommand::ToggleRecord,
+        ),
+        obs(
+            "obsStream",
+            Category::Pink,
+            "Radio",
+            ObsCommand::ToggleStream,
+        ),
+        obs(
+            "obsMute",
+            Category::Violet,
+            "Mic",
+            ObsCommand::ToggleInputMute,
+        ),
     ]);
     list
 }
@@ -189,7 +228,7 @@ mod tests {
         for p in &list {
             // Drafts: the empty shortcut (recorded in the inspector), the
             // folder (created with the button).
-            if ["hotkey", "folder", "multi"].contains(&p.id.as_str()) {
+            if ["hotkey", "folder", "multi", "obsScene", "obsMute"].contains(&p.id.as_str()) {
                 p.action.validate_draft().unwrap();
             } else {
                 p.action.validate().unwrap();

@@ -13,6 +13,7 @@ mod config;
 mod editor_service;
 mod identity;
 mod netif;
+mod obs;
 mod observe;
 mod paired;
 #[doc(hidden)]
@@ -49,6 +50,8 @@ use crate::wifi::Wifi;
 
 /// Name of the event carrying a fresh [`Snapshot`] to the frontend.
 const STATUS_EVENT: &str = "status";
+/// Name of the event carrying the OBS connection status to the frontend.
+const OBS_EVENT: &str = "obs";
 /// Name of the event carrying a fresh [`EditorState`] to the frontend.
 const EDITOR_EVENT: &str = "editor";
 
@@ -183,6 +186,56 @@ fn library() -> Vec<config::presets::Preset> {
     config::presets::presets()
 }
 
+/// OBS settings (password left out) and connection status.
+#[tauri::command]
+fn get_obs(backend: tauri::State<'_, Backend>) -> serde_json::Value {
+    let Some(client) = backend.server.obs.get() else {
+        return serde_json::json!({ "available": false });
+    };
+    let settings = client.settings();
+    serde_json::json!({
+        "available": true,
+        "enabled": settings.enabled,
+        "host": settings.host,
+        "port": settings.port,
+        "hasPassword": settings.password.is_some(),
+        "status": *client.status().borrow(),
+        "scenes": backend.server.state.borrow().obs_names().0,
+        "inputs": backend.server.state.borrow().obs_names().1,
+    })
+}
+
+/// Saves the OBS settings and reconnects. `password: None` keeps the
+/// current one, `Some("")` removes it.
+#[tauri::command]
+fn set_obs(
+    backend: tauri::State<'_, Backend>,
+    enabled: bool,
+    host: String,
+    port: u16,
+    password: Option<String>,
+) -> Result<(), String> {
+    let Some(client) = backend.server.obs.get() else {
+        return Err("OBS is not available in this mode".into());
+    };
+    let host = host.trim().to_owned();
+    if host.is_empty() || host.len() > 253 || port == 0 {
+        return Err("invalid address".into());
+    }
+    let mut settings = client.settings();
+    settings.enabled = enabled;
+    settings.host = host;
+    settings.port = port;
+    match password {
+        None => {}
+        Some(p) if p.is_empty() => settings.password = None,
+        Some(p) => settings.password = Some(p),
+    }
+    backend.config.save(&settings).map_err(|e| e.to_string())?;
+    client.set_settings(settings);
+    Ok(())
+}
+
 /// Runs a button's action on this PC ("Tester l'action").
 #[tauri::command]
 async fn test_button(
@@ -249,7 +302,9 @@ pub fn run() {
             checkpoint,
             list_keys,
             library,
-            test_button
+            test_button,
+            get_obs,
+            set_obs
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -345,7 +400,26 @@ pub fn run() {
                 handshaking: AtomicUsize::new(0),
                 pairing: AtomicUsize::new(0),
                 running: Mutex::default(),
+                obs: OnceLock::new(),
             });
+            // OBS: real in normal and system test modes; in simulated test
+            // mode its state comes from state.json.
+            if test_mode.as_ref().is_none_or(TestMode::system) {
+                let settings: obs::ObsSettings = config.load_or_init(obs::ObsSettings::default);
+                let client = obs::Obs::start(settings, ctx.state.clone());
+                let status_handle = app.handle().clone();
+                let mut status = client.status();
+                tauri::async_runtime::spawn(async move {
+                    loop {
+                        let current = status.borrow_and_update().clone();
+                        let _ = status_handle.emit(OBS_EVENT, current);
+                        if status.changed().await.is_err() {
+                            break;
+                        }
+                    }
+                });
+                let _ = ctx.obs.set(client);
+            }
 
             // Creating the executor may block (the uinput device needs time to
             // settle), so it is done off the main thread; presses arriving

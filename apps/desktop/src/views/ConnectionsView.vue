@@ -5,6 +5,7 @@ import ServerCard from "../components/ServerCard.vue";
 import ClientsCard from "../components/ClientsCard.vue";
 import PairedDevicesCard from "../components/PairedDevicesCard.vue";
 import UsbCard from "../components/UsbCard.vue";
+import ObsCard from "../components/ObsCard.vue";
 import ActivityCard from "../components/ActivityCard.vue";
 import type { Snapshot } from "../types/status";
 
@@ -32,6 +33,7 @@ const { t } = useI18n();
         @pair="$emit('pair')"
       />
       <UsbCard :usb="snapshot.usb" :port="snapshot.server.usb.port" />
+      <ObsCard />
     </div>
     <ActivityCard :activity="snapshot.activity" />
   </div>
