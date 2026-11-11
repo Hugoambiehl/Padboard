@@ -13,8 +13,9 @@
 //!   real microphone, sound server or players.
 //!
 //! With `PADBOARD_TEST_SYSTEM=1`, actions run and states are observed on the
-//! real system instead (tests on the real tablet and sound devices); the
-//! configuration still lives in the test directory.
+//! real system instead (tests on the real tablet and sound devices), and
+//! `PADBOARD_BIND=lan` may turn Wi-Fi on; the configuration still lives in
+//! the test directory.
 //!
 //! The window title says the app is in test mode.
 

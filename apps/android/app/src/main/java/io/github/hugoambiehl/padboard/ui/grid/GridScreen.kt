@@ -2,7 +2,6 @@ package io.github.hugoambiehl.padboard.ui.grid
 
 import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -36,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,9 +50,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -186,43 +188,72 @@ fun GridScreen(
                 val live = status is GridStatus.Connected
                 val dim by animateFloatAsState(if (live) 1f else 0.4f, tween(200), label = "gridDim")
                 Box(Modifier.fillMaxWidth().weight(1f)) {
-                    // Alpha-only transition between the pages and an open folder.
-                    Crossfade(
-                        targetState = folder?.id,
-                        animationSpec = tween(150),
-                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = dim },
+                    // The pager always stays composed (recomposing it and its
+                    // pages when a folder closes made frames drop on the
+                    // tablet); an open folder fades in over it, alpha only.
+                    val folderAlpha by animateFloatAsState(
+                        if (folder != null) 1f else 0f,
+                        tween(150),
                         label = "folder"
-                    ) { folderId ->
-                        val shownFolder = folderId?.let { id -> layout.folders.firstOrNull { it.id == id } }
-                        if (shownFolder != null) {
-                            ButtonGrid(
-                                cols = layout.grid.cols.toInt(),
-                                rows = layout.grid.rows.toInt(),
-                                buttons = shownFolder.buttons,
-                                onPress = onPress,
-                                onRelease = onRelease,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            HorizontalPager(
-                                state = pagerState,
-                                key = { currentPages.getOrNull(it)?.id ?: it },
-                                // Neighbours composed ahead, so a swipe starts without a hitch.
-                                beyondViewportPageCount = 1,
-                                pageSpacing = 40.dp,
-                                modifier = Modifier.fillMaxSize()
-                            ) { index ->
-                                val page = currentPages.getOrNull(index)
-                                if (page != null) {
-                                    ButtonGrid(
-                                        cols = layout.grid.cols.toInt(),
-                                        rows = layout.grid.rows.toInt(),
-                                        buttons = page.buttons,
-                                        onPress = onPress,
-                                        onRelease = onRelease,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
+                    )
+                    // The last folder shown, kept while it fades out (and after).
+                    var shownFolder by remember { mutableStateOf(folder) }
+                    if (folder != null) shownFolder = folder
+                    val folderOpen by rememberUpdatedState(folder != null)
+                    val overlayVisible by remember { derivedStateOf { folderOpen || folderAlpha > 0f } }
+                    Box(Modifier.fillMaxSize().graphicsLayer { alpha = dim }) {
+                        HorizontalPager(
+                            state = pagerState,
+                            key = { currentPages.getOrNull(it)?.id ?: it },
+                            // Neighbours composed ahead, so a swipe starts without a hitch.
+                            beyondViewportPageCount = 1,
+                            pageSpacing = 40.dp,
+                            // No userScrollEnabled toggle: the folder layer above takes
+                            // every touch while open, and toggling recomposed the pager.
+                            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 1f - folderAlpha }
+                        ) { index ->
+                            val page = currentPages.getOrNull(index)
+                            if (page != null) {
+                                ButtonGrid(
+                                    cols = layout.grid.cols.toInt(),
+                                    rows = layout.grid.rows.toInt(),
+                                    buttons = page.buttons,
+                                    onPress = onPress,
+                                    onRelease = onRelease,
+                                    modifier = Modifier.fillMaxSize().then(CachedLayer)
+                                )
+                            }
+                        }
+                        val overlay = shownFolder?.let { f -> layout.folders.firstOrNull { it.id == f.id } }
+                        if (overlay != null) {
+                            // Kept composed once opened (composing it on each open dropped
+                            // frames); while closed it is not placed: neither drawn nor touchable.
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    .layout { measurable, constraints ->
+                                        val placeable = measurable.measure(constraints)
+                                        layout(placeable.width, placeable.height) {
+                                            if (overlayVisible) placeable.place(0, 0)
+                                        }
+                                    }.graphicsLayer { alpha = folderAlpha }
+                            ) {
+                                // Touches on the folder's empty cells must not reach the pages below.
+                                Box(
+                                    Modifier.matchParentSize().pointerInput(Unit) {
+                                        awaitPointerEventScope {
+                                            while (true) awaitPointerEvent().changes.forEach { it.consume() }
+                                        }
+                                    }
+                                )
+                                ButtonGrid(
+                                    cols = layout.grid.cols.toInt(),
+                                    rows = layout.grid.rows.toInt(),
+                                    buttons = overlay.buttons,
+                                    onPress = onPress,
+                                    onRelease = onRelease,
+                                    modifier = Modifier.fillMaxSize().then(CachedLayer)
+                                )
                             }
                         }
                     }
@@ -386,6 +417,15 @@ private fun ProfileChip(name: String, modifier: Modifier = Modifier) {
         Icon(painterResource(R.drawable.ic_chevron_down), null, Modifier.size(16.dp), tint = PadboardColors.TextMuted)
     }
 }
+
+/**
+ * A grid drawn once into an offscreen layer and reused: a page sliding during
+ * a swipe or a folder fading in only moves or fades that texture, instead of
+ * redrawing every tile on each frame (measured on the SM-T580: ~45 ms per
+ * frame without it). Only transform and alpha change, as the tablet
+ * animation rule requires.
+ */
+private val CachedLayer = Modifier.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
 
 private val DotSize = 8.dp
 private val DotGap = 8.dp

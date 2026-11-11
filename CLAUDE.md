@@ -247,6 +247,15 @@ SM-T580, always measure in release builds.
   collector never waits for an animation (a scroll that cannot finish, e.g.
   pages hidden by a folder, blocked every later request): each scroll runs
   in its own coroutine, the next one cancels it.
+- **Tablet rendering cost** (measured in release on the SM-T580 with
+  `dumpsys gfxinfo framestats`): each page grid and the folder grid are
+  drawn into a cached offscreen layer (`CompositingStrategy.Offscreen`), so
+  swipes and fades only move or fade a texture (swipe frames 45 → ~31 ms,
+  UI thread 14 → ~6 ms). The pager stays composed while a folder is open;
+  the folder grid is an overlay faded in over it, kept composed once opened
+  and simply not placed while closed (composing either on each open/close
+  dropped frames). Measure with a release APK signed locally with the debug
+  key (`apksigner`), never committed.
 - **Tablet icons**: the protocol's SVG paths become an `ImageVector` (Lucide
   24×24 grid, 2-unit round strokes, drawn white and tinted), cached by paths
   (`ui/grid/IconVectors.kt`) so layout updates never rebuild an unchanged
@@ -339,6 +348,12 @@ SM-T580, always measure in release builds.
   press hotkey buttons in system mode (real keystrokes on the PC). Kill test
   processes with `pkill -x <name>`, never `pkill -f` (it matches the shell
   running the command).
+- **AppArmor and snaps**: processes started from the VS Code snap terminal
+  carry its AppArmor label, and snap players (Firefox) refuse their MPRIS
+  calls: media commands still work (media-key fallback) but the playing
+  state is not visible. The app launched from GNOME is unconfined. For
+  tests that need it, start the app with `systemd-run --user --unit=…
+  --setenv=…` (unconfined); same for `--example state`.
 - Steps of a file build on each other (`bail: 1`); a failed step saves a
   screenshot `FAILED <step>.png`. Review the screenshots after UI changes.
 - The app quits cleanly on SIGTERM/SIGINT/SIGHUP (Ctrl+C on Windows), so

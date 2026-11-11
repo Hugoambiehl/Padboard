@@ -81,6 +81,10 @@ the tablet does through `adb reverse`, without pairing. On a PC used by several
 user accounts at the same time, another account could therefore send keyboard
 shortcuts into your session while Padboard runs.
 
+From a snap terminal (VS Code), the play/pause state of snap players such as
+Firefox stays hidden (AppArmor refuses their MPRIS calls to snap processes);
+the buttons still work. The app started from the desktop has no such limit.
+
 Use `scripts/desktop-dev.sh` rather than `npm run tauri dev` when your terminal
 belongs to an app installed as a **snap** (e.g. VS Code): snap terminals leak GTK
 variables that make WebKitGTK abort at startup (`Settings schema … does not

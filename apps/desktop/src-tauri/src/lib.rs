@@ -283,7 +283,11 @@ pub fn run() {
         } else {
             tracing::warn!(dir = %mode.config_dir().display(), "TEST MODE: separate configuration, actions recorded and never executed, USB and Wi-Fi off");
         }
-        settings.wifi_forced = Some(false);
+        // Wi-Fi stays off in tests, except in system mode where
+        // PADBOARD_BIND=lan may turn it on (tests on the real tablet).
+        if !mode.system() || settings.wifi_forced.is_none() {
+            settings.wifi_forced = Some(false);
+        }
     }
 
     tauri::Builder::default()
