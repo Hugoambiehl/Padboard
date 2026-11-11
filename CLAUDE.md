@@ -257,6 +257,12 @@ SM-T580, always measure in release builds.
   and simply not placed while closed (composing either on each open/close
   dropped frames). Measure with a release APK signed locally with the debug
   key (`apksigner`), never committed.
+- **Tablet disconnected**: the grid stays (same `GridScreen` call site, so
+  the pager survives) and, after a 1 s grace period (USB ↔ Wi-Fi hand-over,
+  blips), dims under a card: PC name, how it is looked for, next attempt,
+  "Réessayer maintenant" (`nudge`). A tablet never paired over Wi-Fi keeps
+  looking for the PC last reached over USB (`Searching(wifi = false)`)
+  instead of falling back to the setup screen.
 - **Tablet icons**: the protocol's SVG paths become an `ImageVector` (Lucide
   24×24 grid, 2-unit round strokes, drawn white and tinted), cached by paths
   (`ui/grid/IconVectors.kt`) so layout updates never rebuild an unchanged

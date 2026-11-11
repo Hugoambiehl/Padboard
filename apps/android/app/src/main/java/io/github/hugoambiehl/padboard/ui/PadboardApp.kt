@@ -42,39 +42,38 @@ fun PadboardApp(viewModel: PadboardViewModel) {
         LinkState.Incompatible -> IncompatibleScreen(onRetry = viewModel::retry)
         is LinkState.Pairing ->
             PinScreen(state = state, onSubmit = viewModel::submitPin, onCancel = viewModel::cancelPairing)
-        is LinkState.Connected ->
-            if (setupRequested) {
-                setup { setupRequested = false }
-            } else {
-                GridScreen(
-                    layout = layout,
-                    pageMemory = viewModel.pageMemory,
-                    status = GridStatus.Connected(state.serverName, state.transport, state.latencyMs, state.paired),
-                    actionFailures = viewModel.actionFailures,
-                    navigations = viewModel.navigations,
-                    onPress = viewModel::press,
-                    onRelease = viewModel::release,
-                    onPairWifi = { setupRequested = true },
-                    onForget = viewModel::forget
-                )
+        is LinkState.Connected, is LinkState.Searching -> {
+            // One call site for both, so the grid (and its pager) survives a disconnection.
+            val status =
+                when (state) {
+                    is LinkState.Connected ->
+                        GridStatus.Connected(state.serverName, state.transport, state.latencyMs, state.paired)
+                    else ->
+                        (state as LinkState.Searching).let { s ->
+                            layout?.let { GridStatus.Reconnecting(s.serverName, s.wifi, s.retryInMs, s.attempt) }
+                        }
+                }
+            when {
+                setupRequested -> setup { setupRequested = false }
+                status == null ->
+                    SearchingScreen(
+                        serverName = (state as LinkState.Searching).serverName,
+                        onForget = viewModel::forget.takeIf { (state as LinkState.Searching).wifi }
+                    )
+                else ->
+                    GridScreen(
+                        layout = layout,
+                        pageMemory = viewModel.pageMemory,
+                        status = status,
+                        actionFailures = viewModel.actionFailures,
+                        navigations = viewModel.navigations,
+                        onPress = viewModel::press,
+                        onRelease = viewModel::release,
+                        onPairWifi = { setupRequested = true },
+                        onForget = viewModel::forget,
+                        onRetry = viewModel::retryNow
+                    )
             }
-        is LinkState.Searching ->
-            if (setupRequested) {
-                setup { setupRequested = false }
-            } else if (layout != null) {
-                GridScreen(
-                    layout = layout,
-                    pageMemory = viewModel.pageMemory,
-                    status = GridStatus.Reconnecting(state.serverName),
-                    actionFailures = viewModel.actionFailures,
-                    navigations = viewModel.navigations,
-                    onPress = viewModel::press,
-                    onRelease = viewModel::release,
-                    onPairWifi = { setupRequested = true },
-                    onForget = viewModel::forget
-                )
-            } else {
-                SearchingScreen(serverName = state.serverName, onForget = viewModel::forget)
-            }
+        }
     }
 }

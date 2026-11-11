@@ -175,6 +175,21 @@ class ConnectionManagerTest {
     }
 
     @Test
+    fun unpluggingUsbWithoutPairingKeepsLookingForThatPc() {
+        pc.usbAvailable = true
+        manager.start(DEVICE_ID)
+        connected(Transport.Usb)
+        pc.usbAvailable = false
+        pc.dropUsb()
+        val searching = await(manager.state, "searching over USB") { it is LinkState.Searching } as LinkState.Searching
+        assertEquals(pc.name, searching.serverName)
+        assertFalse("not paired: only the cable can bring it back", searching.wifi)
+        assertNotNull("the grid stays", manager.layout.value)
+        pc.usbAvailable = true
+        connected(Transport.Usb)
+    }
+
+    @Test
     fun unpluggingUsbFallsBackToWifi() {
         pc.usbAvailable = true
         paired()

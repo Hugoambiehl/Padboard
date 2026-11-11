@@ -91,8 +91,14 @@ sealed interface GridStatus {
         val paired: Boolean
     ) : GridStatus
 
-    /** The grid stays visible but inactive. */
-    data class Reconnecting(override val serverName: String) : GridStatus
+    /** The grid stays visible but inactive, under [DisconnectedCard]. */
+    data class Reconnecting(
+        override val serverName: String,
+        /** Paired over Wi-Fi (else only the cable can bring the PC back). */
+        val wifi: Boolean,
+        val retryInMs: Long,
+        val attempt: Int
+    ) : GridStatus
 }
 
 /** Main screen: top bar and the button grid of the current page (Main.dc.html). */
@@ -106,7 +112,8 @@ fun GridScreen(
     onPress: (String) -> Unit,
     onRelease: (String) -> Unit,
     onPairWifi: () -> Unit,
-    onForget: () -> Unit
+    onForget: () -> Unit,
+    onRetry: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
     val pages = layout?.pages.orEmpty()
@@ -186,7 +193,19 @@ fun GridScreen(
                 }
             } else {
                 val live = status is GridStatus.Connected
-                val dim by animateFloatAsState(if (live) 1f else 0.4f, tween(200), label = "gridDim")
+                // Dimmed and explained only after a grace period: a USB ↔ Wi-Fi
+                // hand-over or a blip should not flash the screen.
+                var lost by remember { mutableStateOf(false) }
+                LaunchedEffect(live) {
+                    lost = false
+                    if (!live) {
+                        delay(DISCONNECTED_GRACE_MS)
+                        lost = true
+                    }
+                }
+                var lastReconnecting by remember { mutableStateOf<GridStatus.Reconnecting?>(null) }
+                if (status is GridStatus.Reconnecting) lastReconnecting = status
+                val dim by animateFloatAsState(if (lost) 0.3f else 1f, tween(200), label = "gridDim")
                 Box(Modifier.fillMaxWidth().weight(1f)) {
                     // The pager always stays composed (recomposing it and its
                     // pages when a folder closes made frames drop on the
@@ -265,6 +284,15 @@ fun GridScreen(
                                     while (true) awaitPointerEvent().changes.forEach { it.consume() }
                                 }
                             }
+                        )
+                    }
+                    lastReconnecting?.let {
+                        DisconnectedCard(
+                            status = it,
+                            visible = lost,
+                            onRetry = onRetry,
+                            onPairWifi = onPairWifi,
+                            modifier = Modifier.align(Alignment.Center)
                         )
                     }
                 }

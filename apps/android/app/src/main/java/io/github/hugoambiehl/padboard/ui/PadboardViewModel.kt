@@ -72,6 +72,9 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
 
     fun retry() = manager.retry()
 
+    /** "Réessayer maintenant" while the PC is out of reach. */
+    fun retryNow() = manager.nudge()
+
     override fun onCleared() {
         directory.stop()
         okHttp.dispatcher.executorService.shutdown()

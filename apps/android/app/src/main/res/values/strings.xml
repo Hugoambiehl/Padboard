@@ -59,6 +59,12 @@
     <string name="transport_wifi">Wi-Fi</string>
     <string name="pill_latency">%1$s · %2$d ms</string>
     <string name="pill_reconnecting">Reconnexion…</string>
+    <string name="disconnected_title">Connexion au PC perdue</string>
+    <string name="disconnected_body_wifi">Recherche par câble USB et par Wi-Fi. Vérifie que Padboard est lancé sur le PC.</string>
+    <string name="disconnected_body_usb">Rebranche le câble USB, ou associe la tablette en Wi-Fi pour pouvoir t’en passer.</string>
+    <string name="disconnected_next_attempt">Nouvelle tentative dans %1$d s</string>
+    <string name="disconnected_trying">Tentative en cours…</string>
+    <string name="disconnected_retry">Réessayer maintenant</string>
     <string name="connection_pill_description">%1$s, %2$s. Toucher pour les options de connexion.</string>
     <!-- "Page 2 sur 3": a position, not a quantity. -->
     <string name="page_indicator_description" tools:ignore="PluralsCandidate">Page %1$d sur %2$d</string>

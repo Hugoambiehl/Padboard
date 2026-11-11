@@ -52,8 +52,18 @@ sealed interface LinkState {
     /** No paired PC and no USB: the setup screen. */
     data object Unpaired : LinkState
 
-    /** Looking for the paired PC, by USB or Wi-Fi. */
-    data class Searching(val serverName: String) : LinkState
+    /**
+     * Looking for the PC: the paired one (USB or Wi-Fi), or the one last
+     * reached over USB in this run ([wifi] false: only the cable can bring it
+     * back). The next attempt starts in [retryInMs]; [attempt] counts them so
+     * each one is a new state.
+     */
+    data class Searching(
+        val serverName: String,
+        val wifi: Boolean = true,
+        val retryInMs: Long = 0,
+        val attempt: Int = 0
+    ) : LinkState
 
     data class Connected(
         val transport: Transport,
@@ -152,6 +162,9 @@ class ConnectionManager(
     @Volatile private var active: Active? = null
 
     private var deviceId: String = ""
+
+    /** The PC reached over USB in this run, looked for again when the cable goes. */
+    private var lastUsbServer: String? = null
     private var job: Job? = null
     private val wakeUp = Channel<Unit>(Channel.CONFLATED)
     private val pins = Channel<String>(Channel.CONFLATED)
@@ -215,6 +228,7 @@ class ConnectionManager(
         scope.launch {
             restart {
                 pairing.clear()
+                lastUsbServer = null
                 auto(initial = null)
             }
         }
@@ -244,10 +258,12 @@ class ConnectionManager(
     private suspend fun auto(initial: Active?) {
         var current = initial
         var retry = config.retryMin
+        var attempt = 0
         while (scope.isActive) {
             if (current == null) current = tryUsb() ?: tryWifi()
             if (current != null) {
                 retry = config.retryMin
+                attempt = 0
                 val started = TimeSource.Monotonic.markNow()
                 current =
                     when (val end = hold(current)) {
@@ -255,6 +271,7 @@ class ConnectionManager(
                         End.Revoked -> {
                             log.info("pairing revoked by the PC")
                             pairing.clear()
+                            lastUsbServer = null
                             null
                         }
                         End.Incompatible -> {
@@ -270,7 +287,17 @@ class ConnectionManager(
                 continue
             }
             val paired = pairing.load()
-            _state.value = paired?.let { LinkState.Searching(it.serverName) } ?: LinkState.Unpaired
+            val name = paired?.serverName ?: lastUsbServer
+            attempt++
+            _state.value =
+                name?.let {
+                    LinkState.Searching(
+                        it,
+                        wifi = paired != null,
+                        retryInMs = retry.inWholeMilliseconds,
+                        attempt = attempt
+                    )
+                } ?: LinkState.Unpaired
             withTimeoutOrNull(retry) { wakeUp.receive() }
             retry = (retry * 2).coerceAtMost(config.retryMax)
         }
@@ -354,6 +381,7 @@ class ConnectionManager(
     private suspend fun hold(link: Active): End = coroutineScope {
         val paired = pairing.load()?.serverId == link.welcome.serverId
         active = link
+        if (link.transport == Transport.Usb) lastUsbServer = link.welcome.serverName
         _state.value = LinkState.Connected(link.transport, link.welcome.serverName, paired, latencyMs = null)
         log.info("connected to ${link.welcome.serverName} over ${link.transport}")
 
