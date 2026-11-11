@@ -1,9 +1,21 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ktlint)
 }
+
+// Release signing key: a properties file outside the repo (storeFile, keyAlias,
+// storePassword), named by the `padboard.signing` Gradle property (in
+// ~/.gradle/gradle.properties) or PADBOARD_SIGNING. Without it, release APKs
+// are unsigned. See docs/android-release.md.
+val releaseSigning: Properties? =
+    (providers.gradleProperty("padboard.signing").orNull ?: System.getenv("PADBOARD_SIGNING"))
+        ?.let(::file)
+        ?.takeIf { it.isFile }
+        ?.let { f -> Properties().apply { f.inputStream().use(::load) } }
 
 android {
     namespace = "io.github.hugoambiehl.padboard"
@@ -21,8 +33,20 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (releaseSigning != null) {
+            create("release") {
+                storeFile = file(releaseSigning.getProperty("storeFile"))
+                storePassword = releaseSigning.getProperty("storePassword")
+                keyAlias = releaseSigning.getProperty("keyAlias")
+                keyPassword = releaseSigning.getProperty("keyPassword") ?: storePassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
