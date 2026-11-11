@@ -4,8 +4,8 @@ DIY Stream Deck: a desktop app (Windows / Linux) that runs actions on your PC,
 and an Android app that turns a dedicated tablet into a touch control surface.
 Wi-Fi or USB, no cloud, free and open-source tools only.
 
-> 🚧 Early development: connection (USB / Wi-Fi) and the editor work; the
-> only action so far is a keyboard shortcut (more actions come in phase 4).
+> 🚧 Early development: connection (USB / Wi-Fi), the editor and the actions
+> work; the tablet is being polished (phase 5).
 
 ## Repository layout
 
@@ -17,6 +17,7 @@ Wi-Fi or USB, no cloud, free and open-source tools only.
 | `apps/android` | Tablet app (Kotlin, Jetpack Compose) |
 | `docs/design` | Reference mockups |
 | `docs/windows.md` | Windows install and test procedure |
+| `docs/android-release.md` | Tablet release signing key (backup!), kiosk mode, rescue |
 | `scripts/gen-types.sh` | Regenerates the TS and Kotlin protocol types |
 
 ## Using it
@@ -192,6 +193,11 @@ How the tablet connects:
   falls back to Wi-Fi. Revoking the tablet on the PC makes it pair again.
 
 Logs: `adb logcat --pid="$(adb shell pidof io.github.hugoambiehl.padboard)"`.
+
+**Release build and kiosk mode**: the tablet runs the release build, signed
+with a key kept outside the repo, and can be locked as a kiosk (Padboard as
+the device owner: home app, no status bar, no lock screen). Signing key,
+backup, kiosk on/off and rescue: [docs/android-release.md](docs/android-release.md).
 
 Checks: `./gradlew :app:testDebugUnitTest` (shared protocol fixtures and the
 connection manager against a fake PC with both transports) and

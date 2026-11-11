@@ -79,6 +79,7 @@ apps/desktop           # Tauri 2 (src-tauri = Rust, src = Vue/TS)
 apps/android           # Gradle project (created by Android Studio — never recreate it)
 docs/design            # reference mockups (Main, Pairing, Editor .dc.html)
 docs/windows.md        # Windows install + per-action test procedure
+docs/android-release.md # tablet signing key (outside the repo), kiosk mode, rescue
 scripts/gen-types.sh   # typeshare -> TS + Kotlin types
 Cargo.toml             # workspace
 ```
@@ -257,6 +258,22 @@ SM-T580, always measure in release builds.
   and simply not placed while closed (composing either on each open/close
   dropped frames). Measure with a release APK signed locally with the debug
   key (`apksigner`), never committed.
+- **Release signing**: one key outside the repo (`~/.padboard-signing/`,
+  pointed to by `padboard.signing` in `~/.gradle/gradle.properties`); the
+  tablet runs the release build. Never change the key: a device owner app
+  cannot be uninstalled (see `docs/android-release.md`).
+- **Kiosk mode** (`kiosk/Kiosk.kt`): the app is the device owner (set with
+  `adb shell dpm set-device-owner`, from the PC's USB card), locks itself in
+  (lock task, only the power menu), is the home app (`HomeAlias`, enabled
+  only in kiosk mode), lock screen and status bar off, screen kept on.
+  The LineageOS taskbar is turned off by the same PC command
+  (`enable_taskbar`, a LineageOS setting the app cannot write). Leaving it
+  always removes the device owner (`clearDeviceOwnerApp`): from the PC
+  (`tablet:command exit_kiosk`, "Libérer la tablette") or by holding the
+  top-right corner 5 s on any screen (touches observed, never consumed).
+  The tablet reports it with `tablet:status`.
+- **Protocol version mirrored by hand** in `ProtocolJson.kt`: the hello /
+  welcome fixtures carry the version and both sides' tests compare to them.
 - **Tablet disconnected**: the grid stays (same `GridScreen` call site, so
   the pager survives) and, after a 1 s grace period (USB ↔ Wi-Fi hand-over,
   blips), dims under a card: PC name, how it is looked for, next attempt,
@@ -396,8 +413,7 @@ SM-T580, always measure in release builds.
 4. **Actions** ✅ — all MVP actions (Linux + Windows), stateful buttons, folders,
    pages, multi-actions.
 5. **Tablet polish** — launcher, lock task, animations, disconnected overlay,
-   screensaver, performance. Backlog: the Android 12L taskbar stays drawn over
-   the app in immersive mode on the SM-T580 (no inset reported); QR code pairing;
+   screensaver, performance. Backlog: QR code pairing;
    dark window title bar on GNOME (`theme: "Dark"` is set, check it, else a
    custom title bar); user images as icons (phase 4 or 5).
 6. **Distribution** — Windows installer, signed release APK, CI, README, open source.
