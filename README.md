@@ -4,7 +4,8 @@ DIY Stream Deck: a desktop app (Windows / Linux) that runs actions on your PC,
 and an Android app that turns a dedicated tablet into a touch control surface.
 Wi-Fi or USB, no cloud, free and open-source tools only.
 
-> 🚧 Early development (phase 1 — foundations). Not usable yet.
+> 🚧 Early development: connection (USB / Wi-Fi) and the editor work; the
+> only action so far is a keyboard shortcut (more actions come in phase 4).
 
 ## Repository layout
 
@@ -16,6 +17,21 @@ Wi-Fi or USB, no cloud, free and open-source tools only.
 | `apps/android` | Tablet app (Kotlin, Jetpack Compose) |
 | `docs/design` | Reference mockups |
 | `scripts/gen-types.sh` | Regenerates the TS and Kotlin protocol types |
+
+## Using it
+
+- **Editor** (main window): profiles, pages and a replica of the tablet grid.
+  Drag an action from the library onto a cell (or click it to fill the
+  selected cell), select a button to change its label, icon (Lucide), color
+  and keyboard shortcut. Arrows move the selection, Alt + arrows move the
+  button, Delete removes it, Ctrl+Z / Ctrl+Shift+Z undo and redo. Changes are
+  saved and pushed to the tablets as you type.
+- **Profiles**: the profile menu chooses the profile you edit; **Afficher sur
+  la tablette** chooses the one the tablets show (marked in the menu).
+- **Tablet**: swipe to change page; the page stays in front of you through
+  edits and reconnections.
+- **Connexions** (the tablet pill in the header): server, connected and paired
+  tablets, USB devices, recent presses.
 
 ## Development setup (Linux)
 
@@ -45,7 +61,8 @@ The app serves tablets on two ports:
 | `PADBOARD_WIFI_PORT` | Wi-Fi port | `47322` |
 | `PADBOARD_LOG` | `tracing` filter, e.g. `debug` | `info` (debug for Padboard) |
 
-The configuration (PC identity, Wi-Fi TLS key, paired devices, settings) lives in
+The configuration (profiles, PC identity, Wi-Fi TLS key, paired devices,
+settings) lives in
 `~/.config/io.github.hugoambiehl.padboard/` (Linux) or
 `%APPDATA%\io.github.hugoambiehl.padboard\` (Windows). Deleting
 `tls-key.pem` or `identity.json` makes every tablet pair again.
@@ -207,7 +224,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push:
 
 | Job | Checks |
 | --- | --- |
-| Rust + desktop frontend (Linux) | ESLint, Prettier, `vue-tsc` + Vite build, `cargo fmt`, `cargo clippy -D warnings`, `cargo test` |
+| Rust + desktop frontend (Linux) | ESLint, Prettier, Vitest, type-check of the e2e tests (not run), `vue-tsc` + Vite build, `cargo fmt`, `cargo clippy -D warnings`, `cargo test` |
 | Generated protocol types | `scripts/gen-types.sh --check` |
 | Android | ktlint, unit tests, Android Lint, debug APK |
 | Rust (Windows) | `cargo clippy -D warnings`, `cargo test` — only on pushes to `main`, pull requests and manual runs |
@@ -215,7 +232,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push:
 To run the same checks locally before pushing:
 
 ```sh
-(cd apps/desktop && npm run lint && npm run format:check && npm run build)
+(cd apps/desktop && npm run lint && npm run format:check && npm test && npm run typecheck && npm run build)
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace

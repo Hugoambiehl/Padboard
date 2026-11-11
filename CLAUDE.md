@@ -296,13 +296,15 @@ SM-T580, always measure in release builds.
    IP and showing a fixed grid.
 2. **Connection** ✅ — mDNS + PIN pairing, USB via adb reverse, auto-switch,
    reconnection, heartbeat.
-3. **Editor** — replica, library, inspector, drag & drop, persistence, live sync,
-   undo/redo. Backlog: dark window title bar (GNOME shows a light one while
-   the app is dark) — window `theme: "Dark"` or a custom title bar.
+3. **Editor** ✅ — replica, library, inspector, drag & drop, persistence, live
+   sync, undo/redo, edited vs displayed profile; tablet icons and page swipes;
+   end-to-end tests on the real window (local).
 4. **Actions** — all MVP actions (Linux + Windows), stateful buttons, folders,
    pages, multi-actions.
 5. **Tablet polish** — launcher, lock task, animations, disconnected overlay,
    screensaver, performance. Backlog: the Android 12L taskbar stays drawn over
-   the app in immersive mode on the SM-T580 (no inset reported); QR code pairing.
+   the app in immersive mode on the SM-T580 (no inset reported); QR code pairing;
+   dark window title bar on GNOME (`theme: "Dark"` is set, check it, else a
+   custom title bar); user images as icons (phase 4 or 5).
 6. **Distribution** — Windows installer, signed release APK, CI, README, open source.
    License notices to ship: Lucide icons (ISC), Inter and Space Grotesk (OFL).
