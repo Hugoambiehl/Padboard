@@ -37,7 +37,7 @@ describe("editor", () => {
     await app.select(0, 0);
     const input = await field(t("inspector.label"));
     await app.session.clear(input);
-    await app.session.type(input, "Mon terminal");
+    await app.typeText(input, "Mon terminal");
     await app.expectCell(0, 0, "Mon terminal");
     await app.shot("02-label");
 
@@ -67,7 +67,7 @@ describe("editor", () => {
     await app.clickLabel("Moon");
     await app.clickLabel(t("inspector.moreIcons"));
     const search = await app.session.find("dialog[open] input");
-    await app.session.type(search, "rocket");
+    await app.typeText(search, "rocket");
     await app.session.find(`dialog[open] [aria-label='Rocket']`);
     await app.shot("03-icon-picker");
     await app.session.click(await app.session.find(`dialog[open] [aria-label='Rocket']`));
@@ -225,7 +225,7 @@ describe("editor", () => {
     // Typed just before closing: still within the save debounce.
     await app.select(0, 1);
     const input = await field(t("inspector.label"));
-    await app.session.type(input, " !");
+    await app.typeText(input, " !");
     await app.expectCell(0, 1, "Mon terminal !");
     await app.close();
 

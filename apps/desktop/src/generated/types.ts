@@ -362,6 +362,7 @@ export interface PairSuccessPayload {
 export enum PresetGroup {
 	System = "system",
 	Media = "media",
+	Navigation = "navigation",
 }
 
 export interface Preset {

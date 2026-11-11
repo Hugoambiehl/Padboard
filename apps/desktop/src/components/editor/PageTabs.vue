@@ -3,16 +3,25 @@ import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { onClickOutside, onKeyStroke } from "@vueuse/core";
 import { AnimatePresence, motion } from "motion-v";
-import { ChevronLeft, ChevronRight, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-vue-next";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Folder,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-vue-next";
 import TextPrompt from "../TextPrompt.vue";
 import { useEditor } from "../../composables/useEditor";
 import { useSelection } from "../../editor/selection";
 
 const { t } = useI18n();
 const { editedProfile, edit } = useEditor();
-const { page, showPage } = useSelection();
+const { page, isFolder, showPage } = useSelection();
 
 const pages = computed(() => editedProfile.value?.pages ?? []);
+const folders = computed(() => editedProfile.value?.folders ?? []);
 const index = computed(() => pages.value.findIndex((p) => p.id === page.value?.id));
 const menuOpen = ref(false);
 const confirmDelete = ref(false);
@@ -78,6 +87,28 @@ async function remove() {
     >
       {{ p.name }}
     </button>
+    <template v-if="folders.length > 0">
+      <span class="mx-1 h-5 w-px bg-line-2" aria-hidden="true" />
+      <button
+        v-for="f in folders"
+        :key="f.id"
+        type="button"
+        role="tab"
+        :aria-selected="f.id === page?.id"
+        :title="t('folders.tab', { name: f.name })"
+        class="flex items-center gap-1.5 rounded-[9px] border px-3 py-[7px] text-sm transition-colors"
+        :class="
+          f.id === page?.id
+            ? 'border-[#34374A] bg-[#22242C] font-semibold text-fg'
+            : 'border-line-2 text-muted-2 hover:bg-surface-active'
+        "
+        @click="showPage(f.id)"
+        @dblclick="prompt = 'rename'"
+      >
+        <Folder :size="14" aria-hidden="true" />
+        {{ f.name }}
+      </button>
+    </template>
     <div ref="menu" class="relative">
       <button
         type="button"
@@ -106,28 +137,35 @@ async function remove() {
               prompt = 'rename';
             "
           >
-            <Pencil :size="15" aria-hidden="true" />{{ t("pages.rename") }}
+            <Pencil :size="15" aria-hidden="true" />
+            {{ t(isFolder ? "pages.renameFolder" : "pages.rename") }}
           </button>
-          <button type="button" class="menu-item" :disabled="index <= 0" @click="move(-1)">
-            <ChevronLeft :size="15" aria-hidden="true" />{{ t("pages.moveLeft") }}
-          </button>
-          <button
-            type="button"
-            class="menu-item"
-            :disabled="index >= pages.length - 1"
-            @click="move(1)"
-          >
-            <ChevronRight :size="15" aria-hidden="true" />{{ t("pages.moveRight") }}
-          </button>
+          <template v-if="!isFolder">
+            <button type="button" class="menu-item" :disabled="index <= 0" @click="move(-1)">
+              <ChevronLeft :size="15" aria-hidden="true" />{{ t("pages.moveLeft") }}
+            </button>
+            <button
+              type="button"
+              class="menu-item"
+              :disabled="index >= pages.length - 1"
+              @click="move(1)"
+            >
+              <ChevronRight :size="15" aria-hidden="true" />{{ t("pages.moveRight") }}
+            </button>
+          </template>
           <button
             type="button"
             class="menu-item"
             :class="confirmDelete ? 'bg-cat-red/15 text-[#FFC2C2]' : 'text-[#FF8A8A]'"
-            :disabled="pages.length <= 1"
+            :disabled="!isFolder && pages.length <= 1"
             @click="remove"
           >
             <Trash2 :size="15" aria-hidden="true" />
-            {{ confirmDelete ? t("pages.confirmDelete") : t("pages.delete") }}
+            {{
+              confirmDelete
+                ? t("pages.confirmDelete")
+                : t(isFolder ? "pages.deleteFolder" : "pages.delete")
+            }}
           </button>
         </motion.div>
       </AnimatePresence>
@@ -143,8 +181,8 @@ async function remove() {
     </button>
     <TextPrompt
       v-if="prompt"
-      :title="t(prompt === 'add' ? 'pages.add' : 'pages.rename')"
-      :label="t('pages.nameLabel')"
+      :title="t(prompt === 'add' ? 'pages.add' : isFolder ? 'pages.renameFolder' : 'pages.rename')"
+      :label="t(isFolder && prompt === 'rename' ? 'pages.folderNameLabel' : 'pages.nameLabel')"
       :initial="prompt === 'rename' ? page?.name : t('pages.defaultName', { n: pages.length + 1 })"
       :confirm="t(prompt === 'add' ? 'common.create' : 'common.rename')"
       @submit="submit"

@@ -102,7 +102,6 @@ fun ButtonTile(button: ButtonView, onPress: () -> Unit, onRelease: () -> Unit, m
                 alpha = tileAlpha
             }.clip(TileShape)
             .background(PadboardColors.Surface2)
-            .border(1.dp, PadboardColors.Border2, TileShape)
             .semantics {
                 role = Role.Button
                 if (button.unavailable) disabled()
@@ -140,6 +139,9 @@ fun ButtonTile(button: ButtonView, onPress: () -> Unit, onRelease: () -> Unit, m
                 }
             }
     ) {
+        // Resting border, as a layer: `Modifier.border` on the tile would be
+        // drawn over its children and hide the active border below.
+        Box(Modifier.matchParentSize().border(1.dp, PadboardColors.Border2, TileShape))
         // Active state: active surface and a border in the category color.
         Box(
             Modifier

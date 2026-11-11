@@ -17,8 +17,8 @@ import { actionSummary, isSystemAction } from "../../editor/actionText";
 import type { Action, Category, IconConfig } from "../../generated/types";
 
 const { t } = useI18n();
-const { edit, checkpoint } = useEditor();
-const { selected, selectedButton } = useSelection();
+const { edit, checkpoint, editedProfile } = useEditor();
+const { selected, selectedButton, showPage } = useSelection();
 
 const button = selectedButton;
 const colors = computed(() => (button.value ? categoryColors[button.value.color] : null));
@@ -75,7 +75,17 @@ const isHotkey = computed(() => button.value?.action.type === "hotkey");
 const hotkeyKeys = computed(() =>
   button.value?.action.type === "hotkey" ? button.value.action.params.keys : [],
 );
-const summary = computed(() => (button.value ? actionSummary(button.value.action, t) : ""));
+// A folder button: the folder it opens (gone if it was deleted).
+const folderTarget = computed(() => {
+  const action = button.value?.action;
+  if (action?.type !== "navigate" || action.params.to !== "folder") return undefined;
+  return editedProfile.value?.folders.find((f) => f.id === action.params.id) ?? null;
+});
+const summary = computed(() => {
+  if (folderTarget.value) return t("folders.opens", { name: folderTarget.value.name });
+  if (folderTarget.value === null) return t("folders.missing");
+  return button.value ? actionSummary(button.value.action, t) : "";
+});
 // The PC runs system actions itself; an empty shortcut does nothing yet.
 const testable = computed(
   () =>
@@ -277,15 +287,30 @@ async function addShortcut() {
         </div>
         <HotkeyEditor v-if="isHotkey" :keys="hotkeyKeys" @change="setKeys" />
         <template v-else>
-          <p class="text-sm leading-relaxed">{{ summary }}</p>
-          <p class="text-xs leading-relaxed text-muted">{{ t("actions.editLater") }}</p>
+          <p class="text-sm leading-relaxed" :class="folderTarget === null ? 'text-[#F3D2BA]' : ''">
+            {{ summary }}
+          </p>
+          <button
+            v-if="folderTarget"
+            type="button"
+            class="flex items-center justify-center gap-1.5 rounded-[10px] border border-line-2 bg-surface-2 px-3 py-2 text-sm hover:bg-surface-active"
+            @click="showPage(folderTarget.id)"
+          >
+            {{ t("folders.open") }}
+          </button>
+          <p
+            v-else-if="button.action.type !== 'navigate'"
+            class="text-xs leading-relaxed text-muted"
+          >
+            {{ t("actions.editLater") }}
+          </p>
         </template>
       </div>
 
       <div class="flex flex-wrap gap-2.5">
         <button
           type="button"
-          class="flex flex-1 items-center justify-center gap-2 rounded-[11px] px-4 py-3 text-[15px] font-semibold transition-colors"
+          class="flex flex-1 items-center justify-center gap-2 rounded-[11px] px-4 py-3 text-[15px] font-semibold transition-colors disabled:pointer-events-none disabled:opacity-40"
           :class="
             test === 'error' ? 'bg-cat-red/20 text-[#FFC2C2]' : 'bg-accent text-bg hover:opacity-90'
           "

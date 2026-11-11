@@ -215,6 +215,12 @@ SM-T580, always measure in release builds.
   A touch that moves first belongs to the pager and sends nothing.
   `button:release` follows on lift or when the pager takes over, in a
   `finally`, so a cancelled gesture never leaves a key held.
+- **Navigation and folders**: a navigation button is not run on the PC: the
+  desktop answers the pressing tablet with `navigate`. Folders are pages
+  outside the swipe order (`ProfileConfig.folders`), edited in the same tabs;
+  `AddFolder` creates the folder and its button in one undo entry; a folder
+  button without its own subtitle shows "Dossier · N boutons". Deleting a
+  folder keeps the buttons that opened it (flagged in the inspector).
 - **Tablet pages**: `HorizontalPager` keyed by page id; the page shown is
   followed by id across layout updates, reconnections and USB ↔ Wi-Fi
   switches (`PageMemory` in `ui/grid/PageTracking.kt`, owned by the
@@ -294,7 +300,8 @@ SM-T580, always measure in release builds.
 - **Test mode** `PADBOARD_TEST_DIR` (`src-tauri/src/test_mode.rs`): separate
   config dir, `RecordingExecutor` (actions written to `actions.jsonl`, never
   injected), no adb, Wi-Fi forced off, logs to `app.log`, and a runtime
-  capability letting the page close its window (WebDriver kills the process
+  simulated button states from `state.json` (`observe::start_from_file`),
+  and a runtime capability letting the page close its window (WebDriver kills the process
   when it ends a session, so "close the app" goes through the page).
 - Steps of a file build on each other (`bail: 1`); a failed step saves a
   screenshot `FAILED <step>.png`. Review the screenshots after UI changes.

@@ -36,7 +36,7 @@ const description = (p: Preset) => t(`library.presets.${p.id}.desc`);
 
 const groups = computed(() => {
   const q = query.value.trim().toLowerCase();
-  const order: PresetGroup[] = ["system" as PresetGroup, "media" as PresetGroup];
+  const order = ["system", "media", "navigation"] as PresetGroup[];
   return order
     .map((group) => ({
       group,

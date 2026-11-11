@@ -5,7 +5,7 @@
 
 use padboard_actions::{
     Action, Hotkey, Key, MediaAction, MediaCommand, MicrophoneAction, MicrophoneCommand,
-    VolumeAction, VolumeCommand,
+    NavigateAction, NavigateTo, VolumeAction, VolumeCommand,
 };
 use padboard_protocol::Category;
 use serde::Serialize;
@@ -17,6 +17,7 @@ use typeshare::typeshare;
 pub enum PresetGroup {
     System,
     Media,
+    Navigation,
 }
 
 #[typeshare]
@@ -59,6 +60,16 @@ fn media(id: &str, icon: &str, command: MediaCommand) -> Preset {
         Category::Orange,
         icon,
         Action::Media(MediaAction { command }),
+    )
+}
+
+fn navigate(id: &str, icon: &str, to: NavigateTo) -> Preset {
+    with_action(
+        id,
+        PresetGroup::Navigation,
+        Category::Violet,
+        icon,
+        Action::Navigate(NavigateAction { to, id: None }),
     )
 }
 
@@ -147,6 +158,11 @@ pub fn presets() -> Vec<Preset> {
         media("previousTrack", "SkipBack", MediaCommand::Previous),
         media("nextTrack", "SkipForward", MediaCommand::Next),
         media("stop", "Square", MediaCommand::Stop),
+        // Creates a folder and its button (`AddFolder`), see the frontend.
+        navigate("folder", "Folder", NavigateTo::Folder),
+        navigate("nextPage", "ChevronRight", NavigateTo::Next),
+        navigate("previousPage", "ChevronLeft", NavigateTo::Previous),
+        navigate("back", "Undo2", NavigateTo::Back),
     ]);
     list
 }
@@ -163,8 +179,9 @@ mod tests {
         let ids: HashSet<_> = list.iter().map(|p| p.id.as_str()).collect();
         assert_eq!(ids.len(), list.len());
         for p in &list {
-            // The empty shortcut is a draft, recorded in the inspector.
-            if p.id == "hotkey" {
+            // Drafts: the empty shortcut (recorded in the inspector), the
+            // folder (created with the button).
+            if p.id == "hotkey" || p.id == "folder" {
                 p.action.validate_draft().unwrap();
             } else {
                 p.action.validate().unwrap();

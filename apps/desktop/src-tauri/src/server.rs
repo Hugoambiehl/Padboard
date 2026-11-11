@@ -30,10 +30,11 @@ use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
-use padboard_actions::{Action, ActionError, ActionExecutor};
+use padboard_actions::{Action, ActionError, ActionExecutor, NavigateAction, NavigateTo};
 use padboard_protocol::{
     AuthStatus, ButtonEvent, ErrorCode, ErrorPayload, Heartbeat, HelloPayload, Layout, Message,
-    PROTOCOL_VERSION, PairSuccessPayload, WelcomePayload, is_compatible,
+    NavigatePayload, NavigateTarget, PROTOCOL_VERSION, PairSuccessPayload, WelcomePayload,
+    is_compatible,
 };
 use serde::Serialize;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -634,7 +635,14 @@ where
         let reason = format!("no button {button_id:?} in the current layout");
         return send_error(ws, ErrorCode::UnknownButton, reason).await;
     };
-    let outcome = execute(ctx, action).await;
+    let outcome = match action {
+        // Navigation moves the tablet that pressed, nothing runs on the PC.
+        Action::Navigate(nav) => {
+            send(ws, &Message::Navigate(navigate_payload(&nav))).await?;
+            ActionOutcome::Ok
+        }
+        action => execute(ctx, action).await,
+    };
     if let ActionOutcome::Error { detail, .. } = &outcome {
         send_error(ws, ErrorCode::ActionFailed, detail.clone()).await?;
     }
@@ -647,6 +655,19 @@ where
         },
     );
     Ok(())
+}
+
+fn navigate_payload(nav: &NavigateAction) -> NavigatePayload {
+    NavigatePayload {
+        to: match nav.to {
+            NavigateTo::Page => NavigateTarget::Page,
+            NavigateTo::Folder => NavigateTarget::Folder,
+            NavigateTo::Next => NavigateTarget::Next,
+            NavigateTo::Previous => NavigateTarget::Previous,
+            NavigateTo::Back => NavigateTarget::Back,
+        },
+        id: nav.id.clone(),
+    }
 }
 
 /// Runs the action on a blocking thread (executors are blocking).
@@ -1100,6 +1121,26 @@ mod tests {
             .find(|b| b.id == "copy")
             .unwrap();
         assert!(copy.active);
+    }
+
+    #[tokio::test]
+    async fn navigation_buttons_move_the_tablet_that_pressed() {
+        let h = start(Transport::Usb, false).await;
+        let mut config = crate::config::seed::config();
+        config.profiles[0].pages[0].buttons[1].action = Action::Navigate(NavigateAction {
+            to: NavigateTo::Folder,
+            id: Some("f1".into()),
+        });
+        h.layout.send_replace(Arc::new(config.active_layout()));
+        let mut client = connected(&h).await;
+        send_msg(&mut client, &press("copy")).await;
+        let Message::Navigate(nav) = recv_msg(&mut client).await else {
+            panic!("expected navigate");
+        };
+        assert_eq!(nav.to, NavigateTarget::Folder);
+        assert_eq!(nav.id.as_deref(), Some("f1"));
+        // Nothing ran on the PC.
+        assert!(h.executor.executed.lock().unwrap().is_empty());
     }
 
     #[tokio::test]

@@ -129,6 +129,10 @@ The app runs in **test mode** (`PADBOARD_TEST_DIR=<absolute dir>`): the
 configuration lives in that directory instead of yours, actions are recorded
 to `<dir>/actions.jsonl` and never injected, USB devices (adb) and Wi-Fi are
 left alone, logs go to `<dir>/app.log`, and the window title says "mode test".
+Button states are simulated from `<dir>/state.json` instead of the real
+microphone, sound server and players, e.g.
+`{"audio": {"outputPercent": 50, "outputMuted": false, "inputMuted": true}, "mediaPlaying": false}`
+(`"audio": "unavailable"` for a missing sound server).
 The tests create a temporary directory per run (`PADBOARD_E2E_KEEP=1` keeps it).
 
 ### Run the tablet app

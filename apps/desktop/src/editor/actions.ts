@@ -26,6 +26,21 @@ export async function addPreset(preset: Preset, cell: { row: number; col: number
   const target = page.value;
   if (!target || buttonAt(target, cell.row, cell.col)) return;
   const t = i18n.global.t;
+  if (preset.id === "folder") {
+    // A folder comes with the button that opens it (one undo entry).
+    const outcome = await edit({
+      type: "addFolder",
+      params: {
+        pageId: target.id,
+        row: cell.row,
+        col: cell.col,
+        name: t("folders.defaultName"),
+        icon: (await iconConfig(preset.icon)) ?? undefined,
+      },
+    });
+    if (outcome) select({ pageId: target.id, ...cell });
+    return;
+  }
   const keys = preset.action.type === "hotkey" ? preset.action.params.keys : [];
   const outcome = await edit({
     type: "addButton",

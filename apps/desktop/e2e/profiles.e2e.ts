@@ -100,7 +100,7 @@ describe("edited and displayed profiles", () => {
     const input = await app.session.find(
       `//label[span[normalize-space(.)=${literal(t("inspector.label"))}]]//input`,
     );
-    await app.session.type(input, " tout");
+    await app.typeText(input, " tout");
     await app.expectCell(0, 1, "Copier tout");
     await expectNoPush(count);
     expect(tablet.lastLayout()).toMatch(/^Layout "Jeu": /);

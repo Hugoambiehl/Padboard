@@ -21,10 +21,15 @@ let watching = false;
 export function useSelection() {
   const { editedProfile } = useEditor();
 
+  // The grid being edited: a page, or a folder (same id space).
   const page = computed<PageConfig | null>(() => {
     const pages = editedProfile.value?.pages ?? [];
-    return pages.find((p) => p.id === pageId.value) ?? pages[0] ?? null;
+    const folders = editedProfile.value?.folders ?? [];
+    return [...pages, ...folders].find((p) => p.id === pageId.value) ?? pages[0] ?? null;
   });
+  const isFolder = computed(
+    () => !!page.value && (editedProfile.value?.folders ?? []).some((f) => f.id === page.value!.id),
+  );
 
   const selectedButton = computed<ButtonConfig | null>(() => {
     const cell = selected.value;
@@ -65,6 +70,7 @@ export function useSelection() {
   return {
     pageId,
     page,
+    isFolder,
     selected,
     selectedButton,
     showPage: (id: string) => {

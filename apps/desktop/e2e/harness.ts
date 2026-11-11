@@ -2,7 +2,7 @@
 // tablet, and gives the tests a few helpers. Paths come from
 // scripts/desktop-e2e.sh.
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -165,6 +165,18 @@ export class App {
       .map((line) => JSON.parse(line));
   }
 
+  /**
+   * Simulates what the PC observes (test mode reads `state.json` instead of
+   * the real microphone, sound server and players).
+   */
+  async setState(state: {
+    audio?:
+      { outputPercent: number; outputMuted: boolean; inputMuted: boolean | null } | "unavailable";
+    mediaPlaying?: boolean;
+  }): Promise<void> {
+    await writeFile(join(this.dir, "state.json"), JSON.stringify(state));
+  }
+
   /** The saved configuration (`profiles.json`). */
   async savedConfig(): Promise<{
     activeProfileId: string;
@@ -233,11 +245,33 @@ export class App {
     await this.session.click(await this.session.find(`[aria-label=${JSON.stringify(label)}]`));
   }
 
+  /** Types into an input, one character at a time (see `fill`). */
+  async typeText(input: Element, text: string): Promise<void> {
+    for (const ch of text) await this.session.type(input, ch);
+  }
+
+  /**
+   * Replaces the text of an input, then checks it (WebKitWebDriver can drop
+   * keystrokes under load, notably on a virtual display).
+   */
+  async fill(input: Element, value: string): Promise<void> {
+    for (let attempt = 0; ; attempt++) {
+      await this.session.clear(input);
+      // One character at a time: a whole string sent at once can lose
+      // keystrokes while the page reacts to the first one.
+      await this.typeText(input, value);
+      const typed = await this.session.property<string>(input, "value");
+      if (typed === value) return;
+      if (attempt >= 2)
+        throw new Error(`typed ${JSON.stringify(typed)} instead of ${JSON.stringify(value)}`);
+      await sleep(200);
+    }
+  }
+
   /** Fills the open text prompt (profile / page name) and confirms. */
   async answerPrompt(value: string, confirm: string): Promise<void> {
     const input = await this.session.find("dialog[open] input");
-    await this.session.clear(input);
-    await this.session.type(input, value);
+    await this.fill(input, value);
     // Scoped to the dialog: a menu fading out behind it may have the same text.
     await this.session.click(
       await this.session.find(`//dialog[@open]//button[normalize-space(.)=${literal(confirm)}]`),

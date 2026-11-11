@@ -108,7 +108,11 @@ impl Config {
                     row: b.row,
                     col: b.col,
                     label: b.label.clone(),
-                    subtitle: b.subtitle.clone().filter(|s| !s.is_empty()),
+                    subtitle: b
+                        .subtitle
+                        .clone()
+                        .filter(|s| !s.is_empty())
+                        .or_else(|| folder_subtitle(profile, &b.action)),
                     category: b.color,
                     icon: b.icon.as_ref().map(|i| ButtonIcon {
                         paths: i.paths.clone(),
@@ -153,6 +157,25 @@ impl Config {
                 .collect(),
         }
     }
+}
+
+/// "Dossier · 3 boutons" under a button opening a folder (Main.dc.html),
+/// unless the user wrote a subtitle. French, like the other texts the state
+/// engine sends (`appearance.rs`).
+fn folder_subtitle(profile: &ProfileConfig, action: &Action) -> Option<String> {
+    let Action::Navigate(padboard_actions::NavigateAction {
+        to: padboard_actions::NavigateTo::Folder,
+        id: Some(id),
+    }) = action
+    else {
+        return None;
+    };
+    let folder = profile.folders.iter().find(|f| &f.id == id)?;
+    Some(match folder.buttons.len() {
+        0 => "Dossier · vide".to_owned(),
+        1 => "Dossier · 1 bouton".to_owned(),
+        n => format!("Dossier · {n} boutons"),
+    })
 }
 
 /// A fresh id for a profile, page or button (12 hex characters).

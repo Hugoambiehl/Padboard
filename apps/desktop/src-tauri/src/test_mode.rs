@@ -8,7 +8,9 @@
 //!   and **never** injected into the system (no uinput, no SendInput);
 //! - USB devices are left alone (no `adb track-devices` / `adb reverse`), and
 //!   Wi-Fi and mDNS stay off whatever the preferences say;
-//! - logs go to `<dir>/app.log`.
+//! - logs go to `<dir>/app.log`;
+//! - button states come from `<dir>/state.json` (simulated), never from the
+//!   real microphone, sound server or players.
 //!
 //! The window title says the app is in test mode.
 
@@ -45,6 +47,12 @@ impl TestMode {
     #[must_use]
     pub fn dir(&self) -> &Path {
         &self.dir
+    }
+
+    /// Simulated button states (`observe::start_from_file`).
+    #[must_use]
+    pub fn state_file(&self) -> PathBuf {
+        self.dir.join("state.json")
     }
 
     #[must_use]

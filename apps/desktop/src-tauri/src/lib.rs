@@ -319,11 +319,12 @@ pub fn run() {
                     }
                 }),
             );
-            // Button states. Not observed in test mode: buttons keep their
-            // resting look, whatever the real microphone or player do.
+            // Button states. In test mode they come from a file, never from
+            // the real microphone or player.
             let (state_tx, _) = tokio::sync::watch::channel(appearance::SystemState::default());
-            if test_mode.is_none() {
-                observe::start(&state_tx);
+            match &test_mode {
+                None => observe::start(&state_tx),
+                Some(mode) => observe::start_from_file(mode.state_file(), &state_tx),
             }
             let ctx = Arc::new(ServerContext {
                 server_name,

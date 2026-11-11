@@ -174,7 +174,10 @@
     "delete": "Supprimer la page",
     "confirmDelete": "Confirmer la suppression",
     "nameLabel": "Nom de la page",
-    "defaultName": "Page {n}"
+    "defaultName": "Page {n}",
+    "deleteFolder": "Supprimer le dossier",
+    "renameFolder": "Renommer le dossier",
+    "folderNameLabel": "Nom du dossier"
   },
   "grid": {
     "label": "Grille de boutons",
@@ -202,7 +205,8 @@
     "clickHint": "Glisse sur une case vide, ou clique pour l’ajouter à la case sélectionnée",
     "groups": {
       "system": "Système",
-      "media": "Audio et médias"
+      "media": "Audio et médias",
+      "navigation": "Navigation"
     },
     "presets": {
       "hotkey": {
@@ -280,6 +284,22 @@
       "microphone": {
         "label": "Micro",
         "desc": "Coupe ou rétablit le micro"
+      },
+      "folder": {
+        "label": "Dossier",
+        "desc": "Un groupe de boutons à part"
+      },
+      "nextPage": {
+        "label": "Page suivante",
+        "desc": "Fait défiler la tablette"
+      },
+      "previousPage": {
+        "label": "Page précédente",
+        "desc": "Fait défiler la tablette"
+      },
+      "back": {
+        "label": "Retour",
+        "desc": "Ferme le dossier ouvert"
       }
     }
   },
@@ -390,5 +410,13 @@
       "toggle_input_mute": "Coupe ou rétablit « {target} »"
     },
     "editLater": "Les réglages de cette action arrivent bientôt dans l’éditeur."
+  },
+  "folders": {
+    "defaultName": "Dossier",
+    "tab": "Dossier {name}",
+    "open": "Modifier le dossier",
+    "opens": "Ouvre le dossier « {name} »",
+    "missing": "Ce dossier a été supprimé : le bouton ne fait plus rien.",
+    "label": "Dossiers"
   }
 }

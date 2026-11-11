@@ -89,3 +89,83 @@ fn media_loop(tx: &watch::Sender<SystemState>) -> ! {
         std::thread::sleep(MEDIA_POLL);
     }
 }
+
+/// Test mode (`test_mode.rs`): the state comes from `<test dir>/state.json`
+/// instead of the system, polled, so end-to-end tests drive the button
+/// states without touching the real microphone. Example:
+/// `{"audio": {"outputPercent": 50, "outputMuted": false, "inputMuted": true}, "mediaPlaying": false}`;
+/// `"audio": "unavailable"` simulates a missing sound server; an absent key
+/// means not observed.
+pub fn start_from_file(path: std::path::PathBuf, state: &watch::Sender<SystemState>) {
+    let tx = state.clone();
+    spawn("padboard-test-state", move || {
+        let mut last = None;
+        loop {
+            let text = std::fs::read_to_string(&path).ok();
+            if text != last {
+                let parsed = text.as_deref().map(serde_json::from_str::<TestState>);
+                match parsed {
+                    None => {}
+                    Some(Ok(test)) => {
+                        let next = test.into_state();
+                        tx.send_if_modified(|s| std::mem::replace(s, next) != next);
+                    }
+                    Some(Err(e)) => tracing::warn!("{}: {e}", path.display()),
+                }
+                last = text;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    });
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TestState {
+    audio: Option<TestAudio>,
+    media_playing: Option<bool>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(untagged)]
+enum TestAudio {
+    Known {
+        #[serde(rename = "outputPercent")]
+        output_percent: u32,
+        #[serde(rename = "outputMuted")]
+        output_muted: bool,
+        #[serde(rename = "inputMuted")]
+        input_muted: Option<bool>,
+    },
+    /// `"unavailable"`.
+    Missing(Unavailable),
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum Unavailable {
+    Unavailable,
+}
+
+impl TestState {
+    fn into_state(self) -> SystemState {
+        SystemState {
+            audio: match self.audio {
+                None => Observed::Unknown,
+                Some(TestAudio::Missing(Unavailable::Unavailable)) => Observed::Unavailable,
+                Some(TestAudio::Known {
+                    output_percent,
+                    output_muted,
+                    input_muted,
+                }) => Observed::Known(state::AudioState {
+                    output_percent,
+                    output_muted,
+                    input_muted,
+                }),
+            },
+            media_playing: self
+                .media_playing
+                .map_or(Observed::Unknown, Observed::Known),
+        }
+    }
+}
