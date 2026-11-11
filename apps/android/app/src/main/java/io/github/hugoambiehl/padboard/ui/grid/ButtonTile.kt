@@ -4,7 +4,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,7 +24,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.onClick
@@ -41,9 +46,15 @@ private const val PRESS_MS = 120
 private const val PRESSED_SCALE = 0.94f
 private const val FLASH_ALPHA = 0.22f
 
+/** A touch held still this long is a press even before the finger lifts. */
+private const val HOLD_MS = 120L
+
 /**
- * One button of the grid. A touch sends `button:press` immediately and
- * `button:release` when the finger lifts (needed for long presses later).
+ * One button of the grid. The tile reacts at once on touch, but the grid can
+ * be swiped to change page, so the press is only sent once the touch is
+ * known not to be a swipe: when the finger lifts without moving (a tap), or
+ * after it stayed still for [HOLD_MS] (a hold, for long presses later).
+ * `button:release` follows when the finger lifts or the gesture is taken over.
  *
  * Press feedback follows the tablet animation rule: only transform and alpha,
  * through `graphicsLayer` (no layout animation, no blur).
@@ -80,19 +91,29 @@ fun ButtonTile(button: ButtonView, onPress: () -> Unit, onRelease: () -> Unit, m
                     true
                 }
             }.pointerInput(button.id) {
-                detectTapGestures(
-                    onPress = {
-                        pressed = true
-                        currentOnPress()
-                        try {
-                            tryAwaitRelease()
-                        } finally {
-                            // Also runs if the gesture is cancelled: never leave a key held on the PC.
-                            pressed = false
-                            currentOnRelease()
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    pressed = true
+                    var sent = false
+                    try {
+                        when (awaitTapOrHold(down.id, down.position, viewConfiguration.touchSlop)) {
+                            Touch.Tap -> {
+                                currentOnPress()
+                                sent = true
+                            }
+                            Touch.Hold -> {
+                                currentOnPress()
+                                sent = true
+                                awaitLiftOrTakeover(down.id)
+                            }
+                            Touch.Swipe -> Unit
                         }
+                    } finally {
+                        // Also runs if the gesture is cancelled: never leave a key held on the PC.
+                        pressed = false
+                        if (sent) currentOnRelease()
                     }
-                )
+                }
             }
     ) {
         // Color flash overlay, animated through its alpha only.
@@ -106,16 +127,22 @@ fun ButtonTile(button: ButtonView, onPress: () -> Unit, onRelease: () -> Unit, m
             modifier = Modifier.fillMaxSize().padding(20.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Icons arrive with a later protocol version; the label's initial stands in for now.
             Box(
                 modifier = Modifier.size(56.dp).clip(IconShape).background(colors.background),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = button.label.firstOrNull()?.uppercase() ?: "",
-                    style = PadboardType.Initial,
-                    color = colors.foreground
-                )
+                // Cached by paths: an unchanged icon is not rebuilt on layout updates.
+                val icon = button.icon?.let { IconVectors.get(it.paths) }
+                if (icon != null) {
+                    Icon(icon, contentDescription = null, modifier = Modifier.size(28.dp), tint = colors.foreground)
+                } else {
+                    // No icon (or an unreadable one): the label's initial.
+                    Text(
+                        text = button.label.firstOrNull()?.uppercase() ?: "",
+                        style = PadboardType.Initial,
+                        color = colors.foreground
+                    )
+                }
             }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
@@ -136,5 +163,31 @@ fun ButtonTile(button: ButtonView, onPress: () -> Unit, onRelease: () -> Unit, m
                 }
             }
         }
+    }
+}
+
+private enum class Touch { Tap, Hold, Swipe }
+
+/**
+ * Follows the touch until it is a tap (lifted without moving), a hold (still
+ * for [HOLD_MS]) or a swipe (moved past the touch slop, or taken over by the
+ * pager). Nothing is consumed, so the pager still sees the movement.
+ */
+private suspend fun AwaitPointerEventScope.awaitTapOrHold(id: PointerId, start: Offset, slop: Float): Touch =
+    withTimeoutOrNull(HOLD_MS) { awaitTapOrSwipe(id, start, slop) } ?: Touch.Hold
+
+private suspend fun AwaitPointerEventScope.awaitTapOrSwipe(id: PointerId, start: Offset, slop: Float): Touch {
+    while (true) {
+        val change = awaitPointerEvent().changes.firstOrNull { it.id == id } ?: return Touch.Swipe
+        if (!change.pressed) return Touch.Tap
+        if (change.isConsumed || (change.position - start).getDistance() > slop) return Touch.Swipe
+    }
+}
+
+/** Waits until the finger lifts, or the pager takes the gesture over. */
+private suspend fun AwaitPointerEventScope.awaitLiftOrTakeover(id: PointerId) {
+    while (true) {
+        val change = awaitPointerEvent().changes.firstOrNull { it.id == id } ?: return
+        if (!change.pressed || change.isConsumed) return
     }
 }

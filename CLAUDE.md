@@ -182,8 +182,22 @@ SM-T580, always measure in release builds.
   the desktop announces IPv4 only and the tablet accumulates addresses.
 - **Desktop session liveness**: tablets ping every 5 s; the desktop closes an
   authenticated session silent for 20 s.
-- **Tablet press feedback**: `button:press` on touch down, `button:release` on
-  lift, released in a `finally` so a cancelled gesture never leaves a key held.
+- **Tablet presses vs page swipes**: the tile reacts (scale, flash) on touch
+  down, but `button:press` is sent only once the touch is not a swipe: on lift
+  without moving past the touch slop (tap), or after 120 ms held still (hold).
+  A touch that moves first belongs to the pager and sends nothing.
+  `button:release` follows on lift or when the pager takes over, in a
+  `finally`, so a cancelled gesture never leaves a key held.
+- **Tablet pages**: `HorizontalPager` keyed by page id; the page shown is
+  followed by id across layout updates (`ui/grid/PageTracking.kt`, applied
+  during composition with `requestScrollToPage`, so no wrong frame); another
+  profile starts on its first page; a deleted page gives way to the page at
+  its position. The page indicator is drawn in a `Canvas` from the pager
+  position (draw phase only), hidden for a single page.
+- **Tablet icons**: the protocol's SVG paths become an `ImageVector` (Lucide
+  24×24 grid, 2-unit round strokes, drawn white and tinted), cached by paths
+  (`ui/grid/IconVectors.kt`) so layout updates never rebuild an unchanged
+  icon; an unreadable icon falls back to the label's initial.
 - **Manual tests without the tablet**: the `fake-tablet` example of the desktop
   crate implements the tablet side (discovery, pinning, pairing, token); its
   pinning logic (`pinning.rs`) is the reference for the Android implementation.

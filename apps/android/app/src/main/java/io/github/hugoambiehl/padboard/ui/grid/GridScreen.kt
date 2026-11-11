@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,6 +23,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -34,11 +38,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -88,8 +97,19 @@ fun GridScreen(
     onForget: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
-    // Phase 1 shows the first page; page swipes come in phase 4.
-    val pageIndex = 0
+    val pages = layout?.pages.orEmpty()
+    val currentPages by rememberUpdatedState(pages)
+    val pagerState = rememberPagerState { currentPages.size }
+    // Keep the page in front of the user across layout updates (pages are
+    // followed by id, see pageAfterUpdate). Done during composition with
+    // requestScrollToPage, so the new layout never shows a wrong page for a
+    // frame. `tracked` is a plain holder: re-running this is harmless.
+    val tracked = remember { arrayOfNulls<Layout>(1) }
+    if (layout != null && tracked[0] !== layout) {
+        val target = pageAfterUpdate(tracked[0], pagerState.currentPage, layout)
+        tracked[0] = layout
+        if (target != pagerState.currentPage) pagerState.requestScrollToPage(target)
+    }
     var errorVisible by remember { mutableStateOf(false) }
     LaunchedEffect(actionFailures) {
         actionFailures.collect {
@@ -106,13 +126,12 @@ fun GridScreen(
         ) {
             TopBar(
                 profileName = layout?.profile?.name.orEmpty(),
-                pageCount = layout?.pages?.size ?: 0,
-                pageIndex = pageIndex,
+                pageCount = pages.size,
+                pagerState = pagerState,
                 status = status,
                 onPill = { menu = true }
             )
-            val page = layout?.pages?.getOrNull(pageIndex)
-            if (layout == null || page == null) {
+            if (layout == null || pages.isEmpty()) {
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                     Text(
                         stringResource(R.string.layout_waiting),
@@ -124,14 +143,26 @@ fun GridScreen(
                 val live = status is GridStatus.Connected
                 val dim by animateFloatAsState(if (live) 1f else 0.4f, tween(200), label = "gridDim")
                 Box(Modifier.fillMaxWidth().weight(1f)) {
-                    ButtonGrid(
-                        cols = layout.grid.cols.toInt(),
-                        rows = layout.grid.rows.toInt(),
-                        buttons = page.buttons,
-                        onPress = onPress,
-                        onRelease = onRelease,
+                    HorizontalPager(
+                        state = pagerState,
+                        key = { currentPages.getOrNull(it)?.id ?: it },
+                        // Neighbours composed ahead, so a swipe starts without a hitch.
+                        beyondViewportPageCount = 1,
+                        pageSpacing = 40.dp,
                         modifier = Modifier.fillMaxSize().graphicsLayer { alpha = dim }
-                    )
+                    ) { index ->
+                        val page = currentPages.getOrNull(index)
+                        if (page != null) {
+                            ButtonGrid(
+                                cols = layout.grid.cols.toInt(),
+                                rows = layout.grid.rows.toInt(),
+                                buttons = page.buttons,
+                                onPress = onPress,
+                                onRelease = onRelease,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
                     if (!live) {
                         // Presses would go nowhere while reconnecting: swallow them.
                         Box(
@@ -210,10 +241,16 @@ private fun ButtonGrid(
 }
 
 @Composable
-private fun TopBar(profileName: String, pageCount: Int, pageIndex: Int, status: GridStatus, onPill: () -> Unit) {
+private fun TopBar(
+    profileName: String,
+    pageCount: Int,
+    pagerState: PagerState,
+    status: GridStatus,
+    onPill: () -> Unit
+) {
     Box(Modifier.fillMaxWidth().height(48.dp)) {
         ProfileChip(profileName, Modifier.align(Alignment.CenterStart))
-        PageDots(pageCount, pageIndex, Modifier.align(Alignment.Center))
+        PageDots(pageCount, pagerState, Modifier.align(Alignment.Center))
         Row(
             modifier = Modifier.align(Alignment.CenterEnd),
             verticalAlignment = Alignment.CenterVertically,
@@ -254,24 +291,42 @@ private fun ProfileChip(name: String, modifier: Modifier = Modifier) {
     }
 }
 
+private val DotSize = 8.dp
+private val DotGap = 8.dp
+private val ActiveDotWidth = 26.dp
+
+/**
+ * Page indicator (Main.dc.html): the current page is a wider, lighter pill.
+ * It follows the finger during a swipe. Everything happens in the draw phase
+ * (the pager position is read inside the Canvas), so a swipe never triggers
+ * a layout pass; hidden for a single page.
+ */
 @Composable
-private fun PageDots(count: Int, current: Int, modifier: Modifier = Modifier) {
-    if (count <= 0) return
-    val description = stringResource(R.string.page_indicator_description, current + 1, count)
-    Row(
-        modifier = modifier.semantics { contentDescription = description },
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+private fun PageDots(count: Int, pagerState: PagerState, modifier: Modifier = Modifier) {
+    if (count <= 1) return
+    val description = stringResource(R.string.page_indicator_description, pagerState.currentPage + 1, count)
+    val width = DotSize * count + DotGap * (count - 1) + (ActiveDotWidth - DotSize)
+    Canvas(
+        modifier
+            .width(width)
+            .height(DotSize)
+            .semantics { contentDescription = description }
     ) {
+        val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
+        val dot = DotSize.toPx()
+        val extra = (ActiveDotWidth - DotSize).toPx()
+        var x = 0f
         repeat(count) { i ->
-            val active = i == current
-            Box(
-                Modifier
-                    .width(if (active) 26.dp else 8.dp)
-                    .height(8.dp)
-                    .clip(CircleShape)
-                    .background(if (active) PadboardColors.Text else PadboardColors.DotInactive)
+            // 1 for the current page, sliding to the next one during a swipe.
+            val weight = (1f - kotlin.math.abs(i - position)).coerceIn(0f, 1f)
+            val w = dot + extra * weight
+            drawRoundRect(
+                color = lerp(PadboardColors.DotInactive, PadboardColors.Text, weight),
+                topLeft = Offset(x, 0f),
+                size = Size(w, dot),
+                cornerRadius = CornerRadius(dot / 2)
             )
+            x += w + DotGap.toPx()
         }
     }
 }
