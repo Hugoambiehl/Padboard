@@ -2,12 +2,14 @@ package io.github.hugoambiehl.padboard.kiosk
 
 import android.app.admin.DeviceAdminReceiver
 import android.app.admin.DevicePolicyManager
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
+import io.github.hugoambiehl.padboard.MainActivity
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -97,6 +99,22 @@ object Kiosk {
                 PackageManager.COMPONENT_ENABLED_STATE_DISABLED
             },
             PackageManager.DONT_KILL_APP
+        )
+    }
+}
+
+/**
+ * An update stops the app, and the tablet then shows the regular launcher
+ * until the home button is pressed: in kiosk mode, the app comes back at
+ * once (a device owner may start an activity from the background).
+ */
+class KioskUpdated : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        val dpm = context.getSystemService(DevicePolicyManager::class.java)
+        if (!dpm.isDeviceOwnerApp(context.packageName)) return
+        context.startActivity(
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
     }
 }
