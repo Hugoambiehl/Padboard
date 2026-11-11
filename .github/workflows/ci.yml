@@ -211,7 +211,7 @@ jobs:
           npm ci
           npx tauri build --bundles nsis
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: padboard-windows-installer
           path: target/release/bundle/nsis/*.exe
