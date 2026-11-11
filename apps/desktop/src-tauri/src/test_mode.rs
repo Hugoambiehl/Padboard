@@ -13,7 +13,10 @@
 //!   real microphone, sound server or players.
 //!
 //! With `PADBOARD_TEST_SYSTEM=1`, actions run and states are observed on the
-//! real system instead (tests on the real tablet and sound devices), and
+//! real system instead (tests on the real tablet and sound devices), USB
+//! devices are followed with adb (the tablet's port 47321 is redirected to
+//! this app's USB port, `PADBOARD_PORT`; the regular app takes it back at
+//! the next plug or with `adb reverse tcp:47321 tcp:47321`), and
 //! `PADBOARD_BIND=lan` may turn Wi-Fi on; the configuration still lives in
 //! the test directory.
 //!

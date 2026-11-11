@@ -1,5 +1,5 @@
 //! USB: follows Android devices through the `adb` server and runs
-//! `adb reverse tcp:PORT tcp:PORT` on each device where Padboard is installed,
+//! `adb reverse tcp:47321 tcp:PORT` on each device where Padboard is installed,
 //! at every (re)plug. The tablet then reaches the USB port at `127.0.0.1`.
 //!
 //! - `adb` comes from the setting chosen in the UI, else `PATH`, else the
@@ -79,6 +79,43 @@ pub struct UsbDevice {
     pub serial: String,
     pub model: Option<String>,
     pub state: DeviceState,
+    /// Kiosk mode, read with `dpm list-owners` once Padboard is found.
+    pub kiosk: KioskState,
+}
+
+/// Who owns the device (kiosk mode is Padboard being the device owner).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "state", rename_all = "camelCase")]
+pub enum KioskState {
+    /// Not read (Padboard missing, device not ready, or `dpm` failed).
+    Unknown,
+    Off,
+    /// Padboard is the device owner.
+    On,
+    /// Another app is the device owner: kiosk mode is impossible.
+    OtherOwner {
+        owner: String,
+    },
+}
+
+/// Why kiosk mode could not be turned on. Codes, translated by the UI.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, thiserror::Error)]
+#[serde(tag = "code", rename_all = "camelCase")]
+pub enum KioskError {
+    #[error("adb is not used in test mode")]
+    TestMode,
+    #[error("adb not found")]
+    NoAdb,
+    #[error("kiosk mode is already being turned on for this device")]
+    Busy,
+    #[error("another app is the device owner: {owner}")]
+    OtherOwner { owner: String },
+    #[error("the tablet has accounts")]
+    Accounts,
+    #[error("the tablet has several users")]
+    Users,
+    #[error("{detail}")]
+    Failed { detail: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -181,42 +218,130 @@ impl Runner for Process {
     }
 }
 
+/// `adb -s <serial> shell <command>` (arguments split on spaces).
+fn shell_args(serial: &str, command: &str) -> Vec<String> {
+    let mut args = vec!["-s".to_owned(), serial.to_owned(), "shell".to_owned()];
+    args.extend(command.split(' ').map(str::to_owned));
+    args
+}
+
+/// Reads the device owner with `dpm list-owners`.
+pub async fn kiosk_state<R: Runner>(runner: &R, adb: &Path, serial: &str) -> KioskState {
+    match runner.run(adb, shell_args(serial, "dpm list-owners")).await {
+        Ok(out) => parse_owners(&out),
+        Err(e) => {
+            tracing::info!(serial, error = %e, "cannot read the device owner");
+            KioskState::Unknown
+        }
+    }
+}
+
+/// `User  0: admin=<package>/<class>,DeviceOwner,…` lines → the device owner.
+fn parse_owners(out: &str) -> KioskState {
+    let owner = out.lines().find_map(|line| {
+        let (_, admin) = line.split_once("admin=")?;
+        let mut parts = admin.split(',');
+        let component = parts.next()?.trim();
+        parts
+            .any(|flag| flag.trim() == "DeviceOwner")
+            .then(|| component.split('/').next().unwrap_or(component).to_owned())
+    });
+    match owner {
+        None => KioskState::Off,
+        Some(package) if package == PACKAGE => KioskState::On,
+        Some(owner) => KioskState::OtherOwner { owner },
+    }
+}
+
+/// The message of the Java exception printed by a failed `dpm` command,
+/// instead of its whole stack trace.
+fn exception_message(output: &str) -> String {
+    output
+        .lines()
+        .find_map(|line| {
+            let line = line.trim();
+            let (class, message) = line.split_once(": ")?;
+            (class.contains("Exception") && !class.contains(' ')).then(|| message.trim().to_owned())
+        })
+        .unwrap_or_else(|| output.lines().next().unwrap_or_default().trim().to_owned())
+}
+
 /// Puts the tablet `serial` in kiosk mode: Padboard becomes its device owner
-/// (refused by Android if the tablet has accounts or another owner; the
-/// error says why), then is brought to the front, where it locks itself.
+/// (refused by Android if the tablet has accounts or another owner), then is
+/// brought to the front, where it locks itself. Already the owner: nothing
+/// to set, the rest still runs (success).
 ///
 /// The Android 12L taskbar of LineageOS stays drawn over an app in lock task
 /// mode, without reporting any inset: it is turned off too (LineageOS
 /// setting, ignored elsewhere; the plain navigation bar replaces it).
 ///
 /// # Errors
-/// The output of the failed `adb` command.
-pub async fn enable_kiosk<R: Runner>(runner: &R, adb: &Path, serial: &str) -> Result<(), String> {
-    let shell = |command: &str| {
-        let mut args = vec!["-s".to_owned(), serial.to_owned(), "shell".to_owned()];
-        args.extend(command.split(' ').map(str::to_owned));
-        args
-    };
-    let out = runner
-        .run(
-            adb,
-            shell(&format!("dpm set-device-owner {PACKAGE}/.kiosk.KioskAdmin")),
-        )
-        .await?;
-    tracing::info!(serial, output = out.trim(), "kiosk mode enabled");
+/// Why Android refused, as a code the UI translates.
+pub async fn enable_kiosk<R: Runner>(
+    runner: &R,
+    adb: &Path,
+    serial: &str,
+) -> Result<(), KioskError> {
+    match kiosk_state(runner, adb, serial).await {
+        KioskState::OtherOwner { owner } => return Err(KioskError::OtherOwner { owner }),
+        KioskState::On => tracing::info!(serial, "Padboard is already the device owner"),
+        KioskState::Off | KioskState::Unknown => {
+            let set = runner
+                .run(
+                    adb,
+                    shell_args(
+                        serial,
+                        &format!("dpm set-device-owner {PACKAGE}/.kiosk.KioskAdmin"),
+                    ),
+                )
+                .await;
+            if let Err(output) = set {
+                tracing::warn!(serial, output = output.trim(), "set-device-owner refused");
+                // Set in the meantime (a second click, another PC): ask who owns it now.
+                match kiosk_state(runner, adb, serial).await {
+                    KioskState::On => {}
+                    KioskState::OtherOwner { owner } => {
+                        return Err(KioskError::OtherOwner { owner });
+                    }
+                    KioskState::Off | KioskState::Unknown => return Err(refusal(&output)),
+                }
+            }
+            tracing::info!(serial, "kiosk mode enabled");
+        }
+    }
     let taskbar = runner
         .run(
             adb,
-            shell("content insert --uri content://lineagesettings/system --bind name:s:enable_taskbar --bind value:s:0"),
+            shell_args(
+                serial,
+                "content insert --uri content://lineagesettings/system --bind name:s:enable_taskbar --bind value:s:0",
+            ),
         )
         .await;
     if let Err(e) = taskbar {
         tracing::info!(serial, error = %e, "taskbar setting not applied (not LineageOS?)");
     }
     runner
-        .run(adb, shell(&format!("am start -n {PACKAGE}/.MainActivity")))
+        .run(
+            adb,
+            shell_args(serial, &format!("am start -n {PACKAGE}/.MainActivity")),
+        )
         .await
         .map(drop)
+        .map_err(|output| KioskError::Failed {
+            detail: exception_message(&output),
+        })
+}
+
+fn refusal(output: &str) -> KioskError {
+    let message = exception_message(output);
+    if message.contains("accounts") {
+        KioskError::Accounts
+    } else if message.contains("several users") {
+        KioskError::Users
+    } else {
+        KioskError::Failed { detail: message }
+    }
 }
 
 // ─── adb server protocol ─────────────────────────────────────────────────
@@ -314,21 +439,25 @@ struct Setup {
     serial: String,
     model: Option<String>,
     state: DeviceState,
+    kiosk: KioskState,
 }
 
 /// Runs forever: finds `adb`, tracks devices, sets them up. Restarts when the
 /// chosen path changes. `report` receives the full status on every change.
+/// A message on `refresh` checks the ready devices again (kiosk mode
+/// turned on or off).
 pub async fn run<R: Runner + Clone>(
     config: Config,
     runner: R,
     mut chosen: watch::Receiver<Option<PathBuf>>,
+    mut refresh: mpsc::UnboundedReceiver<()>,
     report: impl Fn(UsbStatus) + Send + 'static,
 ) {
     let mut retry = RETRY_MIN;
     loop {
         let path = chosen.borrow_and_update().clone();
         let outcome = tokio::select! {
-            outcome = session(&config, &runner, path.as_deref(), &report) => outcome,
+            outcome = session(&config, &runner, path.as_deref(), &mut refresh, &report) => outcome,
             changed = chosen.changed() => {
                 if changed.is_err() {
                     return; // the app is shutting down
@@ -360,6 +489,7 @@ async fn session<R: Runner + Clone>(
     config: &Config,
     runner: &R,
     chosen: Option<&Path>,
+    refresh: &mut mpsc::UnboundedReceiver<()>,
     report: &impl Fn(UsbStatus),
 ) -> Result<(), ()> {
     let mut status = UsbStatus::default();
@@ -444,12 +574,12 @@ async fn session<R: Runner + Clone>(
                         spawn_setup(&adb, runner, config.usb_port, &serial, &setups_tx);
                     }
                     let model = devices.get(&serial).and_then(|d| d.model.clone());
-                    devices.insert(serial.clone(), UsbDevice { serial, model, state });
+                    devices.insert(serial.clone(), UsbDevice { serial, model, state, kiosk: KioskState::Unknown });
                 }
             }
             Some(setup) = setups.recv() => {
                 let Some(device) = devices.get_mut(&setup.serial) else { continue };
-                if device.state == setup.state && device.model == setup.model {
+                if device.state == setup.state && device.model == setup.model && device.kiosk == setup.kiosk {
                     continue;
                 }
                 match &setup.state {
@@ -459,6 +589,13 @@ async fn session<R: Runner + Clone>(
                 }
                 device.state = setup.state;
                 device.model = setup.model.or(device.model.take());
+                device.kiosk = setup.kiosk;
+            }
+            Some(()) = refresh.recv() => {
+                for device in devices.values().filter(|d| d.state == DeviceState::Ready) {
+                    spawn_setup(&adb, runner, config.usb_port, &device.serial, &setups_tx);
+                }
+                continue;
             }
             _ = recheck.tick() => {
                 for device in devices.values().filter(|d| {
@@ -497,22 +634,25 @@ fn spawn_setup<R: Runner + Clone>(
     let serial = serial.to_owned();
     let results = results.clone();
     tokio::spawn(async move {
-        let (model, state) = setup(&adb, &runner, usb_port, &serial).await;
+        let (model, state, kiosk) = setup(&adb, &runner, usb_port, &serial).await;
         let _ = results.send(Setup {
             serial,
             model,
             state,
+            kiosk,
         });
     });
 }
 
-/// Checks that Padboard is installed, then forwards the USB port.
+/// Checks that Padboard is installed, then forwards the USB port and reads
+/// the kiosk mode. The tablet always connects to its own port
+/// [`padboard_protocol::USB_PORT`]; `usb_port` is the PC side.
 async fn setup<R: Runner>(
     adb: &Path,
     runner: &R,
     usb_port: u16,
     serial: &str,
-) -> (Option<String>, DeviceState) {
+) -> (Option<String>, DeviceState, KioskState) {
     let on_device = |args: &[&str]| -> Vec<String> {
         ["-s", serial]
             .iter()
@@ -536,12 +676,20 @@ async fn setup<R: Runner>(
         Err(_) => false,
     };
     if !installed {
-        return (model, DeviceState::NoPadboard);
+        return (model, DeviceState::NoPadboard, KioskState::Unknown);
     }
+    let device_port = format!("tcp:{}", padboard_protocol::USB_PORT);
     let port = format!("tcp:{usb_port}");
-    match runner.run(adb, on_device(&["reverse", &port, &port])).await {
-        Ok(_) => (model, DeviceState::Ready),
-        Err(detail) => (model, DeviceState::Failed { detail }),
+    match runner
+        .run(adb, on_device(&["reverse", &device_port, &port]))
+        .await
+    {
+        Ok(_) => (
+            model,
+            DeviceState::Ready,
+            kiosk_state(runner, adb, serial).await,
+        ),
+        Err(detail) => (model, DeviceState::Failed { detail }, KioskState::Unknown),
     }
 }
 
@@ -592,11 +740,44 @@ mod tests {
         assert_eq!(locate(Some(&missing)), Some(missing));
     }
 
-    /// Fake `adb` executable: Padboard is installed on the serials listed.
+    /// What the real `dpm set-device-owner` prints when an owner is set.
+    const ALREADY_SET: &str = "Exception occurred while executing 'set-device-owner':
+java.lang.IllegalStateException: Trying to set the device owner, but device owner is already set.
+\tat com.android.server.devicepolicy.DevicePolicyManagerService.enforceCanSetDeviceOwnerLocked(DevicePolicyManagerService.java:9520)
+\tat android.os.Binder.execTransact(Binder.java:1143)";
+
+    fn owners_output(component: &str) -> String {
+        format!("1 owner:\nUser  0: admin={component},DeviceOwner,Affiliated\n")
+    }
+
+    /// Fake `adb` executable: Padboard is installed on the serials listed;
+    /// `dpm` keeps one device owner per serial, like Android.
     #[derive(Clone, Default)]
     struct FakeRunner {
         installed: Arc<Mutex<Vec<String>>>,
         calls: Arc<Mutex<Vec<String>>>,
+        /// Device owner component per serial.
+        owners: Arc<Mutex<std::collections::HashMap<String, String>>>,
+        /// Serials with an account (set-device-owner refused).
+        accounts: Arc<Mutex<Vec<String>>>,
+        /// `list-owners` calls answered "no owners" whatever the truth
+        /// (the owner was set in the meantime).
+        stale_lists: Arc<Mutex<u32>>,
+    }
+
+    impl FakeRunner {
+        fn owner(&self, serial: &str) -> Option<String> {
+            self.owners.lock().unwrap().get(serial).cloned()
+        }
+
+        fn calls_matching(&self, part: &str) -> usize {
+            self.calls
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|c| c.contains(part))
+                .count()
+        }
     }
 
     impl Runner for FakeRunner {
@@ -619,11 +800,27 @@ mod tests {
                         }
                     }
                     ["reverse", _, _] => Ok(String::new()),
-                    ["shell", "dpm", "set-device-owner", _] => {
-                        if serial == "OWNED" {
-                            Err("java.lang.IllegalStateException: Not allowed to set the device owner because there are already some accounts on the device".into())
+                    ["shell", "dpm", "list-owners"] => {
+                        let mut stale = self.stale_lists.lock().unwrap();
+                        if *stale > 0 {
+                            *stale -= 1;
+                            return Ok("no owners\n".into());
+                        }
+                        Ok(self
+                            .owner(serial)
+                            .map_or_else(|| "no owners\n".into(), |c| owners_output(&c)))
+                    }
+                    ["shell", "dpm", "set-device-owner", component] => {
+                        if self.owner(serial).is_some() {
+                            Err(ALREADY_SET.into())
+                        } else if self.accounts.lock().unwrap().contains(serial) {
+                            Err("Exception occurred while executing 'set-device-owner':\njava.lang.IllegalStateException: Not allowed to set the device owner because there are already some accounts on the device\n\tat x.y(Z.java:1)".into())
                         } else {
-                            Ok("Success: Device owner set\n".into())
+                            self.owners
+                                .lock()
+                                .unwrap()
+                                .insert(serial.clone(), (*component).to_owned());
+                            Ok("Success: Device owner set to package ComponentInfo{…}\n".into())
                         }
                     }
                     ["shell", "am", "start", "-n", _] => Ok(String::new()),
@@ -635,6 +832,37 @@ mod tests {
         }
     }
 
+    const OWNER: &str = "io.github.hugoambiehl.padboard/.kiosk.KioskAdmin";
+
+    #[test]
+    fn reads_the_device_owner() {
+        assert_eq!(parse_owners("no owners\n"), KioskState::Off);
+        assert_eq!(parse_owners(&owners_output(OWNER)), KioskState::On);
+        assert_eq!(
+            parse_owners(&owners_output("com.example.mdm/.Admin")),
+            KioskState::OtherOwner {
+                owner: "com.example.mdm".into()
+            }
+        );
+        // A profile owner is not a device owner.
+        assert_eq!(
+            parse_owners("1 owner:\nUser 10: admin=com.example.work/.Admin,ProfileOwner\n"),
+            KioskState::Off
+        );
+    }
+
+    #[test]
+    fn keeps_only_the_message_of_a_java_exception() {
+        assert_eq!(
+            exception_message(ALREADY_SET),
+            "Trying to set the device owner, but device owner is already set."
+        );
+        assert_eq!(
+            exception_message("error: device offline\n"),
+            "error: device offline"
+        );
+    }
+
     #[tokio::test]
     async fn kiosk_mode_sets_the_device_owner_then_brings_the_app_up() {
         let runner = FakeRunner::default();
@@ -644,17 +872,115 @@ mod tests {
         assert_eq!(
             *runner.calls.lock().unwrap(),
             [
+                "-s TABLET shell dpm list-owners",
                 "-s TABLET shell dpm set-device-owner io.github.hugoambiehl.padboard/.kiosk.KioskAdmin",
                 "-s TABLET shell content insert --uri content://lineagesettings/system --bind name:s:enable_taskbar --bind value:s:0",
                 "-s TABLET shell am start -n io.github.hugoambiehl.padboard/.MainActivity",
             ]
         );
-        let refused = enable_kiosk(&runner, Path::new("adb"), "OWNED").await;
-        assert!(refused.unwrap_err().contains("accounts"));
         assert_eq!(
-            runner.calls.lock().unwrap().len(),
-            4,
+            kiosk_state(&runner, Path::new("adb"), "TABLET").await,
+            KioskState::On
+        );
+    }
+
+    #[tokio::test]
+    async fn kiosk_mode_already_on_is_a_success() {
+        let runner = FakeRunner::default();
+        runner
+            .owners
+            .lock()
+            .unwrap()
+            .insert("TABLET".into(), OWNER.into());
+        enable_kiosk(&runner, Path::new("adb"), "TABLET")
+            .await
+            .unwrap();
+        assert_eq!(
+            runner.calls_matching("set-device-owner"),
+            0,
+            "nothing to set"
+        );
+        assert_eq!(
+            runner.calls_matching("am start"),
+            1,
+            "the app is still brought up"
+        );
+
+        // Set between the check and the command (a second click, another PC).
+        let runner = FakeRunner::default();
+        runner
+            .owners
+            .lock()
+            .unwrap()
+            .insert("TABLET".into(), OWNER.into());
+        *runner.stale_lists.lock().unwrap() = 1;
+        enable_kiosk(&runner, Path::new("adb"), "TABLET")
+            .await
+            .unwrap();
+        assert_eq!(runner.calls_matching("set-device-owner"), 1);
+        assert_eq!(runner.calls_matching("am start"), 1);
+    }
+
+    #[tokio::test]
+    async fn kiosk_mode_refusals_are_explained() {
+        let runner = FakeRunner::default();
+        runner
+            .owners
+            .lock()
+            .unwrap()
+            .insert("MDM".into(), "com.example.mdm/.Admin".into());
+        assert_eq!(
+            enable_kiosk(&runner, Path::new("adb"), "MDM").await,
+            Err(KioskError::OtherOwner {
+                owner: "com.example.mdm".into()
+            })
+        );
+        assert_eq!(runner.calls_matching("set-device-owner"), 0);
+
+        // Another owner appearing between the check and the command.
+        let runner = FakeRunner::default();
+        runner
+            .owners
+            .lock()
+            .unwrap()
+            .insert("MDM".into(), "com.example.mdm/.Admin".into());
+        *runner.stale_lists.lock().unwrap() = 1;
+        assert_eq!(
+            enable_kiosk(&runner, Path::new("adb"), "MDM").await,
+            Err(KioskError::OtherOwner {
+                owner: "com.example.mdm".into()
+            })
+        );
+
+        let runner = FakeRunner::default();
+        runner.accounts.lock().unwrap().push("ACCOUNTS".into());
+        assert_eq!(
+            enable_kiosk(&runner, Path::new("adb"), "ACCOUNTS").await,
+            Err(KioskError::Accounts)
+        );
+        assert_eq!(
+            runner.calls_matching("am start"),
+            0,
             "nothing more after a refusal"
+        );
+    }
+
+    #[test]
+    fn kiosk_errors_are_codes_for_the_ui() {
+        assert_eq!(
+            serde_json::to_value(KioskError::OtherOwner {
+                owner: "com.example.mdm".into()
+            })
+            .unwrap(),
+            serde_json::json!({ "code": "otherOwner", "owner": "com.example.mdm" })
+        );
+        assert_eq!(
+            serde_json::to_value(KioskError::Accounts).unwrap(),
+            serde_json::json!({ "code": "accounts" })
+        );
+        assert_eq!(
+            serde_json::to_value(KioskState::On).unwrap(),
+            serde_json::json!({ "state": "on" })
         );
     }
 
@@ -720,6 +1046,7 @@ mod tests {
             },
             runner.clone(),
             chosen,
+            mpsc::unbounded_channel().1,
             move |s| {
                 let _ = status_tx.send(s);
             },
@@ -763,6 +1090,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn the_kiosk_state_is_read_on_detection_and_on_request() {
+        let tmp = tempfile::tempdir().unwrap();
+        let adb = tmp.path().join("adb");
+        std::fs::write(&adb, "").unwrap();
+        let (server_port, lists) = fake_server().await;
+        let runner = FakeRunner::default();
+        runner.installed.lock().unwrap().push("TABLET".into());
+        let (_chosen_tx, chosen) = watch::channel(Some(adb.clone()));
+        let (refresh, refresh_rx) = mpsc::unbounded_channel();
+        let (status_tx, mut statuses) = mpsc::unbounded_channel();
+        tokio::spawn(run(
+            Config {
+                usb_port: 50_000,
+                server_port,
+            },
+            runner.clone(),
+            chosen,
+            refresh_rx,
+            move |s| {
+                let _ = status_tx.send(s);
+            },
+        ));
+        lists.send("TABLET\tdevice\n".into()).unwrap();
+        wait_for(&mut statuses, |s| {
+            device(s, "TABLET")
+                .is_some_and(|d| d.state == DeviceState::Ready && d.kiosk == KioskState::Off)
+        })
+        .await;
+        // The tablet always dials its own port; the PC side may differ (test mode).
+        assert_eq!(
+            runner.calls_matching("-s TABLET reverse tcp:47321 tcp:50000"),
+            1
+        );
+
+        enable_kiosk(&runner, &adb, "TABLET").await.unwrap();
+        refresh.send(()).unwrap();
+        wait_for(&mut statuses, |s| {
+            device(s, "TABLET").is_some_and(|d| d.kiosk == KioskState::On)
+        })
+        .await;
+
+        // Left from the tablet: the PC hears it (tablet:status) and asks again.
+        runner.owners.lock().unwrap().clear();
+        refresh.send(()).unwrap();
+        wait_for(&mut statuses, |s| {
+            device(s, "TABLET").is_some_and(|d| d.kiosk == KioskState::Off)
+        })
+        .await;
+    }
+
+    #[tokio::test]
     async fn replugging_sets_the_redirection_up_again() {
         let tmp = tempfile::tempdir().unwrap();
         let adb = tmp.path().join("adb");
@@ -779,6 +1157,7 @@ mod tests {
             },
             runner.clone(),
             chosen,
+            mpsc::unbounded_channel().1,
             move |s| {
                 let _ = status_tx.send(s);
             },
@@ -818,6 +1197,7 @@ mod tests {
             },
             FakeRunner::default(),
             chosen,
+            mpsc::unbounded_channel().1,
             move |s| {
                 let _ = status_tx.send(s);
             },
@@ -855,6 +1235,7 @@ mod tests {
             },
             FakeRunner::default(),
             chosen,
+            mpsc::unbounded_channel().1,
             move |s| {
                 let _ = status_tx.send(s);
             },

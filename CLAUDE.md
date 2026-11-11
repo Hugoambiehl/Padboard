@@ -271,7 +271,10 @@ SM-T580, always measure in release builds.
   always removes the device owner (`clearDeviceOwnerApp`): from the PC
   (`tablet:command exit_kiosk`, "Libérer la tablette") or by holding the
   top-right corner 5 s on any screen (touches observed, never consumed).
-  The tablet reports it with `tablet:status`.
+  The tablet reports it with `tablet:status`. The PC's USB row reads the
+  device owner with `dpm list-owners` (on detection, after "Activer", on
+  every `tablet:status`): already Padboard = success, another owner = a
+  clear refusal (codes in `adb::KioskError`, translated by the UI).
 - **Protocol version mirrored by hand** in `ProtocolJson.kt`: the hello /
   welcome fixtures carry the version and both sides' tests compare to them.
 - **Tablet disconnected**: the grid stays (same `GridScreen` call site, so
@@ -366,7 +369,8 @@ SM-T580, always measure in release builds.
   when it ends a session, so "close the app" goes through the page).
 - **Tests on the real tablet and sound devices**: test mode with
   `PADBOARD_TEST_SYSTEM=1` (configuration still isolated, actions really run,
-  states really observed); drive the tablet with `adb shell input tap/swipe`
+  states really observed, adb used: the tablet's 47321 is redirected to the
+  test app's port, give it back with `adb reverse tcp:47321 tcp:47321`); drive the tablet with `adb shell input tap/swipe`
   and check `adb exec-out screencap -p`; change the system with `wpctl`
   (`pactl` is not installed); `--example fake-player` (MPRIS player on the
   session bus) for media; save and restore the exact audio state around

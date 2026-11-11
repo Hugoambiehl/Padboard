@@ -71,6 +71,10 @@ struct Backend {
     server: Arc<ServerContext>,
     /// `adb` may be used (not in simulated test mode).
     adb_allowed: bool,
+    /// Asks the USB tracker to check the ready devices again.
+    adb_refresh: tokio::sync::mpsc::UnboundedSender<()>,
+    /// Devices whose kiosk mode is being turned on (one command at a time).
+    kiosk_busy: Mutex<std::collections::HashSet<String>>,
 }
 
 impl Backend {
@@ -135,13 +139,32 @@ fn revoke_device(backend: tauri::State<'_, Backend>, device_id: String) -> bool 
 
 /// Kiosk mode for the USB tablet `serial` (Padboard becomes its device owner).
 #[tauri::command]
-async fn enable_kiosk(backend: tauri::State<'_, Backend>, serial: String) -> Result<(), String> {
+async fn enable_kiosk(
+    backend: tauri::State<'_, Backend>,
+    serial: String,
+) -> Result<(), adb::KioskError> {
     if !backend.adb_allowed {
-        return Err("adb is not used in test mode".to_owned());
+        return Err(adb::KioskError::TestMode);
     }
     let chosen = backend.adb_path.borrow().clone();
-    let adb = adb::locate(chosen.as_deref()).ok_or_else(|| "adb not found".to_owned())?;
-    adb::enable_kiosk(&adb::Process, &adb, &serial).await
+    let adb = adb::locate(chosen.as_deref()).ok_or(adb::KioskError::NoAdb)?;
+    let fresh = backend
+        .kiosk_busy
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .insert(serial.clone());
+    if !fresh {
+        return Err(adb::KioskError::Busy);
+    }
+    let outcome = adb::enable_kiosk(&adb::Process, &adb, &serial).await;
+    backend
+        .kiosk_busy
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .remove(&serial);
+    // The device row shows the kiosk state read again, whatever happened.
+    let _ = backend.adb_refresh.send(());
+    outcome
 }
 
 /// Takes a connected tablet out of kiosk mode for good (`tablet:command`).
@@ -368,6 +391,8 @@ pub fn run() {
             app.manage(Arc::clone(&snapshot));
 
             let (events_tx, mut events_rx) = unbounded_channel();
+            let (adb_refresh, adb_refresh_rx) = unbounded_channel::<()>();
+            let status_refresh = adb_refresh.clone();
             let auth_events = events_tx.clone();
             let auth = Arc::new(Auth::new(
                 Some(config.clone()),
@@ -382,6 +407,10 @@ pub fn run() {
             // Fold server events into the snapshot and push it to the UI.
             tauri::async_runtime::spawn(async move {
                 while let Some(event) = events_rx.recv().await {
+                    // A tablet entering or leaving kiosk mode: the USB rows read it again.
+                    if matches!(event, ServerEvent::TabletStatus { .. }) {
+                        let _ = status_refresh.send(());
+                    }
                     let fresh = {
                         let mut s = snapshot.lock().unwrap_or_else(PoisonError::into_inner);
                         s.apply(event);
@@ -489,11 +518,14 @@ pub fn run() {
             // USB: follow devices and forward the USB port to the tablets.
             let (adb_path, adb_chosen) = tokio::sync::watch::channel(preferences.adb_path.clone());
             let usb_events = events_tx.clone();
-            if test_mode.is_none() {
+            // Test mode leaves USB devices alone, except on the real system.
+            let adb_allowed = test_mode.as_ref().is_none_or(TestMode::system);
+            if adb_allowed {
                 tauri::async_runtime::spawn(adb::run(
                     adb::Config::new(settings.usb_port),
                     adb::Process,
                     adb_chosen,
+                    adb_refresh_rx,
                     move |status| {
                         let _ = usb_events.send(ServerEvent::Usb(status));
                     },
@@ -534,7 +566,9 @@ pub fn run() {
                 adb_path,
                 editor,
                 server: Arc::clone(&ctx),
-                adb_allowed: test_mode.as_ref().is_none_or(TestMode::system),
+                adb_allowed,
+                adb_refresh,
+                kiosk_busy: Mutex::default(),
             });
 
             // Quitting from a signal (session logout, Ctrl+C in a terminal)

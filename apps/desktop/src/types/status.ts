@@ -85,10 +85,24 @@ export type DeviceState =
   | { state: "failed"; detail: string }
   | { state: "other"; adbState: string };
 
+/** Device owner read with `dpm list-owners` (adb.rs `KioskState`). */
+export type KioskState =
+  | { state: "unknown" }
+  | { state: "off" }
+  | { state: "on" }
+  | { state: "otherOwner"; owner: string };
+
+/** Why kiosk mode was refused (adb.rs `KioskError`). */
+export type KioskError =
+  | { code: "testMode" | "noAdb" | "busy" | "accounts" | "users" }
+  | { code: "otherOwner"; owner: string }
+  | { code: "failed"; detail: string };
+
 export interface UsbDevice {
   serial: string;
   model: string | null;
   state: DeviceState;
+  kiosk: KioskState;
 }
 
 export interface UsbStatus {

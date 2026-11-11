@@ -2,26 +2,35 @@
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Cable, FolderOpen, RotateCcw } from "lucide-vue-next";
+import { Cable, FolderOpen, Lock, RotateCcw } from "lucide-vue-next";
 import BaseCard from "./BaseCard.vue";
 import { enableKiosk, setAdbPath } from "../commands";
 import type { DeviceState, UsbStatus } from "../types/status";
+import { kioskErrorMessage } from "../usb/kiosk";
 
 const props = defineProps<{ usb: UsbStatus; port: number }>();
 const { t } = useI18n();
 const error = ref<string | null>(null);
 
-/** Kiosk mode being enabled, and the outcome per device. */
+/**
+ * Kiosk mode being turned on (every button is disabled meanwhile), and the
+ * last refusal per device. Success shows through the device's kiosk state,
+ * read again by the backend right after.
+ */
 const enabling = ref<string | null>(null);
-const kioskResult = ref<Record<string, { ok: boolean; detail?: string }>>({});
+const kioskError = ref<Record<string, string>>({});
 
 async function kiosk(serial: string) {
+  if (enabling.value) return;
   enabling.value = serial;
+  kioskError.value = Object.fromEntries(
+    Object.entries(kioskError.value).filter(([key]) => key !== serial),
+  );
   try {
     await enableKiosk(serial);
-    kioskResult.value = { ...kioskResult.value, [serial]: { ok: true } };
   } catch (e) {
-    kioskResult.value = { ...kioskResult.value, [serial]: { ok: false, detail: String(e) } };
+    const { key, params } = kioskErrorMessage(e);
+    kioskError.value = { ...kioskError.value, [serial]: t(key, params) };
   } finally {
     enabling.value = null;
   }
@@ -142,10 +151,27 @@ async function automatic() {
               </template>
             </span>
             <template v-if="device.state.state === 'ready'">
+              <span
+                v-if="device.kiosk.state === 'on'"
+                class="mt-1 flex items-start gap-1.5 text-xs text-cat-teal"
+                data-kiosk="on"
+              >
+                <Lock :size="12" class="mt-0.5 shrink-0" aria-hidden="true" />
+                {{ t("usbDevices.kiosk.active") }}
+              </span>
+              <span
+                v-else-if="device.kiosk.state === 'otherOwner'"
+                class="mt-1 text-xs text-cat-orange"
+                data-kiosk="otherOwner"
+              >
+                {{ t("usbDevices.kiosk.otherOwner", { owner: device.kiosk.owner }) }}
+              </span>
               <button
+                v-else
                 type="button"
-                class="mt-1.5 self-start rounded-lg border border-line-2 bg-surface px-2.5 py-1.5 text-xs text-muted-2 transition-colors hover:bg-surface-active hover:text-fg disabled:opacity-50"
-                :disabled="enabling === device.serial"
+                class="mt-1.5 self-start rounded-lg border border-line-2 bg-surface px-2.5 py-1.5 text-xs text-muted-2 transition-colors hover:bg-surface-active hover:text-fg disabled:cursor-wait disabled:opacity-50"
+                :disabled="enabling !== null"
+                :aria-busy="enabling === device.serial"
                 :title="t('usbDevices.kiosk.hint')"
                 @click="kiosk(device.serial)"
               >
@@ -155,14 +181,8 @@ async function automatic() {
                     : t("usbDevices.kiosk.enable")
                 }}
               </button>
-              <span v-if="kioskResult[device.serial]?.ok" class="text-xs text-cat-teal">
-                {{ t("usbDevices.kiosk.done") }}
-              </span>
-              <span v-else-if="kioskResult[device.serial]" class="text-xs text-cat-red">
-                {{ t("usbDevices.kiosk.failed") }}
-                <span class="block font-mono opacity-80">{{
-                  kioskResult[device.serial]?.detail
-                }}</span>
+              <span v-if="kioskError[device.serial]" class="text-xs text-cat-red">
+                {{ kioskError[device.serial] }}
               </span>
             </template>
           </div>

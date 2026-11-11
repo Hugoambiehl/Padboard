@@ -45,7 +45,14 @@ const status: Snapshot = {
   pairedDevices: [],
   usb: {
     adb: { state: "ready", path: "/usr/bin/adb", version: "1.0.41" },
-    devices: [{ serial: "R52N10ABCDE", model: "SM-T580", state: { state: "ready" } }],
+    devices: [
+      {
+        serial: "R52N10ABCDE",
+        model: "SM-T580",
+        state: { state: "ready" },
+        kiosk: { state: "off" },
+      },
+    ],
   },
   activity: [],
 };
