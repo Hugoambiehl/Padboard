@@ -1,10 +1,13 @@
 package io.github.hugoambiehl.padboard.ui.grid
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,7 +46,9 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.hugoambiehl.padboard.protocol.ButtonIcon
 import io.github.hugoambiehl.padboard.protocol.ButtonView
+import io.github.hugoambiehl.padboard.protocol.Category
 import io.github.hugoambiehl.padboard.ui.theme.CategoryColors
 import io.github.hugoambiehl.padboard.ui.theme.PadboardColors
 import io.github.hugoambiehl.padboard.ui.theme.PadboardType
@@ -52,8 +57,8 @@ import io.github.hugoambiehl.padboard.ui.theme.colors
 private val TileShape = RoundedCornerShape(22.dp)
 private val IconShape = RoundedCornerShape(16.dp)
 private const val PRESS_MS = 120
-private const val PRESSED_SCALE = 0.94f
-private const val FLASH_ALPHA = 0.22f
+private const val PRESSED_SCALE = 0.92f
+private const val FLASH_ALPHA = 0.3f
 private const val UNAVAILABLE_ALPHA = 0.4f
 private const val STATE_MS = 200
 
@@ -77,7 +82,12 @@ fun ButtonTile(button: ButtonView, onPress: () -> Unit, onRelease: () -> Unit, m
     val currentOnPress by rememberUpdatedState(onPress)
     val currentOnRelease by rememberUpdatedState(onRelease)
 
-    val scale by animateFloatAsState(if (pressed) PRESSED_SCALE else 1f, tween(PRESS_MS), label = "scale")
+    // No vibration motor on the tablet: a marked press, and a small bounce back.
+    val scale by animateFloatAsState(
+        if (pressed) PRESSED_SCALE else 1f,
+        if (pressed) tween(PRESS_MS) else spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow),
+        label = "scale"
+    )
     // State changes fade (alpha only): the active surface and border are an overlay.
     val activeAlpha by animateFloatAsState(if (button.active) 1f else 0f, tween(STATE_MS), label = "active")
     val tileAlpha by animateFloatAsState(
@@ -157,54 +167,76 @@ fun ButtonTile(button: ButtonView, onPress: () -> Unit, onRelease: () -> Unit, m
                 .graphicsLayer { alpha = flash }
                 .background(colors.foreground)
         )
-        Column(
-            modifier = Modifier.fillMaxSize().padding(20.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+        // A new look (another icon, color or text for the state) fades over
+        // the old one, alpha only.
+        Crossfade(targetState = TileLook(button), animationSpec = tween(STATE_MS), label = "look") { look ->
+            Column(
+                modifier = Modifier.fillMaxSize().padding(20.dp),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Box(
-                    modifier = Modifier.size(56.dp).clip(IconShape).background(colors.background),
-                    contentAlignment = Alignment.Center
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
                 ) {
-                    // Cached by paths: an unchanged icon is not rebuilt on layout updates.
-                    val icon = button.icon?.let { IconVectors.get(it.paths) }
-                    if (icon != null) {
-                        Icon(icon, contentDescription = null, modifier = Modifier.size(28.dp), tint = colors.foreground)
-                    } else {
-                        // No icon (or an unreadable one): the label's initial.
-                        Text(
-                            text = button.label.firstOrNull()?.uppercase() ?: "",
-                            style = PadboardType.Initial,
-                            color = colors.foreground
-                        )
+                    Box(
+                        modifier = Modifier.size(56.dp).clip(IconShape).background(look.colors.background),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // Cached by paths: an unchanged icon is not rebuilt on layout updates.
+                        val icon = look.icon?.let { IconVectors.get(it.paths) }
+                        if (icon != null) {
+                            Icon(
+                                icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(28.dp),
+                                tint = look.colors.foreground
+                            )
+                        } else {
+                            // No icon (or an unreadable one): the label's initial.
+                            Text(
+                                text = look.label.firstOrNull()?.uppercase() ?: "",
+                                style = PadboardType.Initial,
+                                color = look.colors.foreground
+                            )
+                        }
                     }
+                    look.badge?.let { Badge(it, look.colors) }
                 }
-                button.badge?.let { Badge(it, colors) }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = button.label,
-                    style = PadboardType.TileLabel,
-                    color = PadboardColors.Text,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                button.subtitle?.let {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = it,
-                        style = PadboardType.TileSubtitle,
-                        color = PadboardColors.TextMuted,
-                        maxLines = 1,
+                        text = look.label,
+                        style = PadboardType.TileLabel,
+                        color = PadboardColors.Text,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
+                    look.subtitle?.let {
+                        Text(
+                            text = it,
+                            style = PadboardType.TileSubtitle,
+                            color = PadboardColors.TextMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+/** What a tile shows, besides its active and unavailable states. */
+private data class TileLook(
+    val icon: ButtonIcon?,
+    val category: Category,
+    val label: String,
+    val subtitle: String?,
+    val badge: String?
+) {
+    constructor(button: ButtonView) : this(button.icon, button.category, button.label, button.subtitle, button.badge)
+
+    val colors: CategoryColors get() = category.colors()
 }
 
 private enum class Touch { Tap, Hold, Swipe }

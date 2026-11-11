@@ -2,6 +2,8 @@ package io.github.hugoambiehl.padboard.ui.grid
 
 import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -212,15 +214,26 @@ fun GridScreen(
                     // tablet); an open folder fades in over it, alpha only.
                     val folderAlpha by animateFloatAsState(
                         if (folder != null) 1f else 0f,
-                        tween(150),
+                        tween(FOLDER_MS, easing = FastOutSlowInEasing),
                         label = "folder"
                     )
+                    // The grid appears once, when the first layout arrives
+                    // (not again after a reconnection: the grid stays).
+                    val appear = remember { Animatable(0f) }
+                    LaunchedEffect(Unit) { appear.animateTo(1f, tween(APPEAR_MS, easing = FastOutSlowInEasing)) }
                     // The last folder shown, kept while it fades out (and after).
                     var shownFolder by remember { mutableStateOf(folder) }
                     if (folder != null) shownFolder = folder
                     val folderOpen by rememberUpdatedState(folder != null)
                     val overlayVisible by remember { derivedStateOf { folderOpen || folderAlpha > 0f } }
-                    Box(Modifier.fillMaxSize().graphicsLayer { alpha = dim }) {
+                    Box(
+                        Modifier.fillMaxSize().graphicsLayer {
+                            alpha = dim * appear.value
+                            val scale = APPEAR_SCALE + (1f - APPEAR_SCALE) * appear.value
+                            scaleX = scale
+                            scaleY = scale
+                        }
+                    ) {
                         HorizontalPager(
                             state = pagerState,
                             key = { currentPages.getOrNull(it)?.id ?: it },
@@ -255,7 +268,13 @@ fun GridScreen(
                                         layout(placeable.width, placeable.height) {
                                             if (overlayVisible) placeable.place(0, 0)
                                         }
-                                    }.graphicsLayer { alpha = folderAlpha }
+                                    }.graphicsLayer {
+                                        // ...and comes forward as it opens.
+                                        alpha = folderAlpha
+                                        val scale = FOLDER_FROM_SCALE + (1f - FOLDER_FROM_SCALE) * folderAlpha
+                                        scaleX = scale
+                                        scaleY = scale
+                                    }
                             ) {
                                 // Touches on the folder's empty cells must not reach the pages below.
                                 Box(
@@ -453,6 +472,11 @@ private fun ProfileChip(name: String, modifier: Modifier = Modifier) {
  * frame without it). Only transform and alpha change, as the tablet
  * animation rule requires.
  */
+private const val FOLDER_MS = 220
+private const val FOLDER_FROM_SCALE = 0.94f
+private const val APPEAR_MS = 350
+private const val APPEAR_SCALE = 0.97f
+
 private val CachedLayer = Modifier.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
 
 private val DotSize = 8.dp

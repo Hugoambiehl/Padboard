@@ -298,6 +298,14 @@ SM-T580, always measure in release builds.
   "Réessayer maintenant" (`nudge`). A tablet never paired over Wi-Fi keeps
   looking for the PC last reached over USB (`Searching(wifi = false)`)
   instead of falling back to the setup screen.
+- **Tablet animations**: a tile's look (icon, color, texts, badge) changes
+  through a `Crossfade` (alpha); presses scale to 0.92 with a stronger
+  flash and spring back (no vibration motor); a folder fades in from a
+  0.94 scale (220 ms; scaling the pager behind it cost frames, dropped);
+  the grid fades and scales in once, on the first layout. Measured on the
+  SM-T580 (release, frame time to `SwapBuffers`, as `FrameCompleted` is not
+  filled on this ROM): folders p50 32 → 28 ms, same count of frames over
+  33 ms; swipes unchanged.
 - **Tablet icons**: the protocol's SVG paths become an `ImageVector` (Lucide
   24×24 grid, 2-unit round strokes, drawn white and tinted), cached by paths
   (`ui/grid/IconVectors.kt`) so layout updates never rebuild an unchanged
