@@ -7,11 +7,13 @@
 //! other commands drive pairing, revocation and the Wi-Fi toggle.
 
 mod adb;
+mod appearance;
 mod auth;
 mod config;
 mod editor_service;
 mod identity;
 mod netif;
+mod observe;
 mod paired;
 #[doc(hidden)]
 pub mod pinning;
@@ -317,10 +319,17 @@ pub fn run() {
                     }
                 }),
             );
+            // Button states. Not observed in test mode: buttons keep their
+            // resting look, whatever the real microphone or player do.
+            let (state_tx, _) = tokio::sync::watch::channel(appearance::SystemState::default());
+            if test_mode.is_none() {
+                observe::start(&state_tx);
+            }
             let ctx = Arc::new(ServerContext {
                 server_name,
                 server_id: identity.server_id,
                 layout: layout_tx,
+                state: state_tx,
                 executor: OnceLock::new(),
                 auth: Arc::clone(&auth),
                 events: events_tx.clone(),

@@ -200,6 +200,15 @@ SM-T580, always measure in release builds.
   the desktop announces IPv4 only and the tablet accumulates addresses.
 - **Desktop session liveness**: tablets ping every 5 s; the desktop closes an
   authenticated session silent for 20 s.
+- **Button states** (`appearance.rs`, `observe.rs`): watcher threads publish
+  the observed `SystemState` (audio change feed, media polled every second,
+  only real changes); each session resolves its layout with it, sends it
+  whole on connect / edit (so a new tablet gets every state) and otherwise a
+  `button:update` only for buttons whose resolved look differs from what it
+  last sent. Unknown state (test mode, not observed yet) keeps the resting
+  look; an unreachable source makes the buttons `unavailable`. Tablet texts
+  of the states are French constants in `appearance.rs` (to translate with
+  the rest).
 - **Tablet presses vs page swipes**: the tile reacts (scale, flash) on touch
   down, but `button:press` is sent only once the touch is not a swipe: on lift
   without moving past the touch slop (tap), or after 120 ms held still (hold).

@@ -32,7 +32,7 @@ use std::time::Duration;
 use futures_util::{SinkExt, StreamExt};
 use padboard_actions::{Action, ActionError, ActionExecutor};
 use padboard_protocol::{
-    AuthStatus, ButtonEvent, ErrorCode, ErrorPayload, Heartbeat, HelloPayload, Message,
+    AuthStatus, ButtonEvent, ErrorCode, ErrorPayload, Heartbeat, HelloPayload, Layout, Message,
     PROTOCOL_VERSION, PairSuccessPayload, WelcomePayload, is_compatible,
 };
 use serde::Serialize;
@@ -48,6 +48,7 @@ use tokio_tungstenite::tungstenite::http::StatusCode;
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::{self, Message as WsMessage};
 
+use crate::appearance::{self, SystemState};
 use crate::auth::{Auth, AuthChange, Transport};
 use crate::config::ActiveLayout;
 
@@ -91,6 +92,9 @@ pub struct ServerContext {
     /// The active profile's layout and actions; sessions push every new
     /// value to their tablet (`layout:sync`).
     pub layout: watch::Sender<Arc<ActiveLayout>>,
+    /// What the PC observes for button states (`appearance.rs`); sessions
+    /// send `button:update` for the buttons it changes.
+    pub state: watch::Sender<SystemState>,
     /// Set once created (creating it may take a moment, see `lib.rs`).
     pub executor: OnceLock<Arc<dyn ActionExecutor>>,
     pub auth: Arc<Auth>,
@@ -419,10 +423,14 @@ where
     }
     drop(pairing_slot);
 
-    // Subscribe before reading, so an edit landing in between is not missed.
-    let mut layouts = ctx.layout.subscribe();
-    let layout = layouts.borrow_and_update().layout.clone();
-    send(&mut ws, &Message::LayoutSync(layout)).await?;
+    // Subscribe before reading, so an edit or a state change landing in
+    // between is not missed. The layout carries every button's current state.
+    let mut feeds = Feeds {
+        layouts: ctx.layout.subscribe(),
+        states: ctx.state.subscribe(),
+        sent: None,
+    };
+    feeds.sync(&mut ws).await?;
     tracing::info!(%peer, client = id, ?transport, device = %device_name, "tablet connected");
     emit(
         ctx,
@@ -435,7 +443,7 @@ where
         },
     );
     let kick = ctx.auth.open_session(&device_id, id, transport);
-    let result = session(&mut ws, id, kick, layouts, ctx).await;
+    let result = session(&mut ws, id, kick, feeds, ctx).await;
     ctx.auth.close_session(&device_id, id);
     // Completes the closing handshake (replies to the peer's close frame, or
     // sends ours) so the tablet sees a clean close instead of a dropped socket.
@@ -495,7 +503,7 @@ async fn session<S>(
     ws: &mut WebSocketStream<S>,
     id: u64,
     mut kick: tokio::sync::oneshot::Receiver<crate::auth::Kick>,
-    mut layouts: watch::Receiver<Arc<ActiveLayout>>,
+    mut feeds: Feeds,
     ctx: &ServerContext,
 ) -> Result<(), ConnectionError>
 where
@@ -503,18 +511,26 @@ where
 {
     let mut kick_pending = true;
     let mut layouts_open = true;
+    let mut states_open = true;
     loop {
         let message = tokio::select! {
             message = timeout(ctx.limits.idle, next_message(ws)) => match message {
                 Ok(message) => message?,
                 Err(_) => return Err(ConnectionError::Idle),
             },
-            changed = layouts.changed(), if layouts_open => {
+            changed = feeds.layouts.changed(), if layouts_open => {
                 if changed.is_ok() {
-                    let layout = layouts.borrow_and_update().layout.clone();
-                    send(ws, &Message::LayoutSync(layout)).await?;
+                    feeds.sync(ws).await?;
                 } else {
                     layouts_open = false; // the app is shutting down
+                }
+                continue;
+            }
+            changed = feeds.states.changed(), if states_open => {
+                if changed.is_ok() {
+                    feeds.update(ws).await?;
+                } else {
+                    states_open = false;
                 }
                 continue;
             }
@@ -558,6 +574,49 @@ where
                 send_error(ws, ErrorCode::BadRequest, reason).await?;
             }
         }
+    }
+}
+
+/// What a session follows, and what its tablet shows.
+struct Feeds {
+    layouts: watch::Receiver<Arc<ActiveLayout>>,
+    states: watch::Receiver<SystemState>,
+    /// The resolved layout last sent.
+    sent: Option<Layout>,
+}
+
+impl Feeds {
+    fn resolved(&mut self) -> Layout {
+        let active = Arc::clone(&self.layouts.borrow_and_update());
+        let state = *self.states.borrow_and_update();
+        appearance::resolve(&active.layout, &active.actions, &state)
+    }
+
+    /// New layout (edit, profile): sent whole, with the current states.
+    async fn sync<S>(&mut self, ws: &mut WebSocketStream<S>) -> Result<(), ConnectionError>
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+    {
+        let layout = self.resolved();
+        send(ws, &Message::LayoutSync(layout.clone())).await?;
+        self.sent = Some(layout);
+        Ok(())
+    }
+
+    /// New state: only the buttons whose look changed.
+    async fn update<S>(&mut self, ws: &mut WebSocketStream<S>) -> Result<(), ConnectionError>
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+    {
+        let layout = self.resolved();
+        let Some(sent) = &self.sent else {
+            return self.sync(ws).await;
+        };
+        for button in appearance::changed(sent, &layout) {
+            send(ws, &Message::ButtonUpdate(button)).await?;
+        }
+        self.sent = Some(layout);
+        Ok(())
     }
 }
 
@@ -716,6 +775,7 @@ mod tests {
         executor: Arc<FakeExecutor>,
         auth: Arc<Auth>,
         layout: watch::Sender<Arc<ActiveLayout>>,
+        state: watch::Sender<SystemState>,
         events: UnboundedReceiver<ServerEvent>,
     }
 
@@ -727,6 +787,7 @@ mod tests {
             server_name: "TEST-PC".into(),
             server_id: "test-server".into(),
             layout: watch::channel(Arc::new(crate::config::seed::config().active_layout())).0,
+            state: watch::channel(SystemState::default()).0,
             executor: OnceLock::from(executor as Arc<dyn ActionExecutor>),
             auth: Arc::new(Auth::new(None, Box::new(|_| {}))),
             events,
@@ -754,12 +815,14 @@ mod tests {
         let ctx = context(Arc::clone(&executor), tx);
         let auth = Arc::clone(&ctx.auth);
         let layout = ctx.layout.clone();
+        let state = ctx.state.clone();
         tokio::spawn(serve(listener, transport, None, ctx));
         Harness {
             url,
             executor,
             auth,
             layout,
+            state,
             events,
         }
     }
@@ -982,6 +1045,61 @@ mod tests {
             *h.executor.executed.lock().unwrap(),
             [Action::Hotkey(Hotkey::new([Key::F14]))]
         );
+    }
+
+    #[tokio::test]
+    async fn state_changes_update_only_the_buttons_they_change() {
+        use crate::appearance::Observed;
+        use padboard_actions::state::AudioState;
+        use padboard_actions::{MicrophoneAction, MicrophoneCommand};
+
+        let h = start(Transport::Usb, false).await;
+        // The demo profile with its "copy" button turned into a microphone.
+        let mut config = crate::config::seed::config();
+        config.profiles[0].pages[0].buttons[1].action = Action::Microphone(MicrophoneAction {
+            command: MicrophoneCommand::ToggleMute,
+        });
+        h.layout.send_replace(Arc::new(config.active_layout()));
+        let mut client = connected(&h).await;
+
+        let audio = |muted| {
+            Observed::Known(AudioState {
+                output_percent: 50,
+                output_muted: false,
+                input_muted: Some(muted),
+            })
+        };
+        let set = |muted| {
+            h.state.send_modify(|s| s.audio = audio(muted));
+        };
+        set(false);
+        // Unmuted: the resting look, nothing to send.
+        set(true);
+        let Message::ButtonUpdate(update) = recv_msg(&mut client).await else {
+            panic!("expected button:update");
+        };
+        assert_eq!(update.id, "copy");
+        assert!(update.active);
+        // The sound server repeats itself: nothing more.
+        set(true);
+        assert!(
+            timeout(Duration::from_millis(300), client.next())
+                .await
+                .is_err(),
+            "no update for an unchanged look"
+        );
+
+        // A tablet connecting now gets the muted look in its layout.
+        let (mut other, _) = greet(&h, &hello(PROTOCOL_VERSION)).await;
+        let Message::LayoutSync(layout) = recv_msg(&mut other).await else {
+            panic!("expected layout:sync");
+        };
+        let copy = layout.pages[0]
+            .buttons
+            .iter()
+            .find(|b| b.id == "copy")
+            .unwrap();
+        assert!(copy.active);
     }
 
     #[tokio::test]
