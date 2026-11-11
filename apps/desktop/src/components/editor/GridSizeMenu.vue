@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { onClickOutside } from "@vueuse/core";
+import { onClickOutside, onKeyStroke } from "@vueuse/core";
 import { AnimatePresence, motion } from "motion-v";
 import { ChevronDown, Minus, Plus } from "lucide-vue-next";
 import { useEditor } from "../../composables/useEditor";
@@ -10,11 +10,12 @@ const MAX_COLS = 8;
 const MAX_ROWS = 6;
 
 const { t } = useI18n();
-const { activeProfile, edit, lastError } = useEditor();
+const { activeProfile, edit, lastError, clearError } = useEditor();
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
 const refused = ref(false);
 onClickOutside(root, () => (open.value = false));
+onKeyStroke("Escape", () => (open.value = false));
 
 const grid = computed(() => activeProfile.value?.grid ?? { cols: 5, rows: 3 });
 
@@ -25,6 +26,8 @@ async function resize(cols: number, rows: number) {
     params: { profileId: activeProfile.value.id, cols, rows },
   });
   refused.value = !ok && lastError.value?.code === "outsideGrid";
+  // Explained in the menu: no toast as well.
+  if (refused.value) clearError();
 }
 </script>
 

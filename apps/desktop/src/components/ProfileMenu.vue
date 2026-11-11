@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { onClickOutside } from "@vueuse/core";
+import { onClickOutside, onKeyStroke } from "@vueuse/core";
 import { AnimatePresence, motion } from "motion-v";
 import { Check, ChevronDown, Copy, Pencil, Plus, Trash2 } from "lucide-vue-next";
 import TextPrompt from "./TextPrompt.vue";
@@ -13,6 +13,7 @@ const { config, activeProfile, edit } = useEditor();
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
 onClickOutside(root, () => close());
+onKeyStroke("Escape", () => open.value && close());
 
 type Prompt = "create" | "duplicate" | "rename" | null;
 const prompt = ref<Prompt>(null);

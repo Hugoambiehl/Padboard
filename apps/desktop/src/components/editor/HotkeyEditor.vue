@@ -131,7 +131,7 @@ function add() {
         <select
           v-model="adding"
           :disabled="keys.length >= MAX_KEYS || recording"
-          class="min-w-0 flex-1 rounded-[10px] border border-line-2 bg-bg px-2 py-2 text-sm disabled:opacity-40"
+          class="min-w-0 flex-1 rounded-[10px] border border-line-2 bg-bg px-3 py-2 text-sm disabled:opacity-40"
           @change="add"
         >
           <option value="" disabled>{{ t("hotkey.addKey") }}</option>

@@ -31,6 +31,20 @@ body {
   color-scheme: dark;
 }
 
+@layer base {
+  /* Keyboard focus in the accent color (WebKitGTK draws an orange ring by
+     default). Utilities such as outline-none still override it. */
+  :focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
+    outline-offset: 2px;
+  }
+
+  /* Native selects drawn like the other fields (WebKitGTK keeps the GTK look). */
+  select {
+    appearance: none;
+  }
+}
+
 /* While dragging (src/editor/drag.ts): no text selection, grabbing cursor. */
 body.dragging,
 body.dragging * {

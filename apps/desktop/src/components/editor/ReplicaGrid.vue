@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { Plus } from "lucide-vue-next";
 import ButtonFace from "./ButtonFace.vue";
@@ -52,8 +52,17 @@ function isSelected(row: number, col: number) {
   return !!s && s.pageId === page.value?.id && s.row === row && s.col === col;
 }
 
+const gridElement = ref<HTMLElement | null>(null);
+
 function pick(row: number, col: number) {
   if (page.value) select({ pageId: page.value.id, row, col });
+}
+
+// The grid owns keyboard focus (arrows); a clicked cell must not keep it, or
+// its focus ring would stay behind while the selection moves.
+function clickCell(row: number, col: number) {
+  pick(row, col);
+  gridElement.value?.focus({ preventScroll: true });
 }
 
 // Arrows move the selection; Alt+arrows move the selected button (swapping
@@ -89,6 +98,7 @@ async function onKeydown(event: KeyboardEvent) {
 
 <template>
   <div
+    ref="gridElement"
     class="w-full max-w-[820px] rounded-[30px] border border-line bg-[#08090B] p-[18px] outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
     tabindex="0"
     role="grid"
@@ -122,7 +132,7 @@ async function onKeydown(event: KeyboardEvent) {
                   ? 'border-line-2'
                   : 'border-[#34374A]',
         ]"
-        @click="pick(c.row, c.col)"
+        @click="clickCell(c.row, c.col)"
         @pointerdown="c.button && dragButton($event, c.button)"
       >
         <ButtonFace v-if="c.button" :button="c.button" compact />

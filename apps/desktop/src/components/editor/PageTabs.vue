@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { onClickOutside } from "@vueuse/core";
+import { onClickOutside, onKeyStroke } from "@vueuse/core";
 import { AnimatePresence, motion } from "motion-v";
 import { ChevronLeft, ChevronRight, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-vue-next";
 import TextPrompt from "../TextPrompt.vue";
@@ -18,6 +18,7 @@ const menuOpen = ref(false);
 const confirmDelete = ref(false);
 const menu = ref<HTMLElement | null>(null);
 onClickOutside(menu, () => closeMenu());
+onKeyStroke("Escape", () => menuOpen.value && closeMenu());
 const prompt = ref<"add" | "rename" | null>(null);
 
 function closeMenu() {
