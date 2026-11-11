@@ -15,7 +15,7 @@ import { iconToPaths } from "../../icons/paths";
 import { addPreset } from "../../editor/actions";
 import { testButton } from "../../commands";
 import { isSystemAction } from "../../editor/actionText";
-import { hasActiveState } from "../../editor/actionDefaults";
+import { hasActiveState, subtitleAfterChange } from "../../editor/actionDefaults";
 import type { Action, ActiveLook, Category, IconConfig } from "../../generated/types";
 
 const { t } = useI18n();
@@ -68,7 +68,13 @@ function setColor(color: Category) {
 // merges into one.
 async function setAction(action: Action, commit: boolean) {
   if (!button.value) return;
-  await edit({ type: "setAction", params: { buttonId: button.value.id, action } });
+  // The subtitle follows the action while it is the automatic text
+  // ("Ctrl + C"); one written by the user stays.
+  const replaceSubtitle = subtitleAfterChange(button.value.subtitle, button.value.action, action);
+  await edit({
+    type: "setAction",
+    params: { buttonId: button.value.id, action, replaceSubtitle },
+  });
   if (commit) await checkpoint();
 }
 async function setLook(look: ActiveLook | undefined, commit: boolean) {

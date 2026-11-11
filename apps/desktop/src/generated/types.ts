@@ -527,9 +527,15 @@ export type Edit =
 	buttonId: string;
 	color: Category;
 }}
+	/**
+	 * `replaceSubtitle`: the subtitle that goes with the new action (the
+	 * editor sends it when the old one was the automatic text of the old
+	 * action, e.g. "Ctrl + C"); empty removes it. Absent: unchanged.
+	 */
 	| { type: "setAction", params: {
 	buttonId: string;
 	action: Action;
+	replaceSubtitle?: string;
 }}
 	/** Look while active; `None` back to the automatic look. */
 	| { type: "setActiveLook", params: {

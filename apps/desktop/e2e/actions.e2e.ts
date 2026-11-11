@@ -21,6 +21,7 @@ afterAll(async () => {
 
 interface Saved {
   id: string;
+  subtitle?: string;
   action: { type: string; params?: Record<string, unknown> };
   activeLook?: { label?: string; color?: string };
 }
@@ -64,7 +65,8 @@ describe("action forms", () => {
   it("change the kind and the parameters", async () => {
     await app.select(0, 1);
     await choose(field("kind"), "volume");
-    await saved((b) => b.action.type === "volume", "a volume action");
+    // "Ctrl + C" was the automatic subtitle of the shortcut: it goes.
+    await saved((b) => b.action.type === "volume" && b.subtitle === undefined, "a volume action");
     await choose(field("command"), "set");
     await saved(
       (b) => b.action.params?.command === "set" && b.action.params.value === 50,

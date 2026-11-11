@@ -1,5 +1,7 @@
 // What an action becomes when its type is chosen in the inspector: a draft
-// the desktop accepts (values not filled in yet are allowed).
+// the desktop accepts (values not filled in yet are allowed); and the
+// subtitle the editor writes for an action.
+import { hotkeyLabel } from "./keys";
 import type {
   Action,
   MediaCommand,
@@ -56,4 +58,26 @@ export function hasActiveState(action: Action): boolean {
     default:
       return false;
   }
+}
+
+/** The subtitle the editor writes for an action ("" for none): the keys of a shortcut. */
+export function autoSubtitle(action: Action): string {
+  return action.type === "hotkey" && action.params.keys.length > 0
+    ? hotkeyLabel(action.params.keys)
+    : "";
+}
+
+/**
+ * The subtitle to set when `before` becomes `after`: the new automatic text
+ * if the current subtitle is still the automatic text of `before`,
+ * `undefined` (keep it) if the user wrote their own or nothing changes.
+ */
+export function subtitleAfterChange(
+  current: string | undefined,
+  before: Action,
+  after: Action,
+): string | undefined {
+  const old = autoSubtitle(before);
+  const next = autoSubtitle(after);
+  return (current ?? "") === old && next !== old ? next : undefined;
 }

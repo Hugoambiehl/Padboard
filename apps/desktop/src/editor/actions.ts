@@ -3,7 +3,7 @@ import { i18n } from "../i18n";
 import { iconConfig } from "../icons/catalog";
 import { useEditor } from "../composables/useEditor";
 import { buttonAt, useSelection } from "./selection";
-import { hotkeyLabel } from "./keys";
+import { autoSubtitle } from "./actionDefaults";
 import type { GridSize, PageConfig, Preset } from "../generated/types";
 
 /** First empty cell of a page, row by row. */
@@ -41,7 +41,6 @@ export async function addPreset(preset: Preset, cell: { row: number; col: number
     if (outcome) select({ pageId: target.id, ...cell });
     return;
   }
-  const keys = preset.action.type === "hotkey" ? preset.action.params.keys : [];
   const outcome = await edit({
     type: "addButton",
     params: {
@@ -49,7 +48,7 @@ export async function addPreset(preset: Preset, cell: { row: number; col: number
       row: cell.row,
       col: cell.col,
       label: t(`library.presets.${preset.id}.label`),
-      subtitle: preset.group === "system" && keys.length > 0 ? hotkeyLabel(keys) : undefined,
+      subtitle: autoSubtitle(preset.action) || undefined,
       icon: (await iconConfig(preset.icon)) ?? undefined,
       color: preset.color,
       action: preset.action,

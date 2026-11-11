@@ -101,8 +101,16 @@ pub enum Edit {
     },
     #[serde(rename_all = "camelCase")]
     SetColor { button_id: String, color: Category },
+    /// `replaceSubtitle`: the subtitle that goes with the new action (the
+    /// editor sends it when the old one was the automatic text of the old
+    /// action, e.g. "Ctrl + C"); empty removes it. Absent: unchanged.
     #[serde(rename_all = "camelCase")]
-    SetAction { button_id: String, action: Action },
+    SetAction {
+        button_id: String,
+        action: Action,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        replace_subtitle: Option<String>,
+    },
     /// Look while active; `None` back to the automatic look.
     #[serde(rename_all = "camelCase")]
     SetActiveLook {
@@ -537,7 +545,17 @@ fn apply(c: &mut Config, edit: Edit) -> Result<EditOutcome, EditError> {
         } => button_mut(c, &button_id)?.subtitle = subtitle.filter(|s| !s.is_empty()),
         Edit::SetIcon { button_id, icon } => button_mut(c, &button_id)?.icon = icon,
         Edit::SetColor { button_id, color } => button_mut(c, &button_id)?.color = color,
-        Edit::SetAction { button_id, action } => button_mut(c, &button_id)?.action = action,
+        Edit::SetAction {
+            button_id,
+            action,
+            replace_subtitle,
+        } => {
+            let button = button_mut(c, &button_id)?;
+            button.action = action;
+            if let Some(subtitle) = replace_subtitle {
+                button.subtitle = Some(subtitle).filter(|s| !s.is_empty());
+            }
+        }
         Edit::SetActiveLook { button_id, look } => {
             // An empty look is no look.
             button_mut(c, &button_id)?.active_look = look.filter(|l| *l != ActiveLook::default());
@@ -1056,6 +1074,7 @@ mod tests {
             action: Action::Open(OpenAction {
                 target: String::new(),
             }),
+            replace_subtitle: None,
         })
         .unwrap();
         let err = e
@@ -1065,8 +1084,30 @@ mod tests {
                     command: VolumeCommand::Set,
                     value: Some(200),
                 }),
+                replace_subtitle: None,
             })
             .unwrap_err();
         assert_eq!(err.code, "invalidAction");
+    }
+
+    #[test]
+    fn an_action_change_can_bring_its_subtitle() {
+        use padboard_actions::{MediaAction, MediaCommand};
+        let mut e = editor();
+        e.apply(Edit::SetAction {
+            button_id: "copy".into(),
+            action: Action::Media(MediaAction {
+                command: MediaCommand::Next,
+            }),
+            replace_subtitle: Some(String::new()),
+        })
+        .unwrap();
+        let copy = button_mut(&mut e.config().clone(), "copy").unwrap().clone();
+        assert_eq!(copy.subtitle, None);
+        // One undo entry brings both back.
+        e.undo();
+        let copy = button_mut(&mut e.config().clone(), "copy").unwrap().clone();
+        assert_eq!(copy.subtitle.as_deref(), Some("Ctrl + C"));
+        assert!(matches!(copy.action, Action::Hotkey(_)));
     }
 }
