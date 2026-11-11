@@ -92,8 +92,13 @@ add/adjust round-trip serialization tests.
 ## Actions
 
 `ActionExecutor` trait in `crates/actions`, implementation picked at compile time:
-- **Windows** (`windows` crate): SendInput, IAudioEndpointVolume,
-  GlobalSystemMediaTransportControls…
+- **Windows** (`crates/actions/src/win/`, `windows` crate): `SendInput`;
+  volume and microphone with `IAudioEndpointVolume` on the default playback
+  and recording devices (master scalar = the Windows slider); media through
+  the system media session (GSMTC), media keys as a fallback; `ShellExecuteW`
+  (environment variables expanded) and `LockWorkStation`. The audio state is
+  polled every 300 ms (only real changes reported). Check locally with
+  `cargo clippy -p padboard-actions --target x86_64-pc-windows-msvc`.
 - **Linux** (`crates/actions/src/linux/`): keyboard injection (uinput);
   volume and microphone through the PulseAudio native protocol with the pure
   Rust `pulseaudio` crate (PipeWire serves it via `pipewire-pulse`; no

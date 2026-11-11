@@ -22,7 +22,11 @@ pub fn audio() -> Result<AudioState, ActionError> {
     {
         crate::linux::pulse::Pulse::connect()?.state()
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(windows)]
+    {
+        crate::win::audio::state()
+    }
+    #[cfg(not(any(target_os = "linux", windows)))]
     {
         Err(unsupported("audio state"))
     }
@@ -33,7 +37,15 @@ pub fn audio() -> Result<AudioState, ActionError> {
 pub struct AudioChanges {
     #[cfg(target_os = "linux")]
     inner: crate::linux::pulse::Subscription,
+    /// Windows has no simple change feed: the state is polled and only real
+    /// changes are reported.
+    #[cfg(windows)]
+    last: Option<AudioState>,
 }
+
+/// Polling interval of the Windows audio state.
+#[cfg(windows)]
+const POLL: std::time::Duration = std::time::Duration::from_millis(300);
 
 impl std::fmt::Debug for AudioChanges {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -53,7 +65,13 @@ impl AudioChanges {
                 inner: crate::linux::pulse::Pulse::connect()?.subscribe()?,
             })
         }
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(windows)]
+        {
+            Ok(Self {
+                last: Some(audio()?),
+            })
+        }
+        #[cfg(not(any(target_os = "linux", windows)))]
         {
             Err(unsupported("audio changes"))
         }
@@ -68,7 +86,18 @@ impl AudioChanges {
         {
             self.inner.next_change()
         }
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(windows)]
+        {
+            loop {
+                std::thread::sleep(POLL);
+                let now = audio()?;
+                if self.last != Some(now) {
+                    self.last = Some(now);
+                    return Ok(());
+                }
+            }
+        }
+        #[cfg(not(any(target_os = "linux", windows)))]
         {
             Err(unsupported("audio changes"))
         }
@@ -84,13 +113,17 @@ pub fn media_playing() -> Result<Option<bool>, ActionError> {
     {
         crate::linux::mpris::playing()
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(windows)]
+    {
+        crate::win::media::playing()
+    }
+    #[cfg(not(any(target_os = "linux", windows)))]
     {
         Err(unsupported("media state"))
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 fn unsupported(what: &'static str) -> ActionError {
     ActionError::Unsupported {
         action: what,
