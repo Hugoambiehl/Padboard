@@ -492,6 +492,14 @@
     "missing": "Ce dossier a été supprimé : le bouton ne fait plus rien.",
     "label": "Dossiers"
   },
+  "screensaver": {
+    "title": "Écran de veille de la tablette",
+    "toggle": "Écran de veille",
+    "delay": "Après",
+    "seconds": "{n} s sans toucher",
+    "minutes": "{n} min sans toucher",
+    "hint": "Écran noir avec l’horloge, luminosité au minimum, et les états importants (micro coupé, REC, EN DIRECT). Le premier toucher réveille seulement l’écran."
+  },
   "obs": {
     "title": "OBS Studio",
     "toggle": "Piloter OBS",

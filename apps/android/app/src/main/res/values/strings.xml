@@ -74,4 +74,8 @@
     <string name="layout_waiting">Réception de la grille…</string>
     <string name="folder_back">Retour (dossier %1$s)</string>
     <string name="action_failed">L’action a échoué sur le PC.</string>
+    <string name="screensaver_mic_muted">MICRO COUPÉ</string>
+    <string name="screensaver_recording">REC</string>
+    <string name="screensaver_live">EN DIRECT</string>
+    <string name="screensaver_offline">PC non connecté</string>
 </resources>

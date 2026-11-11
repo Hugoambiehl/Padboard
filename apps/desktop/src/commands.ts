@@ -11,6 +11,15 @@ export const setAdbPath = (path: string | null) => invoke<void>("set_adb_path", 
 export const enableKiosk = (serial: string) => invoke<void>("enable_kiosk", { serial });
 export const exitKiosk = (clientId: number) => invoke<boolean>("exit_kiosk", { clientId });
 
+/** Screensaver of the tablets (`preferences.rs`). */
+export interface Screensaver {
+  enabled: boolean;
+  delaySeconds: number;
+}
+export const getScreensaver = () => invoke<Screensaver>("get_screensaver");
+export const setScreensaver = (screensaver: Screensaver) =>
+  invoke<void>("set_screensaver", { screensaver });
+
 // Editor
 export const getEditor = () => invoke<EditorState>("get_editor");
 /** Rejects with an `EditError` (`{ code, detail }`) when the edit is refused. */

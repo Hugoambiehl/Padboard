@@ -6,6 +6,7 @@ import ClientsCard from "../components/ClientsCard.vue";
 import PairedDevicesCard from "../components/PairedDevicesCard.vue";
 import UsbCard from "../components/UsbCard.vue";
 import ObsCard from "../components/ObsCard.vue";
+import ScreensaverCard from "../components/ScreensaverCard.vue";
 import ActivityCard from "../components/ActivityCard.vue";
 import type { Snapshot } from "../types/status";
 
@@ -34,6 +35,7 @@ const { t } = useI18n();
       />
       <UsbCard :usb="snapshot.usb" :port="snapshot.server.usb.port" />
       <ObsCard />
+      <ScreensaverCard />
     </div>
     <ActivityCard :activity="snapshot.activity" />
   </div>

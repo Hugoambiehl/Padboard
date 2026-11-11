@@ -33,8 +33,9 @@ use futures_util::{SinkExt, StreamExt};
 use padboard_actions::{Action, ActionError, ActionExecutor, NavigateAction, NavigateTo};
 use padboard_protocol::{
     AuthStatus, ButtonEvent, ErrorCode, ErrorPayload, Heartbeat, HelloPayload, Layout, Message,
-    NavigatePayload, NavigateTarget, PROTOCOL_VERSION, PairSuccessPayload, TabletCommandPayload,
-    TabletOrder, TabletStatusPayload, WelcomePayload, is_compatible,
+    NavigatePayload, NavigateTarget, PROTOCOL_VERSION, PairSuccessPayload, SystemStatusPayload,
+    TabletCommandPayload, TabletOrder, TabletSettingsPayload, TabletStatusPayload, WelcomePayload,
+    is_compatible,
 };
 use serde::Serialize;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -96,6 +97,8 @@ pub struct ServerContext {
     /// What the PC observes for button states (`appearance.rs`); sessions
     /// send `button:update` for the buttons it changes.
     pub state: watch::Sender<SystemState>,
+    /// Tablet settings (screensaver), sent on connect and on every change.
+    pub tablet_settings: watch::Sender<TabletSettingsPayload>,
     /// Set once created (creating it may take a moment, see `lib.rs`).
     pub executor: OnceLock<Arc<dyn ActionExecutor>>,
     pub auth: Arc<Auth>,
@@ -457,9 +460,13 @@ where
     let mut feeds = Feeds {
         layouts: ctx.layout.subscribe(),
         states: ctx.state.subscribe(),
+        settings: ctx.tablet_settings.subscribe(),
         sent: None,
+        status_sent: None,
     };
     feeds.sync(&mut ws).await?;
+    feeds.send_settings(&mut ws).await?;
+    feeds.send_status(&mut ws).await?;
     tracing::info!(%peer, client = id, ?transport, device = %device_name, "tablet connected");
     emit(
         ctx,
@@ -545,6 +552,7 @@ where
     let mut kick_pending = true;
     let mut layouts_open = true;
     let mut states_open = true;
+    let mut settings_open = true;
     loop {
         let message = tokio::select! {
             message = timeout(ctx.limits.idle, next_message(ws)) => match message {
@@ -566,8 +574,17 @@ where
             changed = feeds.states.changed(), if states_open => {
                 if changed.is_ok() {
                     feeds.update(ws).await?;
+                    feeds.send_status(ws).await?;
                 } else {
                     states_open = false;
+                }
+                continue;
+            }
+            changed = feeds.settings.changed(), if settings_open => {
+                if changed.is_ok() {
+                    feeds.send_settings(ws).await?;
+                } else {
+                    settings_open = false;
                 }
                 continue;
             }
@@ -650,8 +667,26 @@ impl Drop for Registered<'_> {
 struct Feeds {
     layouts: watch::Receiver<Arc<ActiveLayout>>,
     states: watch::Receiver<SystemState>,
+    settings: watch::Receiver<TabletSettingsPayload>,
     /// The resolved layout last sent.
     sent: Option<Layout>,
+    /// The `system:status` last sent.
+    status_sent: Option<SystemStatusPayload>,
+}
+
+/// What the screensaver shows of the PC: unknown or unreachable reads as off.
+#[must_use]
+pub fn system_status(state: &SystemState) -> SystemStatusPayload {
+    use crate::appearance::Observed;
+    let obs = match &state.obs {
+        Observed::Known(obs) => Some(obs),
+        _ => None,
+    };
+    SystemStatusPayload {
+        microphone_muted: matches!(&state.audio, Observed::Known(audio) if audio.input_muted == Some(true)),
+        recording: obs.is_some_and(|o| o.recording),
+        streaming: obs.is_some_and(|o| o.streaming),
+    }
 }
 
 impl Feeds {
@@ -674,6 +709,28 @@ impl Feeds {
         }
         send(ws, &Message::LayoutSync(layout.clone())).await?;
         self.sent = Some(layout);
+        Ok(())
+    }
+
+    async fn send_settings<S>(&mut self, ws: &mut WebSocketStream<S>) -> Result<(), ConnectionError>
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+    {
+        let settings = *self.settings.borrow_and_update();
+        send(ws, &Message::TabletSettings(settings)).await
+    }
+
+    /// `system:status`, only when what it says changed.
+    async fn send_status<S>(&mut self, ws: &mut WebSocketStream<S>) -> Result<(), ConnectionError>
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+    {
+        let status = system_status(&self.states.borrow());
+        if self.status_sent == Some(status) {
+            return Ok(());
+        }
+        send(ws, &Message::SystemStatus(status)).await?;
+        self.status_sent = Some(status);
         Ok(())
     }
 
@@ -992,6 +1049,7 @@ mod tests {
             server_id: "test-server".into(),
             layout: watch::channel(Arc::new(crate::config::seed::config().active_layout())).0,
             state: watch::channel(SystemState::default()).0,
+            tablet_settings: watch::channel(crate::preferences::Screensaver::default().payload()).0,
             executor: OnceLock::from(executor as Arc<dyn ActionExecutor>),
             auth: Arc::new(Auth::new(None, Box::new(|_| {}))),
             events,
@@ -1087,8 +1145,21 @@ mod tests {
         (client, w)
     }
 
+    /// The layout, then the tablet settings and the PC states (on connect).
     async fn expect_layout(client: &mut Client) {
         assert!(matches!(recv_msg(client).await, Message::LayoutSync(_)));
+        expect_settings_and_status(client).await;
+    }
+
+    async fn expect_settings_and_status(client: &mut Client) {
+        assert_eq!(
+            recv_msg(client).await,
+            Message::TabletSettings(crate::preferences::Screensaver::default().payload())
+        );
+        assert_eq!(
+            recv_msg(client).await,
+            Message::SystemStatus(SystemStatusPayload::default())
+        );
     }
 
     /// USB connection, authenticated and past the layout.
@@ -1288,6 +1359,15 @@ mod tests {
         };
         assert_eq!(update.id, "copy");
         assert!(update.active);
+        // The screensaver hears it too.
+        assert_eq!(
+            recv_msg(&mut client).await,
+            Message::SystemStatus(SystemStatusPayload {
+                microphone_muted: true,
+                recording: false,
+                streaming: false
+            })
+        );
         // The sound server repeats itself: nothing more.
         set(true);
         assert!(
@@ -1302,12 +1382,55 @@ mod tests {
         let Message::LayoutSync(layout) = recv_msg(&mut other).await else {
             panic!("expected layout:sync");
         };
+        recv_msg(&mut other).await; // tablet:settings
+        assert!(
+            matches!(recv_msg(&mut other).await, Message::SystemStatus(s) if s.microphone_muted)
+        );
         let copy = layout.pages[0]
             .buttons
             .iter()
             .find(|b| b.id == "copy")
             .unwrap();
         assert!(copy.active);
+    }
+
+    #[tokio::test]
+    async fn tablets_follow_the_screensaver_settings_and_obs() {
+        use crate::appearance::Observed;
+
+        let h = start(Transport::Usb, false).await;
+        let mut client = connected(&h).await;
+        let settings = TabletSettingsPayload {
+            screensaver: false,
+            screensaver_delay_seconds: 60,
+        };
+        h.ctx.tablet_settings.send_replace(settings);
+        assert_eq!(
+            recv_msg(&mut client).await,
+            Message::TabletSettings(settings)
+        );
+
+        h.state.send_modify(|s| {
+            s.obs = Observed::Known(crate::obs::ObsState {
+                recording: true,
+                streaming: true,
+                ..Default::default()
+            });
+        });
+        assert_eq!(
+            recv_msg(&mut client).await,
+            Message::SystemStatus(SystemStatusPayload {
+                microphone_muted: false,
+                recording: true,
+                streaming: true
+            })
+        );
+        // OBS closed: its states are unknown, shown as off.
+        h.state.send_modify(|s| s.obs = Observed::Unavailable);
+        assert_eq!(
+            recv_msg(&mut client).await,
+            Message::SystemStatus(SystemStatusPayload::default())
+        );
     }
 
     #[tokio::test]

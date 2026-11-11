@@ -95,6 +95,24 @@ impl Backend {
         Ok(())
     }
 
+    fn set_screensaver(&self, screensaver: preferences::Screensaver) -> Result<(), String> {
+        if !preferences::SCREENSAVER_DELAYS.contains(&screensaver.delay_seconds) {
+            return Err(format!("delay out of range: {}", screensaver.delay_seconds));
+        }
+        {
+            let mut preferences = self
+                .preferences
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            preferences.screensaver = screensaver;
+            self.config.save(&*preferences).map_err(|e| e.to_string())?;
+        }
+        self.server
+            .tablet_settings
+            .send_replace(screensaver.payload());
+        Ok(())
+    }
+
     /// `None`: look `adb` up automatically again.
     fn set_adb_path(&self, path: Option<PathBuf>) -> Result<(), String> {
         if let Some(path) = &path
@@ -173,6 +191,25 @@ fn exit_kiosk(backend: tauri::State<'_, Backend>, client_id: u64) -> bool {
     backend
         .server
         .order(client_id, padboard_protocol::TabletOrder::ExitKiosk)
+}
+
+/// The tablets' screensaver settings.
+#[tauri::command]
+fn get_screensaver(backend: tauri::State<'_, Backend>) -> preferences::Screensaver {
+    backend
+        .preferences
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .screensaver
+}
+
+/// Changes them (persisted, sent to every tablet at once).
+#[tauri::command]
+fn set_screensaver(
+    backend: tauri::State<'_, Backend>,
+    screensaver: preferences::Screensaver,
+) -> Result<(), String> {
+    backend.set_screensaver(screensaver)
 }
 
 /// Turns Wi-Fi connections on or off (persisted). Refused when `PADBOARD_BIND`
@@ -345,6 +382,8 @@ pub fn run() {
             set_adb_path,
             enable_kiosk,
             exit_kiosk,
+            get_screensaver,
+            set_screensaver,
             get_editor,
             edit,
             undo,
@@ -448,6 +487,7 @@ pub fn run() {
                 server_id: identity.server_id,
                 layout: layout_tx,
                 state: state_tx,
+                tablet_settings: tokio::sync::watch::channel(preferences.screensaver.payload()).0,
                 executor: OnceLock::new(),
                 auth: Arc::clone(&auth),
                 events: events_tx.clone(),

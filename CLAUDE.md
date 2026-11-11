@@ -275,6 +275,21 @@ SM-T580, always measure in release builds.
   device owner with `dpm list-owners` (on detection, after "Activer", on
   every `tablet:status`): already Padboard = success, another owner = a
   clear refusal (codes in `adb::KioskError`, translated by the UI).
+- **Kiosk mode and updates**: an `adb install -r` stops the app and the
+  tablet would show the regular launcher; `KioskUpdated`
+  (`MY_PACKAGE_REPLACED`) brings it back in front at once (a device owner
+  may start an activity from the background).
+- **Tablet screensaver** (`ui/screensaver/Screensaver.kt`): settings stored
+  on the PC (`preferences.json`, "Écran de veille" card, 15 s–1 h, default
+  on after 5 min), sent with `tablet:settings` on connect and on change;
+  the tablet keeps the last ones (defaults before the first connection).
+  Touches are observed on the way down (never consumed); asleep: black
+  overlay with the time, the date and `system:status` (microphone muted,
+  OBS REC / EN DIRECT, "PC non connecté" without a PC), window brightness
+  0.02, clock drifting every minute (`graphicsLayer` translation). The
+  waking touch is consumed whole: it never reaches the grid.
+  `system:status` is derived from `SystemState` (unknown = off) and sent
+  only when it changes.
 - **Protocol version mirrored by hand** in `ProtocolJson.kt`: the hello /
   welcome fixtures carry the version and both sides' tests compare to them.
 - **Tablet disconnected**: the grid stays (same `GridScreen` call site, so

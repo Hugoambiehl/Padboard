@@ -17,6 +17,7 @@ import io.github.hugoambiehl.padboard.ui.connect.SearchingScreen
 import io.github.hugoambiehl.padboard.ui.connect.SetupScreen
 import io.github.hugoambiehl.padboard.ui.grid.GridScreen
 import io.github.hugoambiehl.padboard.ui.grid.GridStatus
+import io.github.hugoambiehl.padboard.ui.screensaver.ScreensaverHost
 
 /** Root: picks the screen from the connection state. */
 @Composable
@@ -25,8 +26,12 @@ fun PadboardApp(viewModel: PadboardViewModel) {
     val layout by viewModel.layout.collectAsStateWithLifecycle()
     val pcs by viewModel.pcs.collectAsStateWithLifecycle()
     val kiosk by viewModel.kiosk.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val systemStatus by viewModel.systemStatus.collectAsStateWithLifecycle()
     KioskExitCorner(enabled = kiosk, onExit = viewModel::exitKiosk) {
-        Screens(viewModel, link, layout, pcs)
+        ScreensaverHost(settings = settings, status = systemStatus) {
+            Screens(viewModel, link, layout, pcs)
+        }
     }
 }
 
