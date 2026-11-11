@@ -454,9 +454,12 @@ SM-T580, always measure in release builds.
    end-to-end tests on the real window (local).
 4. **Actions** ✅ — all MVP actions (Linux + Windows), stateful buttons, folders,
    pages, multi-actions.
-5. **Tablet polish** — launcher, lock task, animations, disconnected overlay,
-   screensaver, performance. Backlog: QR code pairing;
-   dark window title bar on GNOME (`theme: "Dark"` is set, check it, else a
-   custom title bar); user images as icons (phase 4 or 5).
+5. **Tablet polish** ✅ — kiosk mode (device owner, launcher, lock task),
+   disconnected overlay, screensaver, animations, performance. Checked on the
+   tablet: reboot (starts alone, locked, reconnects), screensaver clock
+   drifting over 13 min.
+   Backlog: QR code pairing (the fingerprint comparison is enough for now);
+   dark window title bar on GNOME (`theme: "Dark"` is set, Hugo checks it);
+   user images as icons.
 6. **Distribution** — Windows installer, signed release APK, CI, README, open source.
    License notices to ship: Lucide icons (ISC), Inter and Space Grotesk (OFL).
