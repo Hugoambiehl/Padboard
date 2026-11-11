@@ -3,7 +3,10 @@
 //! descriptions are UI text, translated by the frontend from the preset id.
 //! Only actions that work are listed; the library grows with phase 4.
 
-use padboard_actions::{Action, Hotkey, Key};
+use padboard_actions::{
+    Action, Hotkey, Key, MediaAction, MediaCommand, MicrophoneAction, MicrophoneCommand,
+    VolumeAction, VolumeCommand,
+};
 use padboard_protocol::Category;
 use serde::Serialize;
 use typeshare::typeshare;
@@ -30,24 +33,53 @@ pub struct Preset {
 }
 
 fn preset(id: &str, group: PresetGroup, color: Category, icon: &str, keys: &[Key]) -> Preset {
+    with_action(id, group, color, icon, Action::Hotkey(Hotkey::new(keys)))
+}
+
+fn with_action(
+    id: &str,
+    group: PresetGroup,
+    color: Category,
+    icon: &str,
+    action: Action,
+) -> Preset {
     Preset {
         id: id.to_owned(),
         group,
         color,
         icon: icon.to_owned(),
-        action: Action::Hotkey(Hotkey::new(keys)),
+        action,
     }
+}
+
+fn media(id: &str, icon: &str, command: MediaCommand) -> Preset {
+    with_action(
+        id,
+        PresetGroup::Media,
+        Category::Orange,
+        icon,
+        Action::Media(MediaAction { command }),
+    )
+}
+
+fn volume(id: &str, icon: &str, command: VolumeCommand) -> Preset {
+    with_action(
+        id,
+        PresetGroup::Media,
+        Category::Violet,
+        icon,
+        Action::Volume(VolumeAction {
+            command,
+            value: None,
+        }),
+    )
 }
 
 /// The library for this operating system.
 #[must_use]
 pub fn presets() -> Vec<Preset> {
-    use Category::{Blue, Grey, Orange, Red, Teal, Violet};
-    use Key::{
-        AltLeft, AudioVolumeDown, AudioVolumeMute, AudioVolumeUp, ControlLeft, KeyC, KeyD, KeyL,
-        KeyV, KeyX, KeyZ, MediaPlayPause, MediaStop, MediaTrackNext, MediaTrackPrevious, MetaLeft,
-        ShiftLeft,
-    };
+    use Category::{Blue, Grey, Red, Teal, Violet};
+    use Key::{AltLeft, ControlLeft, KeyC, KeyD, KeyV, KeyX, KeyZ, MetaLeft, ShiftLeft};
     use PresetGroup::{Media, System};
 
     let windows = cfg!(windows);
@@ -78,7 +110,7 @@ pub fn presets() -> Vec<Preset> {
         preset("redo", System, Teal, "Redo2", redo),
         preset("screenshot", System, Teal, "Camera", screenshot),
         preset("showDesktop", System, Grey, "Monitor", &[MetaLeft, KeyD]),
-        preset("lock", System, Red, "Lock", &[MetaLeft, KeyL]),
+        with_action("lock", System, Red, "Lock", Action::Lock),
     ];
     if windows {
         list.push(preset(
@@ -98,19 +130,23 @@ pub fn presets() -> Vec<Preset> {
         ));
     }
     list.extend([
-        preset("playPause", Media, Orange, "Play", &[MediaPlayPause]),
-        preset(
-            "previousTrack",
+        // The mockup's main button: microphone on/off, its state shown.
+        with_action(
+            "microphone",
             Media,
-            Orange,
-            "SkipBack",
-            &[MediaTrackPrevious],
+            Violet,
+            "Mic",
+            Action::Microphone(MicrophoneAction {
+                command: MicrophoneCommand::ToggleMute,
+            }),
         ),
-        preset("nextTrack", Media, Orange, "SkipForward", &[MediaTrackNext]),
-        preset("stop", Media, Orange, "Square", &[MediaStop]),
-        preset("volumeUp", Media, Violet, "Volume2", &[AudioVolumeUp]),
-        preset("volumeDown", Media, Violet, "Volume1", &[AudioVolumeDown]),
-        preset("mute", Media, Violet, "VolumeX", &[AudioVolumeMute]),
+        volume("volumeUp", "Volume2", VolumeCommand::Up),
+        volume("volumeDown", "Volume1", VolumeCommand::Down),
+        volume("mute", "VolumeX", VolumeCommand::ToggleMute),
+        media("playPause", "Play", MediaCommand::PlayPause),
+        media("previousTrack", "SkipBack", MediaCommand::Previous),
+        media("nextTrack", "SkipForward", MediaCommand::Next),
+        media("stop", "Square", MediaCommand::Stop),
     ]);
     list
 }
@@ -127,11 +163,11 @@ mod tests {
         let ids: HashSet<_> = list.iter().map(|p| p.id.as_str()).collect();
         assert_eq!(ids.len(), list.len());
         for p in &list {
-            let Action::Hotkey(hotkey) = &p.action else {
-                panic!("{} is not a hotkey", p.id);
-            };
-            if p.id != "hotkey" {
-                hotkey.validate().unwrap();
+            // The empty shortcut is a draft, recorded in the inspector.
+            if p.id == "hotkey" {
+                p.action.validate_draft().unwrap();
+            } else {
+                p.action.validate().unwrap();
             }
         }
     }
@@ -153,6 +189,7 @@ mod tests {
         } else {
             assert_eq!(keys("screenshot"), [Key::PrintScreen]);
         }
-        assert_eq!(keys("lock"), [Key::MetaLeft, Key::KeyL]);
+        let lock = presets().into_iter().find(|p| p.id == "lock").unwrap();
+        assert_eq!(lock.action, Action::Lock);
     }
 }

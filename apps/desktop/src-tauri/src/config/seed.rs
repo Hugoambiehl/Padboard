@@ -5,7 +5,9 @@
 //! Icons: Lucide (ISC license) path data, as `src/icons/paths.ts` converts it
 //! (lucide 1.71.0).
 
-use padboard_actions::{Action, Hotkey, Key};
+use padboard_actions::{
+    Action, Hotkey, Key, MediaAction, MediaCommand, VolumeAction, VolumeCommand,
+};
 use padboard_protocol::{Category, GridSize};
 
 use super::model::{ButtonConfig, Config, IconConfig, PageConfig, ProfileConfig};
@@ -242,6 +244,28 @@ fn seeds() -> Vec<Seed> {
     ]
 }
 
+/// Media, volume and lock buttons use the native actions (the players and
+/// the sound server directly) rather than their keys.
+fn native(id: &str) -> Option<Action> {
+    let media = |command| Some(Action::Media(MediaAction { command }));
+    let volume = |command| {
+        Some(Action::Volume(VolumeAction {
+            command,
+            value: None,
+        }))
+    };
+    match id {
+        "play-pause" => media(MediaCommand::PlayPause),
+        "previous" => media(MediaCommand::Previous),
+        "next" => media(MediaCommand::Next),
+        "volume-down" => volume(VolumeCommand::Down),
+        "volume-up" => volume(VolumeCommand::Up),
+        "mute" => volume(VolumeCommand::ToggleMute),
+        "lock" => Some(Action::Lock),
+        _ => None,
+    }
+}
+
 #[must_use]
 pub fn config() -> Config {
     let buttons = seeds()
@@ -253,15 +277,15 @@ pub fn config() -> Config {
             label: s.label.to_owned(),
             subtitle: Some(match s.id {
                 "desktop" => format!("{META} + D"),
-                "lock" => format!("{META} + L"),
                 _ => s.subtitle.to_owned(),
-            }),
+            })
+            .filter(|s| !s.is_empty()),
             icon: Some(IconConfig {
                 name: s.icon.0.to_owned(),
                 paths: s.icon.1.iter().map(|p| (*p).to_owned()).collect(),
             }),
             color: s.color,
-            action: Action::Hotkey(Hotkey::new(s.keys)),
+            action: native(s.id).unwrap_or_else(|| Action::Hotkey(Hotkey::new(s.keys))),
         })
         .collect();
     Config {

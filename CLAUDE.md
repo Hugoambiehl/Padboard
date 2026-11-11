@@ -94,15 +94,28 @@ add/adjust round-trip serialization tests.
 `ActionExecutor` trait in `crates/actions`, implementation picked at compile time:
 - **Windows** (`windows` crate): SendInput, IAudioEndpointVolume,
   GlobalSystemMediaTransportControls…
-- **Linux**: keyboard injection, MPRIS over D-Bus, PipeWire/PulseAudio, `xdg-open`,
-  `loginctl lock-session`.
+- **Linux** (`crates/actions/src/linux/`): keyboard injection (uinput);
+  volume and microphone through the PulseAudio native protocol with the pure
+  Rust `pulseaudio` crate (PipeWire serves it via `pipewire-pulse`; no
+  libpulse to build or run), one short connection per call; media through
+  MPRIS (`zbus` 5.x blocking API, 6.x needs Rust 1.89): the playing player,
+  else a paused one, else the media key; `open`: URLs and documents with
+  `xdg-open`, `.desktop` entries with `gio launch`, programs started directly
+  (no shell, own process group); lock with `loginctl lock-session`.
 - An action with no Linux equivalent must **log clearly and return an error**,
   never panic.
 - Executors are **blocking** (a hotkey holds keys ~20 ms): call them from
   `tokio::task::spawn_blocking`. Platform code only implements low-level key
   down/up (`KeyInjector`); press/release sequencing is shared (`run_hotkey`)
   and always releases already-pressed keys on failure.
-- Manual test: `cargo run -p padboard-actions --example hotkey -- ControlLeft AltLeft KeyT`.
+- **Action kinds**: system ones (hotkey, media, volume, microphone, open,
+  lock) run in an `ActionExecutor`; navigation, multi actions and OBS are
+  carried out by the desktop app. `Action::validate` (before running) is
+  strict; `validate_draft` (configuration) accepts values not filled in yet.
+- **Observed state** (`padboard_actions::state`): audio state, audio change
+  feed, media playing; read by the desktop to show button states.
+- Manual tests: `cargo run -p padboard-actions --example hotkey -- ControlLeft AltLeft KeyT`,
+  `--example action -- '<action JSON>'`, `--example state [-- --watch]`.
 - Cross-platform: OBS WebSocket v5. Discord only via its global shortcuts (no RPC).
 
 ## Design

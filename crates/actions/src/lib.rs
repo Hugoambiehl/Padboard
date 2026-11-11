@@ -16,8 +16,10 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use typeshare::typeshare;
 
+pub mod audio;
 mod keys;
 mod kinds;
+pub mod state;
 
 #[cfg(target_os = "linux")]
 mod linux;

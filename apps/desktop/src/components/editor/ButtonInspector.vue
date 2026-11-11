@@ -13,6 +13,7 @@ import { loadIcons } from "../../icons/catalog";
 import { iconToPaths } from "../../icons/paths";
 import { addPreset } from "../../editor/actions";
 import { testButton } from "../../commands";
+import { actionSummary, isSystemAction } from "../../editor/actionText";
 import type { Action, Category, IconConfig } from "../../generated/types";
 
 const { t } = useI18n();
@@ -70,8 +71,17 @@ async function remove() {
   if (button.value) await edit({ type: "deleteButton", params: { buttonId: button.value.id } });
 }
 
+const isHotkey = computed(() => button.value?.action.type === "hotkey");
 const hotkeyKeys = computed(() =>
   button.value?.action.type === "hotkey" ? button.value.action.params.keys : [],
+);
+const summary = computed(() => (button.value ? actionSummary(button.value.action, t) : ""));
+// The PC runs system actions itself; an empty shortcut does nothing yet.
+const testable = computed(
+  () =>
+    !!button.value &&
+    isSystemAction(button.value.action) &&
+    !(isHotkey.value && hotkeyKeys.value.length === 0),
 );
 
 // "Tester l'action": runs it on this PC and shows the outcome briefly.
@@ -262,10 +272,14 @@ async function addShortcut() {
             class="rounded-full px-2.5 py-[3px] text-xs"
             :style="{ background: colors.bg, color: colors.fg }"
           >
-            {{ t("inspector.hotkey") }}
+            {{ t(`actions.kinds.${button.action.type}`) }}
           </span>
         </div>
-        <HotkeyEditor :keys="hotkeyKeys" @change="setKeys" />
+        <HotkeyEditor v-if="isHotkey" :keys="hotkeyKeys" @change="setKeys" />
+        <template v-else>
+          <p class="text-sm leading-relaxed">{{ summary }}</p>
+          <p class="text-xs leading-relaxed text-muted">{{ t("actions.editLater") }}</p>
+        </template>
       </div>
 
       <div class="flex flex-wrap gap-2.5">
@@ -275,7 +289,7 @@ async function addShortcut() {
           :class="
             test === 'error' ? 'bg-cat-red/20 text-[#FFC2C2]' : 'bg-accent text-bg hover:opacity-90'
           "
-          :disabled="test === 'running' || hotkeyKeys.length === 0"
+          :disabled="test === 'running' || !testable"
           :title="test === 'error' ? testError : undefined"
           @click="runTest"
         >

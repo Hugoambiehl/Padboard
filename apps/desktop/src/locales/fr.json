@@ -251,15 +251,15 @@
       },
       "playPause": {
         "label": "Lecture / Pause",
-        "desc": "Lecteur actif"
+        "desc": "Lecteur en cours"
       },
       "previousTrack": {
         "label": "Piste précédente",
-        "desc": "Lecteur actif"
+        "desc": "Lecteur en cours"
       },
       "nextTrack": {
         "label": "Piste suivante",
-        "desc": "Lecteur actif"
+        "desc": "Lecteur en cours"
       },
       "stop": {
         "label": "Stop",
@@ -276,6 +276,10 @@
       "mute": {
         "label": "Muet",
         "desc": "Coupe ou rétablit le son"
+      },
+      "microphone": {
+        "label": "Micro",
+        "desc": "Coupe ou rétablit le micro"
       }
     }
   },
@@ -338,5 +342,53 @@
     "notFound": "Cet élément n’existe plus.",
     "otherProfile": "Un bouton ne peut pas changer de profil.",
     "unknown": "Modification refusée."
+  },
+  "actions": {
+    "kinds": {
+      "hotkey": "Raccourci clavier",
+      "media": "Médias",
+      "volume": "Son du PC",
+      "microphone": "Micro",
+      "open": "Ouvrir",
+      "lock": "Verrouiller",
+      "navigate": "Navigation",
+      "multi": "Multi-action",
+      "obs": "OBS"
+    },
+    "media": {
+      "play_pause": "Lecture / pause du lecteur en cours",
+      "next": "Piste suivante",
+      "previous": "Piste précédente",
+      "stop": "Arrêter la lecture"
+    },
+    "volume": {
+      "up": "Monte le son de {step} %",
+      "down": "Baisse le son de {step} %",
+      "set": "Règle le son à {level} %",
+      "toggle_mute": "Coupe ou rétablit le son"
+    },
+    "microphone": {
+      "toggle_mute": "Coupe ou rétablit le micro par défaut",
+      "mute": "Coupe le micro par défaut",
+      "unmute": "Rétablit le micro par défaut"
+    },
+    "open": "Ouvre {target}",
+    "openEmpty": "Rien à ouvrir pour l’instant",
+    "lock": "Verrouille la session",
+    "navigate": {
+      "page": "Va à une page",
+      "folder": "Ouvre un dossier",
+      "next": "Page suivante",
+      "previous": "Page précédente",
+      "back": "Retour"
+    },
+    "multi": "aucune étape | 1 étape | {count} étapes",
+    "obs": {
+      "set_scene": "Scène « {target} »",
+      "toggle_record": "Démarre ou arrête l’enregistrement",
+      "toggle_stream": "Démarre ou arrête le live",
+      "toggle_input_mute": "Coupe ou rétablit « {target} »"
+    },
+    "editLater": "Les réglages de cette action arrivent bientôt dans l’éditeur."
   }
 }

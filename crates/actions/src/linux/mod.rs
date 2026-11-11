@@ -1,5 +1,10 @@
 //! Linux implementation.
 //!
+//! - Keyboard: uinput (below).
+//! - Volume and microphone: PulseAudio protocol, served by PipeWire too ([`pulse`]).
+//! - Media: MPRIS players ([`mpris`]), media keys as a fallback.
+//! - Open and lock: `xdg-open` / `gio launch` / direct start, `loginctl` ([`launch`]).
+//!
 //! Keyboard injection goes through a uinput virtual keyboard: it works the same
 //! on X11 and Wayland, for every application, because events enter the kernel
 //! input stack like a real keyboard. Access to `/dev/uinput` is granted to the
@@ -15,9 +20,14 @@ use evdev::uinput::VirtualDevice;
 use evdev::{AttributeSet, EventType, InputEvent, KeyCode};
 
 use crate::{
-    Action, ActionError, ActionExecutor, HOTKEY_HOLD, Key, KeyInjector, log_outcome, not_yet,
-    run_hotkey,
+    Action, ActionError, ActionExecutor, HOTKEY_HOLD, Hotkey, Key, KeyInjector, MediaAction,
+    MediaCommand, MicrophoneAction, MicrophoneCommand, VolumeAction, VolumeCommand, log_outcome,
+    not_yet, run_hotkey,
 };
+
+pub mod launch;
+pub mod mpris;
+pub mod pulse;
 
 const DEVICE_NAME: &str = "Padboard virtual keyboard";
 
@@ -65,6 +75,61 @@ impl LinuxExecutor {
     }
 }
 
+impl LinuxExecutor {
+    /// MPRIS when a player is there, else the media key (some players only
+    /// listen to keys).
+    fn media(&self, media: &MediaAction) -> Result<(), ActionError> {
+        match mpris::command(media.command) {
+            Ok(true) => Ok(()),
+            Ok(false) => self.media_key(media.command),
+            Err(e) => {
+                tracing::warn!("{e}, falling back to the media key");
+                self.media_key(media.command)
+            }
+        }
+    }
+
+    fn media_key(&self, command: MediaCommand) -> Result<(), ActionError> {
+        let key = match command {
+            MediaCommand::PlayPause => Key::MediaPlayPause,
+            MediaCommand::Next => Key::MediaTrackNext,
+            MediaCommand::Previous => Key::MediaTrackPrevious,
+            MediaCommand::Stop => Key::MediaStop,
+        };
+        self.hotkey(&Hotkey::new([key]))
+    }
+}
+
+fn volume_action(volume: &VolumeAction) -> Result<(), ActionError> {
+    let mut pulse = pulse::Pulse::connect()?;
+    let sink = pulse.default_sink()?;
+    match crate::audio::adjusted(
+        &pulse::channels(&sink.cvolume),
+        volume.command,
+        volume.value,
+    ) {
+        None => pulse.set_sink_mute(sink.name, !sink.muted),
+        Some(channels) => {
+            // Changing the volume unmutes, as desktop volume keys do.
+            if sink.muted && volume.command != VolumeCommand::Down {
+                pulse.set_sink_mute(sink.name.clone(), false)?;
+            }
+            pulse.set_sink_volume(sink.name, &channels)
+        }
+    }
+}
+
+fn microphone(mic: &MicrophoneAction) -> Result<(), ActionError> {
+    let mut pulse = pulse::Pulse::connect()?;
+    let source = pulse.default_source()?;
+    let mute = match mic.command {
+        MicrophoneCommand::ToggleMute => !source.muted,
+        MicrophoneCommand::Mute => true,
+        MicrophoneCommand::Unmute => false,
+    };
+    pulse.set_source_mute(source.name, mute)
+}
+
 impl Default for LinuxExecutor {
     fn default() -> Self {
         Self::new()
@@ -87,7 +152,12 @@ impl fmt::Debug for LinuxExecutor {
 impl ActionExecutor for LinuxExecutor {
     fn execute(&self, action: &Action) -> Result<(), ActionError> {
         let result = match action {
-            Action::Hotkey(hotkey) => self.hotkey(hotkey),
+            Action::Hotkey(hotkey) => action.validate().and_then(|()| self.hotkey(hotkey)),
+            Action::Media(media) => self.media(media),
+            Action::Volume(volume) => action.validate().and_then(|()| volume_action(volume)),
+            Action::Microphone(mic) => microphone(mic),
+            Action::Open(open) => action.validate().and_then(|()| launch::open(&open.target)),
+            Action::Lock => launch::lock(),
             other => not_yet(other),
         };
         log_outcome(action, &result);

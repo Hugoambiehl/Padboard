@@ -16,9 +16,15 @@ workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 evdev = "0.13.2"
+# PulseAudio native protocol in pure Rust (PipeWire serves it through
+# pipewire-pulse): no libpulse needed to build or run.
+pulseaudio = "0.3.2"
+# MPRIS media players over the session bus. 5.x: 6.x needs Rust 1.89.
+zbus = { version = "5.19.0", default-features = false, features = ["blocking-api", "async-io"] }
 
 [target."cfg(windows)".dependencies]
 windows = { version = "0.62.2", features = ["Win32_UI_Input_KeyboardAndMouse"] }
 
 [dev-dependencies]
 serde_json.workspace = true
+tempfile = "3.27.0"
