@@ -58,6 +58,12 @@ jobs:
           npm run format:check
           npm test
 
+      # The end-to-end tests only run locally (scripts/desktop-e2e.sh), but
+      # their code is type-checked here so it does not rot.
+      - name: Frontend - type-check the end-to-end tests
+        working-directory: apps/desktop
+        run: npx tsc --noEmit -p tsconfig.e2e.json
+
       # Type-checks (vue-tsc) and produces dist/, which the Tauri crate embeds.
       - name: Frontend - build
         working-directory: apps/desktop
