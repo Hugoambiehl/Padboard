@@ -7,7 +7,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.hugoambiehl.padboard.connection.DiscoveredPc
 import io.github.hugoambiehl.padboard.connection.LinkState
+import io.github.hugoambiehl.padboard.kiosk.KioskExitCorner
+import io.github.hugoambiehl.padboard.protocol.Layout
 import io.github.hugoambiehl.padboard.ui.connect.IncompatibleScreen
 import io.github.hugoambiehl.padboard.ui.connect.PinScreen
 import io.github.hugoambiehl.padboard.ui.connect.SearchingScreen
@@ -21,7 +24,14 @@ fun PadboardApp(viewModel: PadboardViewModel) {
     val link by viewModel.link.collectAsStateWithLifecycle()
     val layout by viewModel.layout.collectAsStateWithLifecycle()
     val pcs by viewModel.pcs.collectAsStateWithLifecycle()
+    val kiosk by viewModel.kiosk.collectAsStateWithLifecycle()
+    KioskExitCorner(enabled = kiosk, onExit = viewModel::exitKiosk) {
+        Screens(viewModel, link, layout, pcs)
+    }
+}
 
+@Composable
+private fun Screens(viewModel: PadboardViewModel, link: LinkState, layout: Layout?, pcs: List<DiscoveredPc>) {
     /** The user asked to pair over Wi-Fi while connected over USB. */
     var setupRequested by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(link is LinkState.Pairing) { if (link is LinkState.Pairing) setupRequested = false }

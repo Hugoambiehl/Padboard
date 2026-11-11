@@ -181,6 +181,44 @@ impl Runner for Process {
     }
 }
 
+/// Puts the tablet `serial` in kiosk mode: Padboard becomes its device owner
+/// (refused by Android if the tablet has accounts or another owner; the
+/// error says why), then is brought to the front, where it locks itself.
+///
+/// The Android 12L taskbar of LineageOS stays drawn over an app in lock task
+/// mode, without reporting any inset: it is turned off too (LineageOS
+/// setting, ignored elsewhere; the plain navigation bar replaces it).
+///
+/// # Errors
+/// The output of the failed `adb` command.
+pub async fn enable_kiosk<R: Runner>(runner: &R, adb: &Path, serial: &str) -> Result<(), String> {
+    let shell = |command: &str| {
+        let mut args = vec!["-s".to_owned(), serial.to_owned(), "shell".to_owned()];
+        args.extend(command.split(' ').map(str::to_owned));
+        args
+    };
+    let out = runner
+        .run(
+            adb,
+            shell(&format!("dpm set-device-owner {PACKAGE}/.kiosk.KioskAdmin")),
+        )
+        .await?;
+    tracing::info!(serial, output = out.trim(), "kiosk mode enabled");
+    let taskbar = runner
+        .run(
+            adb,
+            shell("content insert --uri content://lineagesettings/system --bind name:s:enable_taskbar --bind value:s:0"),
+        )
+        .await;
+    if let Err(e) = taskbar {
+        tracing::info!(serial, error = %e, "taskbar setting not applied (not LineageOS?)");
+    }
+    runner
+        .run(adb, shell(&format!("am start -n {PACKAGE}/.MainActivity")))
+        .await
+        .map(drop)
+}
+
 // ─── adb server protocol ─────────────────────────────────────────────────
 
 #[derive(Debug, thiserror::Error)]
@@ -581,11 +619,43 @@ mod tests {
                         }
                     }
                     ["reverse", _, _] => Ok(String::new()),
+                    ["shell", "dpm", "set-device-owner", _] => {
+                        if serial == "OWNED" {
+                            Err("java.lang.IllegalStateException: Not allowed to set the device owner because there are already some accounts on the device".into())
+                        } else {
+                            Ok("Success: Device owner set\n".into())
+                        }
+                    }
+                    ["shell", "am", "start", "-n", _] => Ok(String::new()),
+                    ["shell", "content", "insert", ..] => Ok(String::new()),
                     _ => Err(format!("unexpected {line}")),
                 },
                 _ => Ok("Android Debug Bridge version 1.0.41\n".into()),
             }
         }
+    }
+
+    #[tokio::test]
+    async fn kiosk_mode_sets_the_device_owner_then_brings_the_app_up() {
+        let runner = FakeRunner::default();
+        enable_kiosk(&runner, Path::new("adb"), "TABLET")
+            .await
+            .unwrap();
+        assert_eq!(
+            *runner.calls.lock().unwrap(),
+            [
+                "-s TABLET shell dpm set-device-owner io.github.hugoambiehl.padboard/.kiosk.KioskAdmin",
+                "-s TABLET shell content insert --uri content://lineagesettings/system --bind name:s:enable_taskbar --bind value:s:0",
+                "-s TABLET shell am start -n io.github.hugoambiehl.padboard/.MainActivity",
+            ]
+        );
+        let refused = enable_kiosk(&runner, Path::new("adb"), "OWNED").await;
+        assert!(refused.unwrap_err().contains("accounts"));
+        assert_eq!(
+            runner.calls.lock().unwrap().len(),
+            4,
+            "nothing more after a refusal"
+        );
     }
 
     /// Fake adb server: answers `host:track-devices` then pushes the lists

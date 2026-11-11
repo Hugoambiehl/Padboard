@@ -388,6 +388,38 @@ export interface Preset {
 	action: Action;
 }
 
+export interface SystemStatusPayload {
+	/** The PC's default microphone is muted. */
+	microphoneMuted: boolean;
+	/** OBS is recording. */
+	recording: boolean;
+	/** OBS is streaming. */
+	streaming: boolean;
+}
+
+export enum TabletOrder {
+	/**
+	 * Leave kiosk mode for good: the app stops being the device owner
+	 * (setting it again takes `adb`).
+	 */
+	ExitKiosk = "exit_kiosk",
+}
+
+export interface TabletCommandPayload {
+	order: TabletOrder;
+}
+
+export interface TabletSettingsPayload {
+	/** Black screen with a clock after `screensaverDelaySeconds` without a touch. */
+	screensaver: boolean;
+	screensaverDelaySeconds: number;
+}
+
+export interface TabletStatusPayload {
+	/** Kiosk mode: the app is the tablet's device owner, locked in front. */
+	kiosk: boolean;
+}
+
 export enum VolumeCommand {
 	Up = "up",
 	Down = "down",
@@ -585,5 +617,22 @@ export type Message =
 	 * Desktop → tablet: the PIN was refused. The connection stays open
 	 * (unauthenticated) so the user can try again.
 	 */
-	| { type: "pair:failure", payload: PairFailurePayload };
+	| { type: "pair:failure", payload: PairFailurePayload }
+	/**
+	 * Tablet → desktop: what the tablet is doing (kiosk mode), sent once
+	 * authenticated and on every change.
+	 */
+	| { type: "tablet:status", payload: TabletStatusPayload }
+	/** Desktop → tablet: an order given from the PC (status screen). */
+	| { type: "tablet:command", payload: TabletCommandPayload }
+	/**
+	 * Desktop → tablet: the tablet's settings, kept on the PC. Sent once
+	 * authenticated and on every change.
+	 */
+	| { type: "tablet:settings", payload: TabletSettingsPayload }
+	/**
+	 * Desktop → tablet: PC states shown on the screensaver. Sent once
+	 * authenticated and on every change.
+	 */
+	| { type: "system:status", payload: SystemStatusPayload };
 

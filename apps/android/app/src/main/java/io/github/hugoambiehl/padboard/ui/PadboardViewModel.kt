@@ -12,6 +12,8 @@ import io.github.hugoambiehl.padboard.connection.Endpoint
 import io.github.hugoambiehl.padboard.connection.LinkState
 import io.github.hugoambiehl.padboard.connection.NsdDirectory
 import io.github.hugoambiehl.padboard.connection.PairingStore
+import io.github.hugoambiehl.padboard.kiosk.Kiosk
+import io.github.hugoambiehl.padboard.protocol.TabletOrder
 import io.github.hugoambiehl.padboard.ui.grid.PageMemory
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.launch
@@ -38,6 +40,9 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
     val actionFailures = manager.actionFailures
     val navigations = manager.navigations
     val pairingProblems = manager.pairingProblems
+    val settings = manager.settings
+    val systemStatus = manager.systemStatus
+    val kiosk = Kiosk.active
 
     /** The page the user is on, kept across reconnections (not app restarts). */
     val pageMemory = PageMemory()
@@ -50,6 +55,14 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { manager.start(DeviceIdStore(application).deviceId()) }
         // A PC appearing on the network is worth a reconnection attempt right away.
         viewModelScope.launch { directory.pcs.collect { manager.nudge() } }
+        viewModelScope.launch { Kiosk.active.collect(manager::setKiosk) }
+        viewModelScope.launch {
+            manager.orders.collect { order ->
+                when (order) {
+                    TabletOrder.ExitKiosk -> exitKiosk()
+                }
+            }
+        }
         // Main dispatcher, like the grid that reads the memory.
         viewModelScope.launch {
             manager.state.collect { if (it !is LinkState.Connected) pageMemory.onConnectionLost() }
@@ -71,6 +84,9 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
     fun forget() = manager.forget()
 
     fun retry() = manager.retry()
+
+    /** From the hidden gesture or the PC: kiosk mode is left for good. */
+    fun exitKiosk() = Kiosk.exit(getApplication())
 
     /** "Réessayer maintenant" while the PC is out of reach. */
     fun retryNow() = manager.nudge()

@@ -1,0 +1,6 @@
+{
+  "type": "tablet:status",
+  "payload": {
+    "kiosk": true
+  }
+}

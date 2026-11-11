@@ -8,6 +8,8 @@ export const cancelPairing = () => invoke<void>("cancel_pairing");
 export const revokeDevice = (deviceId: string) => invoke<boolean>("revoke_device", { deviceId });
 export const setWifiEnabled = (enabled: boolean) => invoke<void>("set_wifi_enabled", { enabled });
 export const setAdbPath = (path: string | null) => invoke<void>("set_adb_path", { path });
+export const enableKiosk = (serial: string) => invoke<void>("enable_kiosk", { serial });
+export const exitKiosk = (clientId: number) => invoke<boolean>("exit_kiosk", { clientId });
 
 // Editor
 export const getEditor = () => invoke<EditorState>("get_editor");

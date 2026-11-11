@@ -69,6 +69,8 @@ struct Backend {
     adb_path: tokio::sync::watch::Sender<Option<PathBuf>>,
     editor: Arc<EditorService>,
     server: Arc<ServerContext>,
+    /// `adb` may be used (not in simulated test mode).
+    adb_allowed: bool,
 }
 
 impl Backend {
@@ -129,6 +131,25 @@ fn cancel_pairing(backend: tauri::State<'_, Backend>) {
 #[tauri::command]
 fn revoke_device(backend: tauri::State<'_, Backend>, device_id: String) -> bool {
     backend.auth.revoke(&device_id)
+}
+
+/// Kiosk mode for the USB tablet `serial` (Padboard becomes its device owner).
+#[tauri::command]
+async fn enable_kiosk(backend: tauri::State<'_, Backend>, serial: String) -> Result<(), String> {
+    if !backend.adb_allowed {
+        return Err("adb is not used in test mode".to_owned());
+    }
+    let chosen = backend.adb_path.borrow().clone();
+    let adb = adb::locate(chosen.as_deref()).ok_or_else(|| "adb not found".to_owned())?;
+    adb::enable_kiosk(&adb::Process, &adb, &serial).await
+}
+
+/// Takes a connected tablet out of kiosk mode for good (`tablet:command`).
+#[tauri::command]
+fn exit_kiosk(backend: tauri::State<'_, Backend>, client_id: u64) -> bool {
+    backend
+        .server
+        .order(client_id, padboard_protocol::TabletOrder::ExitKiosk)
 }
 
 /// Turns Wi-Fi connections on or off (persisted). Refused when `PADBOARD_BIND`
@@ -299,6 +320,8 @@ pub fn run() {
             revoke_device,
             set_wifi_enabled,
             set_adb_path,
+            enable_kiosk,
+            exit_kiosk,
             get_editor,
             edit,
             undo,
@@ -405,6 +428,7 @@ pub fn run() {
                 pairing: AtomicUsize::new(0),
                 running: Mutex::default(),
                 obs: OnceLock::new(),
+                sessions: Mutex::default(),
             });
             // OBS: real in normal and system test modes; in simulated test
             // mode its state comes from state.json.
@@ -510,6 +534,7 @@ pub fn run() {
                 adb_path,
                 editor,
                 server: Arc::clone(&ctx),
+                adb_allowed: test_mode.as_ref().is_none_or(TestMode::system),
             });
 
             // Quitting from a signal (session logout, Ctrl+C in a terminal)

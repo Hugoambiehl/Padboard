@@ -38,11 +38,15 @@ const status: Snapshot = {
       transport: "usb",
       peer: "127.0.0.1:50000",
       connectedAtMs: Date.now(),
+      kiosk: true,
     },
   ],
   pairing: { state: "idle" },
   pairedDevices: [],
-  usb: { adb: { state: "ready", path: "/usr/bin/adb", version: "1.0.41" }, devices: [] },
+  usb: {
+    adb: { state: "ready", path: "/usr/bin/adb", version: "1.0.41" },
+    devices: [{ serial: "R52N10ABCDE", model: "SM-T580", state: { state: "ready" } }],
+  },
   activity: [],
 };
 

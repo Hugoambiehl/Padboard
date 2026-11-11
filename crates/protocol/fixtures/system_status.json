@@ -1,0 +1,8 @@
+{
+  "type": "system:status",
+  "payload": {
+    "microphoneMuted": true,
+    "recording": false,
+    "streaming": true
+  }
+}

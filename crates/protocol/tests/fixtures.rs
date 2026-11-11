@@ -35,6 +35,10 @@ fn fixture_stem(message: &Message) -> &'static str {
         Message::PairFailure(_) => "pair_failure",
         Message::ButtonUpdate(_) => "button_update",
         Message::Navigate(_) => "navigate",
+        Message::TabletStatus(_) => "tablet_status",
+        Message::TabletCommand(_) => "tablet_command",
+        Message::TabletSettings(_) => "tablet_settings",
+        Message::SystemStatus(_) => "system_status",
     }
 }
 
@@ -93,11 +97,30 @@ fn every_message_type_has_a_fixture() {
         "pair_failure",
         "button_update",
         "navigate",
+        "tablet_status",
+        "tablet_command",
+        "tablet_settings",
+        "system_status",
     ]
     .into_iter()
     .map(String::from)
     .collect();
     assert_eq!(found, expected);
+}
+
+/// The handshake fixtures speak the current version: the Kotlin constant
+/// (hand-written, `ProtocolJson.kt`) is checked against them on the tablet side.
+#[test]
+fn handshake_fixtures_speak_the_current_version() {
+    let fixtures = load_fixtures();
+    for stem in ["hello", "welcome"] {
+        let (_, value) = fixtures.iter().find(|(s, _)| s == stem).unwrap();
+        assert_eq!(
+            value["payload"]["protocolVersion"],
+            serde_json::json!(padboard_protocol::PROTOCOL_VERSION),
+            "{stem}.json"
+        );
+    }
 }
 
 #[test]

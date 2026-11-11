@@ -1,0 +1,7 @@
+{
+  "type": "tablet:settings",
+  "payload": {
+    "screensaver": true,
+    "screensaverDelaySeconds": 300
+  }
+}

@@ -2,7 +2,8 @@ use padboard_protocol::{
     AuthStatus, ButtonEvent, ButtonView, Category, ErrorCode, ErrorPayload, Folder, GridSize,
     Heartbeat, HelloPayload, Layout, Message, NavigatePayload, NavigateTarget, PROTOCOL_VERSION,
     Page, PairFailurePayload, PairFailureReason, PairRequestPayload, PairSuccessPayload,
-    ProfileInfo, WelcomePayload, is_compatible, short_fingerprint,
+    ProfileInfo, SystemStatusPayload, TabletCommandPayload, TabletOrder, TabletSettingsPayload,
+    TabletStatusPayload, WelcomePayload, is_compatible, short_fingerprint,
 };
 use serde_json::json;
 
@@ -95,6 +96,19 @@ fn all_messages() -> Vec<Message> {
         Message::Navigate(NavigatePayload {
             to: NavigateTarget::Back,
             id: None,
+        }),
+        Message::TabletStatus(TabletStatusPayload { kiosk: false }),
+        Message::TabletCommand(TabletCommandPayload {
+            order: TabletOrder::ExitKiosk,
+        }),
+        Message::TabletSettings(TabletSettingsPayload {
+            screensaver: false,
+            screensaver_delay_seconds: 60,
+        }),
+        Message::SystemStatus(SystemStatusPayload {
+            microphone_muted: false,
+            recording: true,
+            streaming: false,
         }),
     ]
 }

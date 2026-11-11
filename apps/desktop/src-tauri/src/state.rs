@@ -113,6 +113,8 @@ pub struct ClientInfo {
     pub transport: Transport,
     pub peer: String,
     pub connected_at_ms: u64,
+    /// The tablet is in kiosk mode (it reports it right after connecting).
+    pub kiosk: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -257,7 +259,13 @@ impl Snapshot {
                 transport,
                 peer: peer.to_string(),
                 connected_at_ms: now_ms(),
+                kiosk: false,
             }),
+            ServerEvent::TabletStatus { id, kiosk } => {
+                if let Some(client) = self.clients.iter_mut().find(|c| c.id == id) {
+                    client.kiosk = kiosk;
+                }
+            }
             ServerEvent::ClientDisconnected { id } => self.clients.retain(|c| c.id != id),
             ServerEvent::ButtonPressed {
                 client_id,

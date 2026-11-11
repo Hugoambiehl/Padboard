@@ -4,12 +4,28 @@ import { useI18n } from "vue-i18n";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Cable, FolderOpen, RotateCcw } from "lucide-vue-next";
 import BaseCard from "./BaseCard.vue";
-import { setAdbPath } from "../commands";
+import { enableKiosk, setAdbPath } from "../commands";
 import type { DeviceState, UsbStatus } from "../types/status";
 
 const props = defineProps<{ usb: UsbStatus; port: number }>();
 const { t } = useI18n();
 const error = ref<string | null>(null);
+
+/** Kiosk mode being enabled, and the outcome per device. */
+const enabling = ref<string | null>(null);
+const kioskResult = ref<Record<string, { ok: boolean; detail?: string }>>({});
+
+async function kiosk(serial: string) {
+  enabling.value = serial;
+  try {
+    await enableKiosk(serial);
+    kioskResult.value = { ...kioskResult.value, [serial]: { ok: true } };
+  } catch (e) {
+    kioskResult.value = { ...kioskResult.value, [serial]: { ok: false, detail: String(e) } };
+  } finally {
+    enabling.value = null;
+  }
+}
 
 const adb = computed(() => props.usb.adb);
 /** A path chosen by the user (missing) or in use; `chosen` tells which. */
@@ -125,6 +141,30 @@ async function automatic() {
                 {{ t(`usbDevices.state.${device.state.state}`, { port }) }}
               </template>
             </span>
+            <template v-if="device.state.state === 'ready'">
+              <button
+                type="button"
+                class="mt-1.5 self-start rounded-lg border border-line-2 bg-surface px-2.5 py-1.5 text-xs text-muted-2 transition-colors hover:bg-surface-active hover:text-fg disabled:opacity-50"
+                :disabled="enabling === device.serial"
+                :title="t('usbDevices.kiosk.hint')"
+                @click="kiosk(device.serial)"
+              >
+                {{
+                  enabling === device.serial
+                    ? t("usbDevices.kiosk.enabling")
+                    : t("usbDevices.kiosk.enable")
+                }}
+              </button>
+              <span v-if="kioskResult[device.serial]?.ok" class="text-xs text-cat-teal">
+                {{ t("usbDevices.kiosk.done") }}
+              </span>
+              <span v-else-if="kioskResult[device.serial]" class="text-xs text-cat-red">
+                {{ t("usbDevices.kiosk.failed") }}
+                <span class="block font-mono opacity-80">{{
+                  kioskResult[device.serial]?.detail
+                }}</span>
+              </span>
+            </template>
           </div>
         </li>
       </ul>

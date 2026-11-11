@@ -218,6 +218,42 @@ data class PairSuccessPayload (
 	val token: String
 )
 
+@Serializable
+data class SystemStatusPayload (
+	/// The PC's default microphone is muted.
+	val microphoneMuted: Boolean,
+	/// OBS is recording.
+	val recording: Boolean,
+	/// OBS is streaming.
+	val streaming: Boolean
+)
+
+@Serializable
+enum class TabletOrder(val string: String) {
+	/// Leave kiosk mode for good: the app stops being the device owner
+	/// (setting it again takes `adb`).
+	@SerialName("exit_kiosk")
+	ExitKiosk("exit_kiosk"),
+}
+
+@Serializable
+data class TabletCommandPayload (
+	val order: TabletOrder
+)
+
+@Serializable
+data class TabletSettingsPayload (
+	/// Black screen with a clock after `screensaverDelaySeconds` without a touch.
+	val screensaver: Boolean,
+	val screensaverDelaySeconds: UInt
+)
+
+@Serializable
+data class TabletStatusPayload (
+	/// Kiosk mode: the app is the tablet's device owner, locked in front.
+	val kiosk: Boolean
+)
+
 /// Authentication state of a connection, announced in `welcome`.
 @Serializable
 enum class AuthStatus(val string: String) {
@@ -303,5 +339,24 @@ sealed class Message {
 	@Serializable
 	@SerialName("pair:failure")
 	data class PairFailure(val payload: PairFailurePayload): Message()
+	/// Tablet → desktop: what the tablet is doing (kiosk mode), sent once
+	/// authenticated and on every change.
+	@Serializable
+	@SerialName("tablet:status")
+	data class TabletStatus(val payload: TabletStatusPayload): Message()
+	/// Desktop → tablet: an order given from the PC (status screen).
+	@Serializable
+	@SerialName("tablet:command")
+	data class TabletCommand(val payload: TabletCommandPayload): Message()
+	/// Desktop → tablet: the tablet's settings, kept on the PC. Sent once
+	/// authenticated and on every change.
+	@Serializable
+	@SerialName("tablet:settings")
+	data class TabletSettings(val payload: TabletSettingsPayload): Message()
+	/// Desktop → tablet: PC states shown on the screensaver. Sent once
+	/// authenticated and on every change.
+	@Serializable
+	@SerialName("system:status")
+	data class SystemStatus(val payload: SystemStatusPayload): Message()
 }
 

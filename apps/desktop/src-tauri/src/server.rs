@@ -33,8 +33,8 @@ use futures_util::{SinkExt, StreamExt};
 use padboard_actions::{Action, ActionError, ActionExecutor, NavigateAction, NavigateTo};
 use padboard_protocol::{
     AuthStatus, ButtonEvent, ErrorCode, ErrorPayload, Heartbeat, HelloPayload, Layout, Message,
-    NavigatePayload, NavigateTarget, PROTOCOL_VERSION, PairSuccessPayload, WelcomePayload,
-    is_compatible,
+    NavigatePayload, NavigateTarget, PROTOCOL_VERSION, PairSuccessPayload, TabletCommandPayload,
+    TabletOrder, TabletStatusPayload, WelcomePayload, is_compatible,
 };
 use serde::Serialize;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -112,6 +112,24 @@ pub struct ServerContext {
     pub running: std::sync::Mutex<std::collections::HashSet<String>>,
     /// Set once started (`lib.rs`); absent in tests and simulated test mode.
     pub obs: OnceLock<crate::obs::Obs>,
+    /// Outboxes of the authenticated sessions, by connection id: how the UI
+    /// sends an order to one tablet ([`ServerContext::order`]).
+    pub sessions: std::sync::Mutex<std::collections::HashMap<u64, Outbox>>,
+}
+
+impl ServerContext {
+    /// Sends `order` to the tablet of connection `client_id`; false if it is gone.
+    pub fn order(&self, client_id: u64, order: TabletOrder) -> bool {
+        let sessions = self
+            .sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        sessions.get(&client_id).is_some_and(|outbox| {
+            outbox
+                .send(Message::TabletCommand(TabletCommandPayload { order }))
+                .is_ok()
+        })
+    }
 }
 
 /// What happened, for the UI.
@@ -153,6 +171,11 @@ pub enum ServerEvent {
         client_id: u64,
         button_id: String,
         outcome: ActionOutcome,
+    },
+    /// What a tablet reported about itself (`tablet:status`).
+    TabletStatus {
+        id: u64,
+        kiosk: bool,
     },
     Auth(AuthChange),
 }
@@ -518,6 +541,7 @@ where
     // Messages sent on behalf of what presses started (navigation, the
     // outcome of a multi action running in its own task).
     let (outbox, mut outgoing) = tokio::sync::mpsc::unbounded_channel::<Message>();
+    let _registered = Registered::new(ctx, id, outbox.clone());
     let mut kick_pending = true;
     let mut layouts_open = true;
     let mut states_open = true;
@@ -571,6 +595,9 @@ where
             }
             // Long presses arrive in phase 4.
             Message::ButtonRelease(_) | Message::Pong(_) => {}
+            Message::TabletStatus(TabletStatusPayload { kiosk }) => {
+                emit(ctx, ServerEvent::TabletStatus { id, kiosk });
+            }
             Message::Ping(Heartbeat { seq }) => {
                 send(ws, &Message::Pong(Heartbeat { seq })).await?;
             }
@@ -582,11 +609,40 @@ where
             | Message::Navigate(_)
             | Message::PairRequest(_)
             | Message::PairSuccess(_)
-            | Message::PairFailure(_)) => {
+            | Message::PairFailure(_)
+            | Message::TabletCommand(_)
+            | Message::TabletSettings(_)
+            | Message::SystemStatus(_)) => {
                 let reason = format!("unexpected {} after handshake", other.type_tag());
                 send_error(ws, ErrorCode::BadRequest, reason).await?;
             }
         }
+    }
+}
+
+/// A session's outbox in [`ServerContext::sessions`], for as long as it lives.
+struct Registered<'a> {
+    ctx: &'a ServerContext,
+    id: u64,
+}
+
+impl<'a> Registered<'a> {
+    fn new(ctx: &'a ServerContext, id: u64, outbox: Outbox) -> Self {
+        ctx.sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(id, outbox);
+        Self { ctx, id }
+    }
+}
+
+impl Drop for Registered<'_> {
+    fn drop(&mut self) {
+        self.ctx
+            .sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&self.id);
     }
 }
 
@@ -924,6 +980,7 @@ mod tests {
         layout: watch::Sender<Arc<ActiveLayout>>,
         state: watch::Sender<SystemState>,
         events: UnboundedReceiver<ServerEvent>,
+        ctx: Arc<ServerContext>,
     }
 
     fn context(
@@ -950,6 +1007,7 @@ mod tests {
             pairing: AtomicUsize::new(0),
             running: std::sync::Mutex::default(),
             obs: OnceLock::new(),
+            sessions: std::sync::Mutex::default(),
         })
     }
 
@@ -965,7 +1023,7 @@ mod tests {
         let auth = Arc::clone(&ctx.auth);
         let layout = ctx.layout.clone();
         let state = ctx.state.clone();
-        tokio::spawn(serve(listener, transport, None, ctx));
+        tokio::spawn(serve(listener, transport, None, Arc::clone(&ctx)));
         Harness {
             url,
             executor,
@@ -973,6 +1031,7 @@ mod tests {
             layout,
             state,
             events,
+            ctx,
         }
     }
 
@@ -1659,6 +1718,49 @@ mod tests {
         let (token, _client) = pair(&h, "tab-a").await;
         let (_, welcome) = greet(&h, &hello_with(PROTOCOL_VERSION, "tab-b", Some(&token))).await;
         assert_eq!(welcome.auth, AuthStatus::TokenRejected);
+    }
+
+    #[tokio::test]
+    async fn kiosk_state_is_reported_and_orders_reach_their_tablet() {
+        let mut h = start(Transport::Usb, false).await;
+        let mut client = connected(&h).await;
+        let id = loop {
+            if let ServerEvent::ClientConnected { id, .. } = next_event(&mut h).await {
+                break id;
+            }
+        };
+        send_msg(
+            &mut client,
+            &Message::TabletStatus(TabletStatusPayload { kiosk: true }),
+        )
+        .await;
+        loop {
+            if let ServerEvent::TabletStatus { id: from, kiosk } = next_event(&mut h).await {
+                assert_eq!((from, kiosk), (id, true));
+                break;
+            }
+        }
+        assert!(
+            !h.ctx.order(id + 1, TabletOrder::ExitKiosk),
+            "no such tablet"
+        );
+        assert!(h.ctx.order(id, TabletOrder::ExitKiosk));
+        assert_eq!(
+            recv_msg(&mut client).await,
+            Message::TabletCommand(TabletCommandPayload {
+                order: TabletOrder::ExitKiosk
+            })
+        );
+        drop(client);
+        loop {
+            if let ServerEvent::ClientDisconnected { .. } = next_event(&mut h).await {
+                break;
+            }
+        }
+        assert!(
+            !h.ctx.order(id, TabletOrder::ExitKiosk),
+            "the session is gone"
+        );
     }
 
     #[tokio::test]

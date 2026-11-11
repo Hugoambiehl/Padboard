@@ -59,6 +59,9 @@
     <string name="transport_wifi">Wi-Fi</string>
     <string name="pill_latency">%1$s · %2$d ms</string>
     <string name="pill_reconnecting">Reconnexion…</string>
+    <string name="kiosk_exit_title">Quitter le mode kiosque ?</string>
+    <string name="kiosk_exit_body">Padboard ne sera plus verrouillé à l’écran ni l’écran d’accueil, et la tablette redevient une tablette ordinaire (barre d’état, écran de verrouillage). Pour le réactiver : tablette branchée en USB, « Activer le mode kiosque » dans les connexions du PC.</string>
+    <string name="kiosk_exit_confirm">Quitter le mode kiosque</string>
     <string name="disconnected_title">Connexion au PC perdue</string>
     <string name="disconnected_body_wifi">Recherche par câble USB et par Wi-Fi. Vérifie que Padboard est lancé sur le PC.</string>
     <string name="disconnected_body_usb">Rebranche le câble USB, ou associe la tablette en Wi-Fi pour pouvoir t’en passer.</string>

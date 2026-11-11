@@ -1,0 +1,6 @@
+{
+  "type": "tablet:command",
+  "payload": {
+    "order": "exit_kiosk"
+  }
+}

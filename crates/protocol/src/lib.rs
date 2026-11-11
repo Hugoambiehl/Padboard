@@ -18,6 +18,11 @@
 //! - JSON fields are `camelCase`, enum values `snake_case`.
 //! - Every message type has a fixture in `fixtures/` (decoded by Rust and Kotlin tests).
 //!
+//! Protocol 4: the tablet reports its kiosk mode (`tablet:status`) and the
+//! PC can take it out of it (`tablet:command`); the PC sends the tablet's
+//! settings (`tablet:settings`, screensaver) and the states shown on the
+//! screensaver (`system:status`). Each is sent after `welcome`, then on change.
+//!
 //! Protocol 3: folders in the layout, button state (`active`, `unavailable`,
 //! `badge`), `button:update` and `navigate`. The layout always carries the
 //! current state of every button, so a tablet that connects is up to date;
@@ -42,7 +47,7 @@ pub use fingerprint::{short_fingerprint, spki_sha256};
 pub use layout::{ButtonIcon, ButtonView, Category, Folder, GridSize, Layout, Page, ProfileInfo};
 
 /// Version of the wire protocol. Checked during the `hello` / `welcome` handshake.
-pub const PROTOCOL_VERSION: u32 = 3;
+pub const PROTOCOL_VERSION: u32 = 4;
 
 /// Returns `true` if a peer speaking `version` can talk to us.
 #[must_use]
@@ -98,6 +103,21 @@ pub enum Message {
     /// (unauthenticated) so the user can try again.
     #[serde(rename = "pair:failure")]
     PairFailure(PairFailurePayload),
+    /// Tablet → desktop: what the tablet is doing (kiosk mode), sent once
+    /// authenticated and on every change.
+    #[serde(rename = "tablet:status")]
+    TabletStatus(TabletStatusPayload),
+    /// Desktop → tablet: an order given from the PC (status screen).
+    #[serde(rename = "tablet:command")]
+    TabletCommand(TabletCommandPayload),
+    /// Desktop → tablet: the tablet's settings, kept on the PC. Sent once
+    /// authenticated and on every change.
+    #[serde(rename = "tablet:settings")]
+    TabletSettings(TabletSettingsPayload),
+    /// Desktop → tablet: PC states shown on the screensaver. Sent once
+    /// authenticated and on every change.
+    #[serde(rename = "system:status")]
+    SystemStatus(SystemStatusPayload),
 }
 
 #[typeshare]
@@ -255,6 +275,51 @@ pub struct Heartbeat {
     pub seq: u32,
 }
 
+#[typeshare]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TabletStatusPayload {
+    /// Kiosk mode: the app is the tablet's device owner, locked in front.
+    pub kiosk: bool,
+}
+
+#[typeshare]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TabletCommandPayload {
+    pub order: TabletOrder,
+}
+
+#[typeshare]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TabletOrder {
+    /// Leave kiosk mode for good: the app stops being the device owner
+    /// (setting it again takes `adb`).
+    ExitKiosk,
+}
+
+#[typeshare]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TabletSettingsPayload {
+    /// Black screen with a clock after `screensaverDelaySeconds` without a touch.
+    pub screensaver: bool,
+    pub screensaver_delay_seconds: u32,
+}
+
+#[typeshare]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemStatusPayload {
+    /// The PC's default microphone is muted.
+    pub microphone_muted: bool,
+    /// OBS is recording.
+    pub recording: bool,
+    /// OBS is streaming.
+    pub streaming: bool,
+}
+
 impl Message {
     /// Serializes the message to its JSON wire form.
     ///
@@ -290,6 +355,10 @@ impl Message {
             Self::PairFailure(_) => "pair:failure",
             Self::ButtonUpdate(_) => "button:update",
             Self::Navigate(_) => "navigate",
+            Self::TabletStatus(_) => "tablet:status",
+            Self::TabletCommand(_) => "tablet:command",
+            Self::TabletSettings(_) => "tablet:settings",
+            Self::SystemStatus(_) => "system:status",
         }
     }
 }

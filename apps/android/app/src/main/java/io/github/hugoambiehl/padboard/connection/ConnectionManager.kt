@@ -12,6 +12,10 @@ import io.github.hugoambiehl.padboard.protocol.NavigatePayload
 import io.github.hugoambiehl.padboard.protocol.PROTOCOL_VERSION
 import io.github.hugoambiehl.padboard.protocol.PairFailureReason
 import io.github.hugoambiehl.padboard.protocol.PairRequestPayload
+import io.github.hugoambiehl.padboard.protocol.SystemStatusPayload
+import io.github.hugoambiehl.padboard.protocol.TabletOrder
+import io.github.hugoambiehl.padboard.protocol.TabletSettingsPayload
+import io.github.hugoambiehl.padboard.protocol.TabletStatusPayload
 import io.github.hugoambiehl.padboard.protocol.WelcomePayload
 import io.github.hugoambiehl.padboard.protocol.withButton
 import java.util.Base64
@@ -158,6 +162,25 @@ class ConnectionManager(
         MutableSharedFlow<PairingProblem>(extraBufferCapacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val pairingProblems: SharedFlow<PairingProblem> = _pairingProblems.asSharedFlow()
 
+    private val _orders =
+        MutableSharedFlow<TabletOrder>(extraBufferCapacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** Orders given from the PC (leave kiosk mode…). */
+    val orders: SharedFlow<TabletOrder> = _orders.asSharedFlow()
+
+    private val _settings = MutableStateFlow<TabletSettingsPayload?>(null)
+
+    /** The tablet's settings, kept on the PC; the last ones received stay while disconnected. */
+    val settings: StateFlow<TabletSettingsPayload?> = _settings.asStateFlow()
+
+    private val _systemStatus = MutableStateFlow<SystemStatusPayload?>(null)
+
+    /** PC states for the screensaver; null while disconnected (they would be stale). */
+    val systemStatus: StateFlow<SystemStatusPayload?> = _systemStatus.asStateFlow()
+
+    /** Kiosk mode, reported to the PC (`tablet:status`). */
+    private var kiosk = false
+
     /** The session presses go to (read from the UI thread). */
     @Volatile private var active: Active? = null
 
@@ -231,6 +254,15 @@ class ConnectionManager(
                 lastUsbServer = null
                 auto(initial = null)
             }
+        }
+    }
+
+    /** Kiosk mode turned on or off: tell the PC. */
+    fun setKiosk(on: Boolean) {
+        scope.launch {
+            if (kiosk == on) return@launch
+            kiosk = on
+            active?.session?.send(Message.TabletStatus(TabletStatusPayload(kiosk)))
         }
     }
 
@@ -384,6 +416,7 @@ class ConnectionManager(
         if (link.transport == Transport.Usb) lastUsbServer = link.welcome.serverName
         _state.value = LinkState.Connected(link.transport, link.welcome.serverName, paired, latencyMs = null)
         log.info("connected to ${link.welcome.serverName} over ${link.transport}")
+        link.session.send(Message.TabletStatus(TabletStatusPayload(kiosk)))
 
         var lastHeard = TimeSource.Monotonic.markNow()
         val pingsSent = mutableMapOf<UInt, TimeSource.Monotonic.ValueTimeMark>()
@@ -455,7 +488,10 @@ class ConnectionManager(
         } finally {
             heartbeat.cancel()
             usbProbe?.cancel()
-            if (active === link) active = null
+            if (active === link) {
+                active = null
+                _systemStatus.value = null
+            }
             // Make-before-break: the new session is already up when this one closes.
             link.session.close()
             // A USB session found while this one was ending must not leak.
@@ -474,6 +510,9 @@ class ConnectionManager(
             is Message.LayoutSync -> _layout.value = message.payload
             is Message.ButtonUpdate -> _layout.value?.let { _layout.value = it.withButton(message.payload) }
             is Message.Navigate -> _navigations.tryEmit(message.payload)
+            is Message.TabletCommand -> _orders.tryEmit(message.payload.order)
+            is Message.TabletSettings -> _settings.value = message.payload
+            is Message.SystemStatus -> _systemStatus.value = message.payload
             is Message.Ping -> link.session.send(Message.Pong(message.payload))
             is Message.Pong ->
                 pingsSent.remove(message.payload.seq)?.let { sent ->
@@ -501,7 +540,8 @@ class ConnectionManager(
             is Message.ButtonRelease,
             is Message.PairRequest,
             is Message.PairSuccess,
-            is Message.PairFailure -> Unit
+            is Message.PairFailure,
+            is Message.TabletStatus -> Unit
         }
         return null
     }

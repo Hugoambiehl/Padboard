@@ -48,6 +48,10 @@
     "title": "Tablettes connectées",
     "empty": "Aucune tablette connectée.",
     "since": "Connectée à {time}",
+    "kiosk": "Kiosque",
+    "kioskHint": "Padboard est verrouillé à l’écran et sert d’écran d’accueil sur cette tablette.",
+    "exitKiosk": "Libérer la tablette",
+    "confirmExitKiosk": "Confirmer : quitter le mode kiosque",
     "via": {
       "usb": "USB",
       "wifi": "Wi-Fi"
@@ -119,6 +123,13 @@
       "ready": "Prête : port {port} redirigé.",
       "failed": "Échec de la redirection.",
       "other": "État adb : {state}"
+    },
+    "kiosk": {
+      "enable": "Activer le mode kiosque",
+      "enabling": "Activation…",
+      "hint": "Padboard devient propriétaire de la tablette : verrouillé à l’écran, écran d’accueil, sans barre d’état ni écran de verrouillage. Impossible si la tablette a des comptes.",
+      "done": "Mode kiosque activé.",
+      "failed": "La tablette a refusé :"
     }
   },
   "common": {

@@ -51,6 +51,8 @@ export interface ClientInfo {
   transport: Transport;
   peer: string;
   connectedAtMs: number;
+  /** The tablet is in kiosk mode. */
+  kiosk: boolean;
 }
 
 export type PairingView =
