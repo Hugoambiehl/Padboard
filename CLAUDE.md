@@ -304,6 +304,14 @@ SM-T580, always measure in release builds.
   edits round-trip through Rust). UI previews without the backend:
   `npm run dev`, then `http://localhost:1420/?mock` (`src/dev/mock.ts`,
   development only; `&view=connections`, `&select=row,col`).
+- **Action forms** (`ActionForm.vue`, recursive for multi action steps): a
+  choice in a list ends the undo entry (`checkpoint`), typing merges into
+  one (`SetAction` and `SetActiveLook` have a merge key). OBS scenes and
+  inputs come from OBS when connected, else are typed. Stateful buttons
+  (microphone, output mute, OBS) have an optional `activeLook` (label, icon,
+  color over the automatic active look). Native selects get a chevron (they
+  lose the GTK look). In e2e tests, pick options by setting the value and
+  dispatching `change`: WebKitWebDriver does not fire it on an option click.
 - **Lucide upgrades**: run `node scripts/export-icons.mts` then the ignored
   Rust test `all_lucide_icons_are_valid` (see `svg_path.rs`), so every icon
   still passes the desktop's path validator.

@@ -168,6 +168,16 @@ fn validate_button(button: &ButtonConfig) -> Result<(), ConfigError> {
     {
         return Err(ConfigError::InvalidIcon(button.id.clone()));
     }
+    if let Some(look) = &button.active_look {
+        if let Some(label) = &look.label {
+            check_text(label, true)?;
+        }
+        if let Some(icon) = &look.icon
+            && !icon_is_valid(icon)
+        {
+            return Err(ConfigError::InvalidIcon(button.id.clone()));
+        }
+    }
     // Actions being set up (no key, no target yet) are allowed in the
     // configuration and refused when pressed (`Action::validate`). Page and
     // folder ids may dangle (deleted page): the tablet ignores them and the

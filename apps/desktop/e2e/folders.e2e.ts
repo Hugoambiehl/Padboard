@@ -43,7 +43,8 @@ describe("folders", () => {
     await app.session.click(await app.session.find(libraryItem(t("library.presets.folder.label"))));
     await app.expectCell(2, 3, t("folders.defaultName"));
     await app.session.find(tab(t("folders.defaultName")));
-    await app.session.find(withText(t("folders.opens", { name: t("folders.defaultName") })));
+    // The inspector shows the navigation form and a link to the folder.
+    await app.session.find(withText(t("folders.open"), "button"));
     await app.shot("30-folder-created");
   });
 

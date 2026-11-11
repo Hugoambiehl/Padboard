@@ -4,7 +4,8 @@ import { useI18n } from "vue-i18n";
 import { Ban, MoreHorizontal, Play, Plus } from "lucide-vue-next";
 import IconPaths from "./IconPaths.vue";
 import IconPicker from "./IconPicker.vue";
-import HotkeyEditor from "./HotkeyEditor.vue";
+import ActionForm from "./ActionForm.vue";
+import ActiveLookEditor from "./ActiveLookEditor.vue";
 import DraftInput from "./DraftInput.vue";
 import { useEditor } from "../../composables/useEditor";
 import { useSelection } from "../../editor/selection";
@@ -13,8 +14,9 @@ import { loadIcons } from "../../icons/catalog";
 import { iconToPaths } from "../../icons/paths";
 import { addPreset } from "../../editor/actions";
 import { testButton } from "../../commands";
-import { actionSummary, isSystemAction } from "../../editor/actionText";
-import type { Action, Category, IconConfig } from "../../generated/types";
+import { isSystemAction } from "../../editor/actionText";
+import { hasActiveState } from "../../editor/actionDefaults";
+import type { Action, ActiveLook, Category, IconConfig } from "../../generated/types";
 
 const { t } = useI18n();
 const { edit, checkpoint, editedProfile } = useEditor();
@@ -62,10 +64,17 @@ function quickIcon(name: string) {
 function setColor(color: Category) {
   if (button.value) void edit({ type: "setColor", params: { buttonId: button.value.id, color } });
 }
-function setKeys(keys: string[]) {
+// A choice in a list ends the undo entry; typing (a target, a scene name)
+// merges into one.
+async function setAction(action: Action, commit: boolean) {
   if (!button.value) return;
-  const action: Action = { type: "hotkey", params: { keys } };
-  void edit({ type: "setAction", params: { buttonId: button.value.id, action } });
+  await edit({ type: "setAction", params: { buttonId: button.value.id, action } });
+  if (commit) await checkpoint();
+}
+async function setLook(look: ActiveLook | undefined, commit: boolean) {
+  if (!button.value) return;
+  await edit({ type: "setActiveLook", params: { buttonId: button.value.id, look } });
+  if (commit) await checkpoint();
 }
 async function remove() {
   if (button.value) await edit({ type: "deleteButton", params: { buttonId: button.value.id } });
@@ -81,11 +90,7 @@ const folderTarget = computed(() => {
   if (action?.type !== "navigate" || action.params.to !== "folder") return undefined;
   return editedProfile.value?.folders.find((f) => f.id === action.params.id) ?? null;
 });
-const summary = computed(() => {
-  if (folderTarget.value) return t("folders.opens", { name: folderTarget.value.name });
-  if (folderTarget.value === null) return t("folders.missing");
-  return button.value ? actionSummary(button.value.action, t) : "";
-});
+
 // The PC runs system actions itself; an empty shortcut does nothing yet.
 const testable = computed(
   () =>
@@ -285,27 +290,32 @@ async function addShortcut() {
             {{ t(`actions.kinds.${button.action.type}`) }}
           </span>
         </div>
-        <HotkeyEditor v-if="isHotkey" :keys="hotkeyKeys" @change="setKeys" />
-        <template v-else>
-          <p class="text-sm leading-relaxed" :class="folderTarget === null ? 'text-[#F3D2BA]' : ''">
-            {{ summary }}
-          </p>
-          <button
-            v-if="folderTarget"
-            type="button"
-            class="flex items-center justify-center gap-1.5 rounded-[10px] border border-line-2 bg-surface-2 px-3 py-2 text-sm hover:bg-surface-active"
-            @click="showPage(folderTarget.id)"
-          >
-            {{ t("folders.open") }}
-          </button>
-          <p
-            v-else-if="button.action.type !== 'navigate'"
-            class="text-xs leading-relaxed text-muted"
-          >
-            {{ t("actions.editLater") }}
-          </p>
-        </template>
+        <ActionForm
+          :key="button.id"
+          :action="button.action"
+          allow-multi
+          testid="action-form"
+          @change="setAction"
+        />
+        <p v-if="folderTarget === null" class="text-sm leading-relaxed text-[#F3D2BA]">
+          {{ t("folders.missing") }}
+        </p>
+        <button
+          v-if="folderTarget"
+          type="button"
+          class="flex items-center justify-center gap-1.5 rounded-[10px] border border-line-2 bg-surface-2 px-3 py-2 text-sm hover:bg-surface-active"
+          @click="showPage(folderTarget.id)"
+        >
+          {{ t("folders.open") }}
+        </button>
       </div>
+
+      <ActiveLookEditor
+        v-if="hasActiveState(button.action)"
+        :button="button"
+        @change="setLook"
+        @commit="checkpoint()"
+      />
 
       <div class="flex flex-wrap gap-2.5">
         <button

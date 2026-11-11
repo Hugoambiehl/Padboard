@@ -15,6 +15,8 @@ use padboard_actions::state::AudioState;
 use padboard_actions::{Action, MediaCommand, ObsCommand, VolumeCommand};
 use padboard_protocol::{ButtonIcon, ButtonView, Category, Layout};
 
+use crate::config::ActiveLook;
+
 /// Something observed, or not.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Observed<T> {
@@ -163,9 +165,29 @@ fn apply(button: &mut ButtonView, action: &Action, state: &SystemState) {
     }
 }
 
+/// The user's look while active, over the automatic one.
+fn apply_look(button: &mut ButtonView, look: &ActiveLook) {
+    if let Some(label) = &look.label {
+        button.label.clone_from(label);
+    }
+    if let Some(icon) = &look.icon {
+        button.icon = Some(ButtonIcon {
+            paths: icon.paths.clone(),
+        });
+    }
+    if let Some(color) = look.color {
+        button.category = color;
+    }
+}
+
 /// `layout` with the state of every button applied.
 #[must_use]
-pub fn resolve(layout: &Layout, actions: &HashMap<String, Action>, state: &SystemState) -> Layout {
+pub fn resolve(
+    layout: &Layout,
+    actions: &HashMap<String, Action>,
+    looks: &HashMap<String, ActiveLook>,
+    state: &SystemState,
+) -> Layout {
     let mut resolved = layout.clone();
     let grids = resolved
         .pages
@@ -176,6 +198,11 @@ pub fn resolve(layout: &Layout, actions: &HashMap<String, Action>, state: &Syste
         for button in buttons {
             if let Some(action) = actions.get(&button.id) {
                 apply(button, action, state);
+                if button.active
+                    && let Some(look) = looks.get(&button.id)
+                {
+                    apply_look(button, look);
+                }
             }
         }
     }
@@ -240,7 +267,10 @@ mod tests {
     #[test]
     fn unknown_state_keeps_the_resting_look() {
         let (layout, actions) = demo();
-        assert_eq!(resolve(&layout, &actions, &SystemState::default()), layout);
+        assert_eq!(
+            resolve(&layout, &actions, &HashMap::new(), &SystemState::default()),
+            layout
+        );
     }
 
     #[test]
@@ -250,7 +280,7 @@ mod tests {
             audio: audio(Some(true), false, 50),
             ..SystemState::default()
         };
-        let resolved = resolve(&layout, &actions, &state);
+        let resolved = resolve(&layout, &actions, &HashMap::new(), &state);
         let mic = button(&resolved, "mic");
         assert!(mic.active);
         assert_eq!(mic.category, Category::Red);
@@ -263,7 +293,7 @@ mod tests {
             ..SystemState::default()
         };
         assert_eq!(
-            button(&resolve(&layout, &actions, &state), "mic"),
+            button(&resolve(&layout, &actions, &HashMap::new(), &state), "mic"),
             button(&layout, "mic")
         );
     }
@@ -275,7 +305,7 @@ mod tests {
             audio: Observed::Unavailable,
             ..SystemState::default()
         };
-        let resolved = resolve(&layout, &actions, &state);
+        let resolved = resolve(&layout, &actions, &HashMap::new(), &state);
         assert!(button(&resolved, "mic").unavailable);
         assert!(button(&resolved, "volume-up").unavailable);
         assert!(!button(&resolved, "copy").unavailable);
@@ -283,7 +313,7 @@ mod tests {
             audio: audio(None, false, 50),
             ..SystemState::default()
         };
-        let resolved = resolve(&layout, &actions, &state);
+        let resolved = resolve(&layout, &actions, &HashMap::new(), &state);
         assert!(button(&resolved, "mic").unavailable);
         assert!(!button(&resolved, "volume-up").unavailable);
     }
@@ -303,7 +333,7 @@ mod tests {
             audio: audio(Some(false), false, 64),
             ..SystemState::default()
         };
-        let resolved = resolve(&l, &actions, &state);
+        let resolved = resolve(&l, &actions, &HashMap::new(), &state);
         assert_eq!(
             button(&resolved, "volume-up").subtitle.as_deref(),
             Some("Volume 64 %")
@@ -317,7 +347,7 @@ mod tests {
             audio: audio(Some(false), true, 64),
             ..SystemState::default()
         };
-        let resolved = resolve(&l, &actions, &state);
+        let resolved = resolve(&l, &actions, &HashMap::new(), &state);
         assert!(button(&resolved, "mute").active);
         assert_eq!(
             button(&resolved, "volume-up").subtitle.as_deref(),
@@ -332,7 +362,7 @@ mod tests {
             media_playing: Observed::Known(true),
             ..SystemState::default()
         };
-        let resolved = resolve(&layout, &actions, &state);
+        let resolved = resolve(&layout, &actions, &HashMap::new(), &state);
         assert_eq!(button(&resolved, "play-pause").icon, icon(icons::PAUSE));
     }
 
@@ -343,24 +373,72 @@ mod tests {
             audio: audio(Some(false), false, 40),
             ..SystemState::default()
         };
-        let before = resolve(&layout, &actions, &quiet);
+        let before = resolve(&layout, &actions, &HashMap::new(), &quiet);
         // The same state notified again: nothing to send.
-        assert!(changed(&before, &resolve(&layout, &actions, &quiet)).is_empty());
+        assert!(
+            changed(
+                &before,
+                &resolve(&layout, &actions, &HashMap::new(), &quiet)
+            )
+            .is_empty()
+        );
         // The volume moves: the demo's volume buttons have their own
         // subtitle, so nothing shows it either.
         let louder = SystemState {
             audio: audio(Some(false), false, 45),
             ..quiet.clone()
         };
-        assert!(changed(&before, &resolve(&layout, &actions, &louder)).is_empty());
+        assert!(
+            changed(
+                &before,
+                &resolve(&layout, &actions, &HashMap::new(), &louder)
+            )
+            .is_empty()
+        );
         // The microphone is muted: that button only.
         let muted = SystemState {
             audio: audio(Some(true), false, 45),
             ..quiet.clone()
         };
-        let updates = changed(&before, &resolve(&layout, &actions, &muted));
+        let updates = changed(
+            &before,
+            &resolve(&layout, &actions, &HashMap::new(), &muted),
+        );
         assert_eq!(updates.len(), 1);
         assert_eq!(updates[0].id, "mic");
         assert!(updates[0].active);
+    }
+
+    #[test]
+    fn a_custom_active_look_replaces_the_automatic_one() {
+        let (layout, actions) = demo();
+        let looks = HashMap::from([(
+            "mic".to_owned(),
+            ActiveLook {
+                label: Some("En sourdine".into()),
+                icon: None,
+                color: Some(Category::Orange),
+            },
+        )]);
+        let muted = SystemState {
+            audio: audio(Some(true), false, 50),
+            ..SystemState::default()
+        };
+        let resolved = resolve(&layout, &actions, &looks, &muted);
+        let mic = button(&resolved, "mic");
+        assert_eq!(mic.label, "En sourdine");
+        assert_eq!(mic.category, Category::Orange);
+        // Not overridden: the automatic icon and subtitle stay.
+        assert_eq!(mic.icon, icon(icons::MIC_OFF));
+        assert_eq!(mic.subtitle.as_deref(), Some("Muet"));
+        // Resting: the look does not apply.
+        let unmuted = SystemState {
+            audio: audio(Some(false), false, 50),
+            ..SystemState::default()
+        };
+        assert_eq!(
+            button(&resolve(&layout, &actions, &looks, &unmuted), "mic").label,
+            "Micro"
+        );
     }
 }

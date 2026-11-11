@@ -162,10 +162,9 @@ impl EditorService {
         loop {
             self.push.notified().await;
             let active = Arc::new(self.config().active_layout());
-            // Unchanged for the tablets (e.g. an edit of another profile): no push.
-            if self.layout.borrow().layout != active.layout
-                || self.layout.borrow().actions != active.actions
-            {
+            // Unchanged (e.g. an edit of another profile): no push. Actions
+            // and active looks count: the sessions resolve states with them.
+            if **self.layout.borrow() != *active {
                 self.layout.send_replace(Arc::clone(&active));
                 let _ = self.events.send(ServerEvent::LayoutChanged(active));
             }

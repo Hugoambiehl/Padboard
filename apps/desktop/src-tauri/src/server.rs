@@ -602,15 +602,20 @@ impl Feeds {
     fn resolved(&mut self) -> Layout {
         let active = Arc::clone(&self.layouts.borrow_and_update());
         let state = self.states.borrow_and_update().clone();
-        appearance::resolve(&active.layout, &active.actions, &state)
+        appearance::resolve(&active.layout, &active.actions, &active.looks, &state)
     }
 
-    /// New layout (edit, profile): sent whole, with the current states.
+    /// New layout (edit, profile): sent whole, with the current states,
+    /// unless the tablet would see no difference (an action or a look that
+    /// does not show right now changed).
     async fn sync<S>(&mut self, ws: &mut WebSocketStream<S>) -> Result<(), ConnectionError>
     where
         S: AsyncRead + AsyncWrite + Unpin,
     {
         let layout = self.resolved();
+        if self.sent.as_ref() == Some(&layout) {
+            return Ok(());
+        }
         send(ws, &Message::LayoutSync(layout.clone())).await?;
         self.sent = Some(layout);
         Ok(())

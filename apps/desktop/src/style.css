@@ -42,6 +42,11 @@ body {
   /* Native selects drawn like the other fields (WebKitGTK keeps the GTK look). */
   select {
     appearance: none;
+    /* Lucide chevron-down, in the muted text color. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238A90A0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.6rem center;
+    padding-right: 2rem !important;
   }
 }
 

@@ -26,6 +26,13 @@ export enum Category {
 	Grey = "grey",
 }
 
+/** Overrides of the automatic "active" look (`appearance.rs`). */
+export interface ActiveLook {
+	label?: string;
+	icon?: IconConfig;
+	color?: Category;
+}
+
 /**
  * Something a button can do. Stored in the desktop configuration, never sent
  * to the tablet. JSON: `{ "type": "hotkey", "params": { "keys": [...] } }`
@@ -57,6 +64,11 @@ export interface ButtonConfig {
 	icon?: IconConfig;
 	color: Category;
 	action: Action;
+	/**
+	 * Look while the button's state is active (microphone muted, recording,
+	 * current scene…). Absent fields keep the automatic look.
+	 */
+	activeLook?: ActiveLook;
 }
 
 export interface ButtonEvent {
@@ -518,6 +530,11 @@ export type Edit =
 	| { type: "setAction", params: {
 	buttonId: string;
 	action: Action;
+}}
+	/** Look while active; `None` back to the automatic look. */
+	| { type: "setActiveLook", params: {
+	buttonId: string;
+	look?: ActiveLook;
 }}
 	| { type: "deleteButton", params: {
 	buttonId: string;

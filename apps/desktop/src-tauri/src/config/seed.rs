@@ -286,6 +286,7 @@ pub fn config() -> Config {
             }),
             color: s.color,
             action: native(s.id).unwrap_or_else(|| Action::Hotkey(Hotkey::new(s.keys))),
+            active_look: None,
         })
         .collect();
     Config {

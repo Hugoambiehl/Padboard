@@ -173,6 +173,9 @@ export class App {
     audio?:
       { outputPercent: number; outputMuted: boolean; inputMuted: boolean | null } | "unavailable";
     mediaPlaying?: boolean;
+    obs?:
+      | { scene?: string; recording?: boolean; streaming?: boolean; mutedInputs?: string[] }
+      | "unavailable";
   }): Promise<void> {
     await writeFile(join(this.dir, "state.json"), JSON.stringify(state));
   }

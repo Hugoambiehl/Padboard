@@ -57,6 +57,23 @@ pub struct ButtonConfig {
     pub icon: Option<IconConfig>,
     pub color: Category,
     pub action: Action,
+    /// Look while the button's state is active (microphone muted, recording,
+    /// current scene…). Absent fields keep the automatic look.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_look: Option<ActiveLook>,
+}
+
+/// Overrides of the automatic "active" look (`appearance.rs`).
+#[typeshare]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActiveLook {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<IconConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<Category>,
 }
 
 /// A Lucide icon: its name (for the icon picker) and its SVG path data (what

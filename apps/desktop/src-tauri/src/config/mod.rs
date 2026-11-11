@@ -16,7 +16,7 @@ use padboard_protocol::{ButtonIcon, ButtonView, Folder, Layout, Page, ProfileInf
 
 use crate::storage::{ConfigDir, Document};
 
-pub use model::{Config, PageConfig, ProfileConfig};
+pub use model::{ActiveLook, Config, PageConfig, ProfileConfig};
 pub use validate::EditError;
 
 impl Document for Config {
@@ -72,6 +72,8 @@ pub fn load(dir: &ConfigDir) -> Config {
 pub struct ActiveLayout {
     pub layout: Layout,
     pub actions: HashMap<String, Action>,
+    /// Custom looks while active, by button.
+    pub looks: HashMap<String, ActiveLook>,
 }
 
 impl Config {
@@ -98,6 +100,7 @@ impl Config {
                     folders: Vec::new(),
                 },
                 actions: HashMap::new(),
+                looks: HashMap::new(),
             };
         };
         let buttons = |page: &PageConfig| {
@@ -154,6 +157,13 @@ impl Config {
                 .chain(&profile.folders)
                 .flat_map(|p| &p.buttons)
                 .map(|b| (b.id.clone(), b.action.clone()))
+                .collect(),
+            looks: profile
+                .pages
+                .iter()
+                .chain(&profile.folders)
+                .flat_map(|p| &p.buttons)
+                .filter_map(|b| b.active_look.clone().map(|l| (b.id.clone(), l)))
                 .collect(),
         }
     }

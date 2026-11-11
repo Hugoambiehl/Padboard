@@ -49,7 +49,7 @@ describe("button states", () => {
     expect(updates()).toEqual([]);
 
     await app.setState({ audio: audio(true) });
-    await tablet.waitFor(new RegExp(`^Update ${micId}: .* active$`));
+    await tablet.waitFor(new RegExp(`^Update ${micId}: .* active( |$)`));
     // The same state again (the sound server repeats itself): nothing more.
     await app.setState({ audio: audio(true), mediaPlaying: false });
     await sleep(500);

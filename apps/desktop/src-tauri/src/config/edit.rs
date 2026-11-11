@@ -12,7 +12,7 @@ use padboard_protocol::{Category, GridSize};
 use serde::{Deserialize, Serialize};
 use typeshare::typeshare;
 
-use super::model::{ButtonConfig, Config, IconConfig, PageConfig, ProfileConfig};
+use super::model::{ActiveLook, ButtonConfig, Config, IconConfig, PageConfig, ProfileConfig};
 use super::new_id;
 use super::validate::{ConfigError, EditError};
 
@@ -103,6 +103,12 @@ pub enum Edit {
     SetColor { button_id: String, color: Category },
     #[serde(rename_all = "camelCase")]
     SetAction { button_id: String, action: Action },
+    /// Look while active; `None` back to the automatic look.
+    #[serde(rename_all = "camelCase")]
+    SetActiveLook {
+        button_id: String,
+        look: Option<ActiveLook>,
+    },
     #[serde(rename_all = "camelCase")]
     DeleteButton { button_id: String },
 }
@@ -116,6 +122,10 @@ impl Edit {
             Self::RenamePage { page_id, .. } => Some(format!("page-name:{page_id}")),
             Self::SetLabel { button_id, .. } => Some(format!("label:{button_id}")),
             Self::SetSubtitle { button_id, .. } => Some(format!("subtitle:{button_id}")),
+            // Typing a target, a scene name… (the editor ends the entry with
+            // `checkpoint` after each choice in a list).
+            Self::SetAction { button_id, .. } => Some(format!("action:{button_id}")),
+            Self::SetActiveLook { button_id, .. } => Some(format!("look:{button_id}")),
             _ => None,
         }
     }
@@ -481,6 +491,7 @@ fn apply(c: &mut Config, edit: Edit) -> Result<EditOutcome, EditError> {
                         to: NavigateTo::Folder,
                         id: Some(folder_id.clone()),
                     }),
+                    active_look: None,
                 },
             )?;
             created = Some(folder_id);
@@ -508,6 +519,7 @@ fn apply(c: &mut Config, edit: Edit) -> Result<EditOutcome, EditError> {
                     icon,
                     color,
                     action,
+                    active_look: None,
                 },
             )?;
             created = Some(id);
@@ -526,6 +538,10 @@ fn apply(c: &mut Config, edit: Edit) -> Result<EditOutcome, EditError> {
         Edit::SetIcon { button_id, icon } => button_mut(c, &button_id)?.icon = icon,
         Edit::SetColor { button_id, color } => button_mut(c, &button_id)?.color = color,
         Edit::SetAction { button_id, action } => button_mut(c, &button_id)?.action = action,
+        Edit::SetActiveLook { button_id, look } => {
+            // An empty look is no look.
+            button_mut(c, &button_id)?.active_look = look.filter(|l| *l != ActiveLook::default());
+        }
         Edit::DeleteButton { button_id } => {
             let (p, g, b) = button_location(c, &button_id)?;
             grid_mut(&mut c.profiles[p], g).buttons.remove(b);

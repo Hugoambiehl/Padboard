@@ -342,7 +342,17 @@
     "action": "Action",
     "hotkey": "Raccourci clavier",
     "test": "Tester l’action",
-    "tested": "Action exécutée"
+    "tested": "Action exécutée",
+    "activeLook": {
+      "title": "Quand actif",
+      "hint": "Micro coupé, enregistrement en cours, scène affichée… Laisse « Auto » pour l’apparence automatique.",
+      "label": "Libellé",
+      "labelPlaceholder": "Auto",
+      "color": "Couleur",
+      "icon": "Icône",
+      "auto": "Auto",
+      "reset": "Revenir à l’apparence automatique"
+    }
   },
   "hotkey": {
     "record": "Enregistrer",
@@ -396,47 +406,67 @@
       "multi": "Multi-action",
       "obs": "OBS"
     },
-    "media": {
-      "play_pause": "Lecture / pause du lecteur en cours",
-      "next": "Piste suivante",
-      "previous": "Piste précédente",
-      "stop": "Arrêter la lecture"
-    },
-    "volume": {
-      "up": "Monte le son de {step} %",
-      "down": "Baisse le son de {step} %",
-      "set": "Règle le son à {level} %",
-      "toggle_mute": "Coupe ou rétablit le son"
-    },
-    "microphone": {
-      "toggle_mute": "Coupe ou rétablit le micro par défaut",
-      "mute": "Coupe le micro par défaut",
-      "unmute": "Rétablit le micro par défaut"
-    },
-    "open": "Ouvre {target}",
-    "openEmpty": "Rien à ouvrir pour l’instant",
-    "lock": "Verrouille la session",
-    "navigate": {
-      "page": "Va à une page",
-      "folder": "Ouvre un dossier",
-      "next": "Page suivante",
-      "previous": "Page précédente",
-      "back": "Retour"
-    },
-    "multi": "aucune étape | 1 étape | {count} étapes",
-    "obs": {
-      "set_scene": "Scène « {target} »",
-      "toggle_record": "Démarre ou arrête l’enregistrement",
-      "toggle_stream": "Démarre ou arrête le live",
-      "toggle_input_mute": "Coupe ou rétablit « {target} »"
-    },
-    "editLater": "Les réglages de cette action arrivent bientôt dans l’éditeur."
+    "form": {
+      "kind": "Type d’action",
+      "command": "Commande",
+      "mediaCommands": {
+        "play_pause": "Lecture / pause",
+        "next": "Piste suivante",
+        "previous": "Piste précédente",
+        "stop": "Stop"
+      },
+      "volumeCommands": {
+        "up": "Monter le son",
+        "down": "Baisser le son",
+        "set": "Régler à un niveau",
+        "toggle_mute": "Couper / rétablir"
+      },
+      "step": "Pas (%)",
+      "level": "Niveau (%)",
+      "micCommands": {
+        "toggle_mute": "Couper / rétablir",
+        "mute": "Couper",
+        "unmute": "Rétablir"
+      },
+      "target": "Adresse, fichier, dossier ou programme",
+      "targetPlaceholder": "https://… ou ~/Documents",
+      "pickFile": "Fichier…",
+      "pickFolder": "Dossier…",
+      "navTo": {
+        "page": "Aller à une page",
+        "folder": "Ouvrir un dossier",
+        "next": "Page suivante",
+        "previous": "Page précédente",
+        "back": "Retour (fermer le dossier)"
+      },
+      "page": "Page",
+      "folder": "Dossier",
+      "choose": "Choisir…",
+      "missing": "{name} (supprimé)",
+      "lockHint": "Verrouille la session de ce PC.",
+      "obsCommands": {
+        "set_scene": "Changer de scène",
+        "toggle_record": "Enregistrer (démarrer / arrêter)",
+        "toggle_stream": "Live (démarrer / arrêter)",
+        "toggle_input_mute": "Couper / rétablir une source"
+      },
+      "scene": "Scène",
+      "input": "Source audio",
+      "obsOffline": "OBS n’est pas connecté : saisis le nom exact tel qu’il apparaît dans OBS.",
+      "steps": "Étapes",
+      "stepN": "Étape {n}",
+      "noStep": "Aucune étape pour l’instant.",
+      "addStep": "Ajouter une étape",
+      "delay": "Pause après (ms)",
+      "moveUp": "Monter l’étape {n}",
+      "moveDown": "Descendre l’étape {n}",
+      "removeStep": "Retirer l’étape {n}"
+    }
   },
   "folders": {
     "defaultName": "Dossier",
     "tab": "Dossier {name}",
     "open": "Modifier le dossier",
-    "opens": "Ouvre le dossier « {name} »",
     "missing": "Ce dossier a été supprimé : le bouton ne fait plus rien.",
     "label": "Dossiers"
   },
