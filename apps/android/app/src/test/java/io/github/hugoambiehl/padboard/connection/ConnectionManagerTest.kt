@@ -388,15 +388,18 @@ private class FakePc(val serverId: String, val name: String) {
                             tokens[hello.deviceId] == hello.token -> AuthStatus.Authenticated
                             else -> AuthStatus.TokenRejected
                         }
-                    send(webSocket, Message.Welcome(WelcomePayload(PROTOCOL_VERSION, name, serverId, auth)))
-                    if (auth == AuthStatus.Authenticated) authenticate(webSocket)
+                    val welcome = Message.Welcome(WelcomePayload(PROTOCOL_VERSION, name, serverId, auth))
+                    if (auth == AuthStatus.Authenticated) {
+                        authenticate(webSocket) { send(webSocket, welcome) }
+                    } else {
+                        send(webSocket, welcome)
+                    }
                 }
                 is Message.PairRequest -> {
                     if (message.payload.pin == pin) {
                         val token = "token-${System.nanoTime()}"
                         tokens[deviceId!!] = token
-                        send(webSocket, Message.PairSuccess(PairSuccessPayload(token)))
-                        authenticate(webSocket)
+                        authenticate(webSocket) { send(webSocket, Message.PairSuccess(PairSuccessPayload(token))) }
                     } else {
                         send(webSocket, Message.PairFailure(PairFailurePayload(PairFailureReason.InvalidPin, 4u)))
                     }
@@ -407,14 +410,20 @@ private class FakePc(val serverId: String, val name: String) {
             }
         }
 
-        private fun authenticate(webSocket: WebSocket) {
+        /**
+         * The session is registered before [announce] tells the tablet it is
+         * authenticated: a test acting as soon as the tablet is connected
+         * (revocation…) must find it.
+         */
+        private fun authenticate(webSocket: WebSocket, announce: () -> Unit) {
             authenticated = true
-            send(webSocket, Message.LayoutSync(layout))
             sessions.put(deviceId!!, webSocket)?.let { previous ->
                 superseded.incrementAndGet()
                 send(previous, Message.Error(ErrorPayload(ErrorCode.Superseded, "superseded")))
                 previous.close(1000, null)
             }
+            announce()
+            send(webSocket, Message.LayoutSync(layout))
         }
 
         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
