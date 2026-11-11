@@ -127,8 +127,12 @@ impl EditorService {
     pub fn flush(&self) {
         let pending =
             std::mem::take(&mut *self.dirty.lock().unwrap_or_else(PoisonError::into_inner));
-        if pending && let Err(e) = self.dir.save(&self.config()) {
-            tracing::error!("cannot save the profiles: {e}");
+        if !pending {
+            return;
+        }
+        match self.dir.save(&self.config()) {
+            Ok(()) => tracing::info!("pending edits saved on exit"),
+            Err(e) => tracing::error!("cannot save the profiles: {e}"),
         }
     }
 

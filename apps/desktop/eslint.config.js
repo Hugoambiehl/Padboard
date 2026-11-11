@@ -15,5 +15,10 @@ export default defineConfigWithVueTs(
   {
     languageOptions: { globals: globals.browser },
   },
+  {
+    // End-to-end tests run in Node (scripts/desktop-e2e.sh).
+    files: ["e2e/**/*.ts"],
+    languageOptions: { globals: globals.node },
+  },
   prettier,
 );

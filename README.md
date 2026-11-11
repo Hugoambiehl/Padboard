@@ -82,6 +82,38 @@ cargo run -p padboard-desktop --example fake-tablet -- forget            # drop 
 `--id NAME` simulates another tablet. Once connected, type a button id (e.g.
 `terminal`) and Enter to press it.
 
+### End-to-end tests (real window, local only)
+
+`scripts/desktop-e2e.sh` drives the real app window with
+[tauri-driver](https://v2.tauri.app/develop/tests/webdriver/) (WebKitWebDriver
+on Linux) and runs the tests in `apps/desktop/e2e/` (editor scenario, profiles,
+persistence, connections view with the fake tablet). They are **not run in CI**.
+
+One-time setup:
+
+```sh
+sudo apt install webkit2gtk-driver      # WebKitWebDriver
+cargo install tauri-driver --locked
+sudo apt install xvfb                   # optional, for PADBOARD_E2E_HEADLESS=1
+```
+
+```sh
+scripts/desktop-e2e.sh                     # build (frontend embedded), then all tests
+scripts/desktop-e2e.sh --no-build profiles # reuse the build, only matching files
+PADBOARD_E2E_HEADLESS=1 scripts/desktop-e2e.sh   # on a virtual display (xvfb)
+```
+
+Without `PADBOARD_E2E_HEADLESS`, the windows open on your screen for a few
+seconds. Screenshots of the key steps (and of any failure) go to
+`target/e2e/screenshots/`. The build uses its own target directory
+(`target/e2e`) so it does not invalidate the `tauri dev` build.
+
+The app runs in **test mode** (`PADBOARD_TEST_DIR=<absolute dir>`): the
+configuration lives in that directory instead of yours, actions are recorded
+to `<dir>/actions.jsonl` and never injected, USB devices (adb) and Wi-Fi are
+left alone, logs go to `<dir>/app.log`, and the window title says "mode test".
+The tests create a temporary directory per run (`PADBOARD_E2E_KEEP=1` keeps it).
+
 ### Run the tablet app
 
 Requirements: JDK 17+ and the Android SDK (`ANDROID_HOME`), `adb`, USB debugging

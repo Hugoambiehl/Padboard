@@ -234,13 +234,31 @@ SM-T580, always measure in release builds.
   Rust test `all_lucide_icons_are_valid` (see `svg_path.rs`), so every icon
   still passes the desktop's path validator.
 
+## End-to-end tests (desktop)
+
+- `scripts/desktop-e2e.sh` (local only, never in CI): tauri-driver +
+  WebKitWebDriver drive the real window; tests in `apps/desktop/e2e/*.e2e.ts`
+  (Vitest, `e2e/vitest.config.ts`), through a small hand-written W3C WebDriver
+  client (`e2e/webdriver.ts`, no WebdriverIO). Texts come from `fr.json` via
+  `t()`, so wording changes do not break selectors.
+- **Test mode** `PADBOARD_TEST_DIR` (`src-tauri/src/test_mode.rs`): separate
+  config dir, `RecordingExecutor` (actions written to `actions.jsonl`, never
+  injected), no adb, Wi-Fi forced off, logs to `app.log`, and a runtime
+  capability letting the page close its window (WebDriver kills the process
+  when it ends a session, so "close the app" goes through the page).
+- Steps of a file build on each other (`bail: 1`); a failed step saves a
+  screenshot `FAILED <step>.png`. Review the screenshots after UI changes.
+- The app quits cleanly on SIGTERM/SIGINT/SIGHUP (Ctrl+C on Windows), so
+  pending edits are saved on logout too.
+
 ## Conventions
 
 - **Paths contain a space** (`Projets persos`): always quote paths in shell scripts,
   CI and config.
 - Rust: `cargo fmt` + `cargo clippy -- -D warnings`. TS: ESLint + Prettier.
   Kotlin: ktlint.
-- Tests: protocol round-trip serialization, configuration logic (migrations…).
+- Tests: protocol round-trip serialization, configuration logic (migrations…),
+  frontend logic (Vitest), end-to-end on the real window (local, see above).
 - Config persisted as versioned JSON (with migrations) in the user config dir.
 - Commits: small, **in English**, Conventional Commits
   (`feat|fix|docs|style|refactor|test|chore|perf(scope): summary`). No

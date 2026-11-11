@@ -20,6 +20,7 @@ mod server;
 mod settings;
 mod state;
 mod storage;
+mod test_mode;
 mod tls;
 mod wifi;
 
@@ -40,6 +41,7 @@ use crate::server::{ActionOutcome, Limits, ServerContext, ServerEvent};
 use crate::settings::Settings;
 use crate::state::Snapshot;
 use crate::storage::ConfigDir;
+use crate::test_mode::TestMode;
 use crate::tls::TlsIdentity;
 use crate::wifi::Wifi;
 
@@ -200,11 +202,28 @@ async fn test_button(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    init_tracing();
+    let test_mode = TestMode::from_env();
+    init_tracing(test_mode.as_ref().ok().and_then(Option::as_ref));
 
-    let settings = Settings::from_env();
+    let mut settings = Settings::from_env();
     for (variable, value) in &settings.invalid {
         tracing::warn!("ignoring invalid {variable}={value:?}, using the default");
+    }
+    let test_mode = match test_mode {
+        Ok(mode) => mode,
+        Err(value) => {
+            // Never fall back to the real configuration when a test asked for
+            // a separate one.
+            tracing::error!(
+                "{} must be an absolute path, got {value:?}",
+                test_mode::VARIABLE
+            );
+            std::process::exit(2);
+        }
+    };
+    if let Some(mode) = &test_mode {
+        tracing::warn!(dir = %mode.config_dir().display(), "TEST MODE: separate configuration, actions recorded and never executed, USB and Wi-Fi off");
+        settings.wifi_forced = Some(false);
     }
 
     tauri::Builder::default()
@@ -227,7 +246,11 @@ pub fn run() {
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
-            let config = ConfigDir::open(app.path().app_config_dir()?)?;
+            let config_root = match &test_mode {
+                Some(mode) => mode.config_dir(),
+                None => app.path().app_config_dir()?,
+            };
+            let config = ConfigDir::open(config_root)?;
             tracing::info!(dir = %config.root().display(), "config directory");
             let identity = Identity::load_or_create(&config);
             let preferences: Preferences = config.load_or_init(Preferences::default);
@@ -311,8 +334,15 @@ pub fn run() {
             // settle), so it is done off the main thread; presses arriving
             // before get an "unavailable" error.
             let executor_ctx = Arc::clone(&ctx);
+            let recorder = test_mode.as_ref().map(TestMode::executor);
             tauri::async_runtime::spawn(async move {
-                match tokio::task::spawn_blocking(padboard_actions::platform_executor).await {
+                let create = move || match recorder {
+                    Some(recorder) => {
+                        Box::new(recorder) as Box<dyn padboard_actions::ActionExecutor>
+                    }
+                    None => padboard_actions::platform_executor(),
+                };
+                match tokio::task::spawn_blocking(create).await {
                     Ok(executor) => {
                         let _ = executor_ctx.executor.set(Arc::from(executor));
                     }
@@ -337,14 +367,16 @@ pub fn run() {
             // USB: follow devices and forward the USB port to the tablets.
             let (adb_path, adb_chosen) = tokio::sync::watch::channel(preferences.adb_path.clone());
             let usb_events = events_tx.clone();
-            tauri::async_runtime::spawn(adb::run(
-                adb::Config::new(settings.usb_port),
-                adb::Process,
-                adb_chosen,
-                move |status| {
-                    let _ = usb_events.send(ServerEvent::Usb(status));
-                },
-            ));
+            if test_mode.is_none() {
+                tauri::async_runtime::spawn(adb::run(
+                    adb::Config::new(settings.usb_port),
+                    adb::Process,
+                    adb_chosen,
+                    move |status| {
+                        let _ = usb_events.send(ServerEvent::Usb(status));
+                    },
+                ));
+            }
 
             // Interfaces change (Wi-Fi reconnects, Docker starts): refresh the
             // addresses shown and keep new virtual interfaces out of mDNS.
@@ -382,8 +414,31 @@ pub fn run() {
                 server: Arc::clone(&ctx),
             });
 
+            // Quitting from a signal (session logout, Ctrl+C in a terminal)
+            // goes through RunEvent::Exit, so pending edits are saved.
+            let exit_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                termination().await;
+                tracing::info!("termination requested, exiting");
+                exit_handle.exit(0);
+            });
+
+            // The e2e tests close the window from the page, which takes the
+            // same path as the user closing it (WebDriver kills the process).
+            if test_mode.is_some() {
+                app.add_capability(
+                    tauri::ipc::CapabilityBuilder::new("e2e-close")
+                        .window("main")
+                        .permission("core:window:allow-close"),
+                )?;
+            }
+
             if let Some(window) = app.get_webview_window("main") {
-                window.set_title("Padboard")?;
+                window.set_title(if test_mode.is_some() {
+                    "Padboard (mode test)"
+                } else {
+                    "Padboard"
+                })?;
             }
             Ok(())
         })
@@ -391,20 +446,63 @@ pub fn run() {
         .expect("error while building the Tauri application")
         .run(|app, event| {
             // Edits not saved yet (debounce) must not be lost.
-            if let tauri::RunEvent::Exit = event
-                && let Some(backend) = app.try_state::<Backend>()
-            {
-                backend.editor.flush();
+            if let tauri::RunEvent::Exit = event {
+                if let Some(backend) = app.try_state::<Backend>() {
+                    backend.editor.flush();
+                }
+                tracing::info!("exited");
             }
         });
 }
 
-fn init_tracing() {
+/// Logs to stderr, or to `<test dir>/app.log` in test mode (the WebDriver
+/// that starts the app does not forward its output).
+fn init_tracing(test_mode: Option<&TestMode>) {
     use tracing_subscriber::EnvFilter;
     let filter = EnvFilter::try_from_env("PADBOARD_LOG").unwrap_or_else(|_| {
         EnvFilter::new("info,padboard_desktop_lib=debug,padboard_actions=debug")
     });
-    let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
+    let builder = tracing_subscriber::fmt().with_env_filter(filter);
+    let log = test_mode.and_then(|mode| {
+        std::fs::create_dir_all(mode.dir()).ok()?;
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(mode.log_file())
+            .ok()
+    });
+    let _ = match log {
+        Some(file) => builder
+            .with_ansi(false)
+            .with_writer(Mutex::new(file))
+            .try_init(),
+        None => builder.try_init(),
+    };
+}
+
+/// Resolves on SIGTERM, SIGINT or SIGHUP (Ctrl+C / Ctrl+Break on Windows).
+async fn termination() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        let kinds = [
+            SignalKind::terminate(),
+            SignalKind::interrupt(),
+            SignalKind::hangup(),
+        ];
+        let mut signals: Vec<_> = kinds.into_iter().filter_map(|k| signal(k).ok()).collect();
+        if signals.is_empty() {
+            return std::future::pending().await;
+        }
+        let waits = signals.iter_mut().map(|s| Box::pin(s.recv()));
+        futures_util::future::select_all(waits).await;
+    }
+    #[cfg(not(unix))]
+    {
+        if tokio::signal::ctrl_c().await.is_err() {
+            std::future::pending::<()>().await;
+        }
+    }
 }
 
 /// Hostname, shown in the tablet's top bar.
