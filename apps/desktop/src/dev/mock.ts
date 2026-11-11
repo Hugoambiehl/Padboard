@@ -21,7 +21,7 @@ const status: Snapshot = {
       forced: null,
       listener: { state: "listening", port: 47322, address: "0.0.0.0:47322", errorDetail: null },
       lanAddresses: [
-        { address: "192.168.1.42", interface: "wlo1", physical: true },
+        { address: "192.168.1.42", interface: "wlan0", physical: true },
         { address: "172.18.0.1", interface: "br-568a00b37a31", physical: false },
       ],
       fingerprint: "44QK-JFGX-DRZ6",

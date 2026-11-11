@@ -556,7 +556,7 @@ private fun ConnectionPill(status: GridStatus, onClick: () -> Unit) {
             connected = status is GridStatus.Connected,
             pulsing = status is GridStatus.Reconnecting && status.attempt <= SPINNING_ATTEMPTS
         )
-        // Hostnames can be long ("My-Laptop-15-…"): keep the pill clear of the page dots.
+        // Hostnames can be long ("my-laptop-with-a-long-name-…"): keep the pill clear of the page dots.
         Text(
             status.serverName,
             style = PadboardType.Pill,

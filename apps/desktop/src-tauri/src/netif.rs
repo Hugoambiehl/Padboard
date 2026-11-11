@@ -117,7 +117,7 @@ mod tests {
         ] {
             assert!(is_virtual(name), "{name}");
         }
-        for name in ["wlo1", "wlan0", "eth0", "enp3s0", "Wi-Fi", "Ethernet"] {
+        for name in ["wlan0", "wlan0", "eth0", "enp3s0", "Wi-Fi", "Ethernet"] {
             assert!(!is_virtual(name), "{name}");
         }
     }
@@ -129,8 +129,8 @@ mod tests {
             [
                 ("br-568a".to_owned(), ip("172.18.0.1"), false),
                 ("tailscale0".to_owned(), ip("100.75.18.112"), false),
-                ("wlo1".to_owned(), ip("192.168.1.42"), false),
-                ("wlo1".to_owned(), ip("fe80::1"), false),
+                ("wlan0".to_owned(), ip("192.168.1.42"), false),
+                ("wlan0".to_owned(), ip("fe80::1"), false),
                 ("lo".to_owned(), ip("127.0.0.1"), true),
             ]
             .into_iter(),
