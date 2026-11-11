@@ -1,5 +1,7 @@
 //! Shows what the desktop app observes: output volume and mute, microphone
-//! mute, media players. Read-only.
+//! mute, media players. Read-only. With `--watch`, a line is printed only
+//! when something actually changed (the sound server sends several identical
+//! notifications for one change).
 //!
 //! ```sh
 //! cargo run -p padboard-actions --example state            # once
@@ -12,9 +14,9 @@ use std::process::ExitCode;
 
 use padboard_actions::state::{self, AudioChanges};
 
-fn show() {
-    match state::audio() {
-        Ok(a) => println!(
+fn describe() -> String {
+    let audio = match state::audio() {
+        Ok(a) => format!(
             "output {} %{} · microphone {}",
             a.output_percent,
             if a.output_muted { " (muted)" } else { "" },
@@ -24,17 +26,19 @@ fn show() {
                 Some(false) => "on",
             }
         ),
-        Err(e) => println!("audio: {e}"),
-    }
-    match state::media_playing() {
-        Ok(None) => println!("media: no player"),
-        Ok(Some(playing)) => println!("media: {}", if playing { "playing" } else { "not playing" }),
-        Err(e) => println!("media: {e}"),
-    }
+        Err(e) => format!("audio: {e}"),
+    };
+    let media = match state::media_playing() {
+        Ok(None) => "media: no player".to_owned(),
+        Ok(Some(playing)) => format!("media: {}", if playing { "playing" } else { "not playing" }),
+        Err(e) => format!("media: {e}"),
+    };
+    format!("{audio}\n{media}")
 }
 
 fn main() -> ExitCode {
-    show();
+    let mut shown = describe();
+    println!("{shown}");
     if std::env::args().nth(1).as_deref() != Some("--watch") {
         return ExitCode::SUCCESS;
     }
@@ -47,7 +51,11 @@ fn main() -> ExitCode {
     };
     println!("Watching (Ctrl+C to quit)…");
     while changes.wait().is_ok() {
-        show();
+        let now = describe();
+        if now != shown {
+            println!("{now}");
+            shown = now;
+        }
     }
     eprintln!("the sound server went away");
     ExitCode::FAILURE
