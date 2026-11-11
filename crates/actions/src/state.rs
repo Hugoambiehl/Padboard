@@ -130,3 +130,24 @@ fn unsupported(what: &'static str) -> ActionError {
         platform: std::env::consts::OS,
     }
 }
+
+/// Exact audio state of the default devices (Linux), for tests that change
+/// it and must put it back: `cargo run --example audio-snapshot`.
+#[cfg(target_os = "linux")]
+#[doc(hidden)]
+pub mod snapshot {
+    use crate::ActionError;
+    pub use crate::linux::pulse::RawSnapshot;
+
+    /// # Errors
+    /// Without a sound server.
+    pub fn take() -> Result<RawSnapshot, ActionError> {
+        crate::linux::pulse::Pulse::connect()?.snapshot()
+    }
+
+    /// # Errors
+    /// Without a sound server, or if a device is gone.
+    pub fn restore(snapshot: &RawSnapshot) -> Result<(), ActionError> {
+        crate::linux::pulse::Pulse::connect()?.restore(snapshot)
+    }
+}

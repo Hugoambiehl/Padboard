@@ -209,6 +209,62 @@ impl Pulse {
     }
 }
 
+/// The exact raw state of the default devices, to put back after a test.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct RawSnapshot {
+    pub sink: String,
+    pub sink_volumes: Vec<u32>,
+    pub sink_muted: bool,
+    pub source: Option<(String, Vec<u32>, bool)>,
+}
+
+impl Pulse {
+    pub fn snapshot(&mut self) -> Result<RawSnapshot, ActionError> {
+        let sink = self.default_sink()?;
+        let source = match self.default_source() {
+            Ok(s) => Some((
+                s.name.to_string_lossy().into_owned(),
+                s.cvolume.channels().iter().map(Volume::as_u32).collect(),
+                s.muted,
+            )),
+            Err(ActionError::Unavailable(_)) => None,
+            Err(e) => return Err(e),
+        };
+        Ok(RawSnapshot {
+            sink: sink.name.to_string_lossy().into_owned(),
+            sink_volumes: sink.cvolume.channels().iter().map(Volume::as_u32).collect(),
+            sink_muted: sink.muted,
+            source,
+        })
+    }
+
+    pub fn restore(&mut self, snapshot: &RawSnapshot) -> Result<(), ActionError> {
+        let name = |n: &str| CString::new(n).map_err(failed);
+        let raw = |values: &[u32]| {
+            let mut volume = ChannelVolume::empty();
+            for v in values {
+                volume.push(Volume::from_u32_clamped(*v));
+            }
+            volume
+        };
+        self.ack(&Command::SetSinkVolume(SetDeviceVolumeParams {
+            device_index: None,
+            device_name: Some(name(&snapshot.sink)?),
+            volume: raw(&snapshot.sink_volumes),
+        }))?;
+        self.set_sink_mute(name(&snapshot.sink)?, snapshot.sink_muted)?;
+        if let Some((source, volumes, muted)) = &snapshot.source {
+            self.ack(&Command::SetSourceVolume(SetDeviceVolumeParams {
+                device_index: None,
+                device_name: Some(name(source)?),
+                volume: raw(volumes),
+            }))?;
+            self.set_source_mute(name(source)?, *muted)?;
+        }
+        Ok(())
+    }
+}
+
 /// Per-channel volumes as fractions of 100 %.
 #[must_use]
 pub fn channels(volume: &ChannelVolume) -> Vec<f64> {

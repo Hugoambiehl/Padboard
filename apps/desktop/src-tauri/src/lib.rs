@@ -224,7 +224,11 @@ pub fn run() {
         }
     };
     if let Some(mode) = &test_mode {
-        tracing::warn!(dir = %mode.config_dir().display(), "TEST MODE: separate configuration, actions recorded and never executed, USB and Wi-Fi off");
+        if mode.system() {
+            tracing::warn!(dir = %mode.config_dir().display(), "TEST MODE (system): separate configuration, actions RUN on this PC, real states, USB and Wi-Fi off");
+        } else {
+            tracing::warn!(dir = %mode.config_dir().display(), "TEST MODE: separate configuration, actions recorded and never executed, USB and Wi-Fi off");
+        }
         settings.wifi_forced = Some(false);
     }
 
@@ -324,6 +328,7 @@ pub fn run() {
             let (state_tx, _) = tokio::sync::watch::channel(appearance::SystemState::default());
             match &test_mode {
                 None => observe::start(&state_tx),
+                Some(mode) if mode.system() => observe::start(&state_tx),
                 Some(mode) => observe::start_from_file(mode.state_file(), &state_tx),
             }
             let ctx = Arc::new(ServerContext {
@@ -344,7 +349,10 @@ pub fn run() {
             // settle), so it is done off the main thread; presses arriving
             // before get an "unavailable" error.
             let executor_ctx = Arc::clone(&ctx);
-            let recorder = test_mode.as_ref().map(TestMode::executor);
+            let recorder = test_mode
+                .as_ref()
+                .filter(|mode| !mode.system())
+                .map(TestMode::executor);
             tauri::async_runtime::spawn(async move {
                 let create = move || match recorder {
                     Some(recorder) => {

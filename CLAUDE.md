@@ -303,6 +303,16 @@ SM-T580, always measure in release builds.
   simulated button states from `state.json` (`observe::start_from_file`),
   and a runtime capability letting the page close its window (WebDriver kills the process
   when it ends a session, so "close the app" goes through the page).
+- **Tests on the real tablet and sound devices**: test mode with
+  `PADBOARD_TEST_SYSTEM=1` (configuration still isolated, actions really run,
+  states really observed); drive the tablet with `adb shell input tap/swipe`
+  and check `adb exec-out screencap -p`; change the system with `wpctl`
+  (`pactl` is not installed); `--example fake-player` (MPRIS player on the
+  session bus) for media; save and restore the exact audio state around
+  each test with `--example audio-snapshot -- save|restore <file>`. Never
+  press hotkey buttons in system mode (real keystrokes on the PC). Kill test
+  processes with `pkill -x <name>`, never `pkill -f` (it matches the shell
+  running the command).
 - Steps of a file build on each other (`bail: 1`); a failed step saves a
   screenshot `FAILED <step>.png`. Review the screenshots after UI changes.
 - The app quits cleanly on SIGTERM/SIGINT/SIGHUP (Ctrl+C on Windows), so

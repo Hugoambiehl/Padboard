@@ -12,6 +12,10 @@
 //! - button states come from `<dir>/state.json` (simulated), never from the
 //!   real microphone, sound server or players.
 //!
+//! With `PADBOARD_TEST_SYSTEM=1`, actions run and states are observed on the
+//! real system instead (tests on the real tablet and sound devices); the
+//! configuration still lives in the test directory.
+//!
 //! The window title says the app is in test mode.
 
 use std::fs::OpenOptions;
@@ -22,24 +26,39 @@ use std::sync::{Mutex, PoisonError};
 use padboard_actions::{Action, ActionError, ActionExecutor};
 
 pub const VARIABLE: &str = "PADBOARD_TEST_DIR";
+/// With test mode: run actions and observe states on the real system (the
+/// configuration stays in the test directory). For tests on the real
+/// tablet and sound devices.
+pub const SYSTEM_VARIABLE: &str = "PADBOARD_TEST_SYSTEM";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TestMode {
     dir: PathBuf,
+    system: bool,
 }
 
 impl TestMode {
     /// Reads [`VARIABLE`]. `Err` carries the rejected value: a relative path
     /// could land anywhere, so it is refused rather than guessed.
     pub fn from_env() -> Result<Option<Self>, String> {
-        Self::from_var(std::env::var_os(VARIABLE).map(PathBuf::from))
+        let system = std::env::var(SYSTEM_VARIABLE).is_ok_and(|v| v == "1");
+        Ok(
+            Self::from_var(std::env::var_os(VARIABLE).map(PathBuf::from))?
+                .map(|mode| Self { system, ..mode }),
+        )
+    }
+
+    /// Actions really run and states really observed (`PADBOARD_TEST_SYSTEM=1`).
+    #[must_use]
+    pub fn system(&self) -> bool {
+        self.system
     }
 
     fn from_var(value: Option<PathBuf>) -> Result<Option<Self>, String> {
         match value {
             None => Ok(None),
             Some(dir) if dir.as_os_str().is_empty() => Ok(None),
-            Some(dir) if dir.is_absolute() => Ok(Some(Self { dir })),
+            Some(dir) if dir.is_absolute() => Ok(Some(Self { dir, system: false })),
             Some(dir) => Err(dir.display().to_string()),
         }
     }

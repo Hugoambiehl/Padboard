@@ -321,6 +321,7 @@ async fn session<S: AsyncRead + AsyncWrite + Unpin>(
                             if b.active { flags.push("active".to_owned()); }
                             if b.unavailable { flags.push("unavailable".to_owned()); }
                             if let Some(badge) = &b.badge { flags.push(format!("badge={badge}")); }
+                            if let Some(subtitle) = &b.subtitle { flags.push(format!("({subtitle})")); }
                             println!("Update {}: \"{}\" {}", b.id, b.label, flags.join(" "));
                         }
                         Message::Navigate(n) => {
