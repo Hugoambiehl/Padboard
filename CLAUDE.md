@@ -189,10 +189,12 @@ SM-T580, always measure in release builds.
   `button:release` follows on lift or when the pager takes over, in a
   `finally`, so a cancelled gesture never leaves a key held.
 - **Tablet pages**: `HorizontalPager` keyed by page id; the page shown is
-  followed by id across layout updates (`ui/grid/PageTracking.kt`, applied
-  during composition with `requestScrollToPage`, so no wrong frame); another
-  profile starts on its first page; a deleted page gives way to the page at
-  its position. The page indicator is drawn in a `Canvas` from the pager
+  followed by id across layout updates, reconnections and USB ↔ Wi-Fi
+  switches (`PageMemory` in `ui/grid/PageTracking.kt`, owned by the
+  ViewModel; applied during composition with `requestScrollToPage`, so no
+  wrong frame). Another profile starts on its first page; a page deleted live
+  gives way to the page at its position; a page gone while disconnected, or an
+  app restart, starts on the first page. The page indicator is drawn in a `Canvas` from the pager
   position (draw phase only), hidden for a single page.
 - **Tablet icons**: the protocol's SVG paths become an `ImageVector` (Lucide
   24×24 grid, 2-unit round strokes, drawn white and tinted), cached by paths

@@ -14,27 +14,58 @@ class PageTrackingTest {
         pages = pages.map { Page(it, emptyList()) }
     )
 
+    /** A memory where the user is on `page` of `layout`. */
+    private fun on(layout: Layout, page: String) = PageMemory().apply {
+        onShown(layout, layout.pages.indexOfFirst { it.id == page })
+    }
+
     @Test
-    fun theFirstLayoutAndAnotherProfileStartOnTheFirstPage() {
-        assertEquals(0, pageAfterUpdate(null, 3, layout("a", "p1", "p2")))
-        assertEquals(0, pageAfterUpdate(layout("a", "p1", "p2"), 1, layout("b", "p1", "p2")))
+    fun nothingShownYetOrAnotherProfileStartsOnTheFirstPage() {
+        assertEquals(0, PageMemory().pageFor(layout("a", "p1", "p2")))
+        assertEquals(0, on(layout("a", "p1", "p2"), "p2").pageFor(layout("b", "p1", "p2")))
     }
 
     @Test
     fun theShownPageIsFollowedByIdWhenPagesMove() {
-        val before = layout("a", "p1", "p2", "p3")
-        assertEquals(1, pageAfterUpdate(before, 1, layout("a", "p1", "p2", "p3")))
-        // A page added before it, then the pages reordered.
-        assertEquals(2, pageAfterUpdate(before, 1, layout("a", "p0", "p1", "p2", "p3")))
-        assertEquals(0, pageAfterUpdate(before, 1, layout("a", "p2", "p1", "p3")))
+        val memory = on(layout("a", "p1", "p2", "p3"), "p2")
+        assertEquals(1, memory.pageFor(layout("a", "p1", "p2", "p3")))
+        assertEquals(2, memory.pageFor(layout("a", "p0", "p1", "p2", "p3")))
+        assertEquals(0, memory.pageFor(layout("a", "p2", "p1", "p3")))
     }
 
     @Test
-    fun aDeletedPageGivesWayToThePageAtItsPosition() {
-        val before = layout("a", "p1", "p2", "p3")
-        assertEquals(1, pageAfterUpdate(before, 1, layout("a", "p1", "p3")))
+    fun aPageDeletedLiveGivesWayToThePageAtItsPosition() {
+        assertEquals(1, on(layout("a", "p1", "p2", "p3"), "p2").pageFor(layout("a", "p1", "p3")))
         // It was the last one: the new last page.
-        assertEquals(1, pageAfterUpdate(before, 2, layout("a", "p1", "p2")))
-        assertEquals(0, pageAfterUpdate(before, 2, layout("a", "p1")))
+        assertEquals(1, on(layout("a", "p1", "p2", "p3"), "p3").pageFor(layout("a", "p1", "p2")))
+    }
+
+    @Test
+    fun aReconnectionKeepsThePageWhenItStillExists() {
+        val before = layout("a", "p1", "p2", "p3")
+        val memory = on(before, "p3")
+        memory.onConnectionLost()
+        // Same layout sent again by the new connection (USB or Wi-Fi).
+        assertEquals(2, memory.pageFor(layout("a", "p1", "p2", "p3")))
+        // Pages edited while disconnected: still followed by id.
+        assertEquals(0, memory.pageFor(layout("a", "p3", "p1")))
+    }
+
+    @Test
+    fun aReconnectionGoesBackToTheFirstPageWhenThePageOrProfileIsGone() {
+        val memory = on(layout("a", "p1", "p2", "p3"), "p2")
+        memory.onConnectionLost()
+        assertEquals(0, memory.pageFor(layout("a", "p1", "p3")))
+        assertEquals(0, memory.pageFor(layout("b", "p1", "p2")))
+    }
+
+    @Test
+    fun aNewShownPageAfterReconnectingHasItsOwnFallback() {
+        val memory = on(layout("a", "p1", "p2", "p3"), "p2")
+        memory.onConnectionLost()
+        val after = layout("a", "p1", "p2", "p3")
+        memory.onShown(after, memory.pageFor(after))
+        // Deleted live again: the neighbour, not the first page.
+        assertEquals(1, memory.pageFor(layout("a", "p1", "p3")))
     }
 }

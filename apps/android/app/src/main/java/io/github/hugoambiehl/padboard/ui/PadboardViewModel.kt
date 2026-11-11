@@ -9,8 +9,10 @@ import io.github.hugoambiehl.padboard.connection.ConnectionManager
 import io.github.hugoambiehl.padboard.connection.DeviceIdStore
 import io.github.hugoambiehl.padboard.connection.DiscoveredPc
 import io.github.hugoambiehl.padboard.connection.Endpoint
+import io.github.hugoambiehl.padboard.connection.LinkState
 import io.github.hugoambiehl.padboard.connection.NsdDirectory
 import io.github.hugoambiehl.padboard.connection.PairingStore
+import io.github.hugoambiehl.padboard.ui.grid.PageMemory
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
@@ -36,6 +38,9 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
     val actionFailures = manager.actionFailures
     val pairingProblems = manager.pairingProblems
 
+    /** The page the user is on, kept across reconnections (not app restarts). */
+    val pageMemory = PageMemory()
+
     /** PCs announcing Padboard on the network. */
     val pcs = directory.pcs
 
@@ -44,6 +49,10 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { manager.start(DeviceIdStore(application).deviceId()) }
         // A PC appearing on the network is worth a reconnection attempt right away.
         viewModelScope.launch { directory.pcs.collect { manager.nudge() } }
+        // Main dispatcher, like the grid that reads the memory.
+        viewModelScope.launch {
+            manager.state.collect { if (it !is LinkState.Connected) pageMemory.onConnectionLost() }
+        }
     }
 
     fun press(buttonId: String) = manager.press(buttonId)

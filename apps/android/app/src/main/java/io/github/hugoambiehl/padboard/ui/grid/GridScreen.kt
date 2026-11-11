@@ -40,6 +40,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -89,6 +90,7 @@ sealed interface GridStatus {
 @Composable
 fun GridScreen(
     layout: Layout?,
+    pageMemory: PageMemory,
     status: GridStatus,
     actionFailures: Flow<String>,
     onPress: (String) -> Unit,
@@ -99,16 +101,24 @@ fun GridScreen(
     var menu by remember { mutableStateOf(false) }
     val pages = layout?.pages.orEmpty()
     val currentPages by rememberUpdatedState(pages)
-    val pagerState = rememberPagerState { currentPages.size }
-    // Keep the page in front of the user across layout updates (pages are
-    // followed by id, see pageAfterUpdate). Done during composition with
-    // requestScrollToPage, so the new layout never shows a wrong page for a
-    // frame. `tracked` is a plain holder: re-running this is harmless.
+    val currentLayout by rememberUpdatedState(layout)
+    // The page in front of the user lives in `pageMemory` (ViewModel), so this
+    // screen leaving the composition (reconnecting, pairing screen) loses
+    // nothing. Layout updates are applied during composition with
+    // requestScrollToPage, so a new layout never shows a wrong page for a frame.
+    val pagerState =
+        rememberPagerState(initialPage = layout?.let(pageMemory::pageFor) ?: 0) { currentPages.size }
     val tracked = remember { arrayOfNulls<Layout>(1) }
     if (layout != null && tracked[0] !== layout) {
-        val target = pageAfterUpdate(tracked[0], pagerState.currentPage, layout)
+        val target = pageMemory.pageFor(layout)
         tracked[0] = layout
+        pageMemory.onShown(layout, target)
         if (target != pagerState.currentPage) pagerState.requestScrollToPage(target)
+    }
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.currentPage }.collect { index ->
+            currentLayout?.let { pageMemory.onShown(it, index) }
+        }
     }
     var errorVisible by remember { mutableStateOf(false) }
     LaunchedEffect(actionFailures) {

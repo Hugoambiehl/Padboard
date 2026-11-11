@@ -48,6 +48,7 @@ fun PadboardApp(viewModel: PadboardViewModel) {
             } else {
                 GridScreen(
                     layout = layout,
+                    pageMemory = viewModel.pageMemory,
                     status = GridStatus.Connected(state.serverName, state.transport, state.latencyMs, state.paired),
                     actionFailures = viewModel.actionFailures,
                     onPress = viewModel::press,
@@ -62,6 +63,7 @@ fun PadboardApp(viewModel: PadboardViewModel) {
             } else if (layout != null) {
                 GridScreen(
                     layout = layout,
+                    pageMemory = viewModel.pageMemory,
                     status = GridStatus.Reconnecting(state.serverName),
                     actionFailures = viewModel.actionFailures,
                     onPress = viewModel::press,
