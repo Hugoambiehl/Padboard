@@ -2,13 +2,19 @@
 #
 # Private repo: Windows minutes count double, so the Windows job only runs on
 # pushes to main, on pull requests and on manual runs. Everything else runs on
-# every push. A newer run on the same ref cancels the previous one.
+# every push. A newer run on the same ref cancels the previous one. The Windows
+# installer is only built on demand: `gh workflow run CI -f installer=true`.
 name: CI
 
 on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      installer:
+        description: Also build the Windows installer (unsigned, for tests)
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -175,3 +181,39 @@ jobs:
 
       - name: cargo test
         run: cargo test --workspace --locked
+
+  windows-installer:
+    name: Windows installer
+    if: github.event_name == 'workflow_dispatch' && inputs.installer
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - name: Rust toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: installer
+
+      # Release build with the frontend embedded; NSIS only (one installer).
+      # Unsigned: Windows SmartScreen warns on first launch (signing: phase 6).
+      - name: Build the installer
+        working-directory: apps/desktop
+        run: |
+          npm ci
+          npx tauri build --bundles nsis
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: padboard-windows-installer
+          path: target/release/bundle/nsis/*.exe
+          retention-days: 14
+          if-no-files-found: error
