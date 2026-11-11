@@ -9,12 +9,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.hugoambiehl.padboard.R
+import io.github.hugoambiehl.padboard.ui.connect.SearchIndicator
 import io.github.hugoambiehl.padboard.ui.theme.PadboardColors
 import io.github.hugoambiehl.padboard.ui.theme.PadboardType
 import kotlinx.coroutines.delay
@@ -45,7 +44,7 @@ private const val COUNTDOWN_FROM_MS = 2_000L
 /**
  * Card over the dimmed grid while the PC is out of reach: who is looked for,
  * how, when the next attempt starts, and a way to try at once. Faded in and
- * out (alpha and scale only); it is composed only while needed.
+ * out (alpha and scale only); it is composed only while shown or fading.
  */
 @Composable
 fun DisconnectedCard(
@@ -56,6 +55,9 @@ fun DisconnectedCard(
     modifier: Modifier = Modifier
 ) {
     val shown by animateFloatAsState(if (visible) 1f else 0f, tween(200), label = "disconnected")
+    // Hidden: not composed at all, or its spinner would keep asking for
+    // frames (60 fps of redraws over an idle grid).
+    if (!visible && shown == 0f) return
     var remainingMs by remember { mutableLongStateOf(0L) }
     LaunchedEffect(status.attempt) {
         remainingMs = status.retryInMs
@@ -85,7 +87,7 @@ fun DisconnectedCard(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            CircularProgressIndicator(Modifier.size(24.dp), color = PadboardColors.Accent, strokeWidth = 3.dp)
+            SearchIndicator(status.attempt)
             Column {
                 Text(
                     stringResource(R.string.disconnected_title),

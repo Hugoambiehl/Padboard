@@ -306,6 +306,21 @@ SM-T580, always measure in release builds.
   SM-T580 (release, frame time to `SwapBuffers`, as `FrameCompleted` is not
   filled on this ROM): folders p50 32 → 28 ms, same count of frames over
   33 ms; swipes unchanged.
+- **Tablet at rest draws nothing**: no animation may run forever. The
+  search spinner and the reconnecting dot animate during the first
+  `SPINNING_ATTEMPTS` (≈ 20 s) only, then stand still; hidden overlays are
+  not composed (a hidden spinner still asked for 60 frames a second: 90 %
+  CPU on the SM-T580 while the PC was off). Check with
+  `dumpsys gfxinfo <pkg>` (reset, wait 5 s): connected and idle ≈ 2
+  frames, waiting for the PC ≈ 5.
+- **Tablet startup** (release, SM-T580): first frame ≈ 680 ms
+  (`am start -W`, measurable only outside kiosk mode: a lock task app
+  cannot be force-stopped); the first grid then takes ≈ 1.3 s of main
+  thread once (first composition of the grid screen), whatever the ART
+  compilation (`verify`, `speed-profile`, `speed`: same numbers), so a
+  hand-written Baseline Profile, font preloading and a hidden warm-up tile
+  were measured and dropped (no gain). Memory ≈ 100 MB PSS, two thirds of
+  it the cached page layers.
 - **Tablet icons**: the protocol's SVG paths become an `ImageVector` (Lucide
   24×24 grid, 2-unit round strokes, drawn white and tinted), cached by paths
   (`ui/grid/IconVectors.kt`) so layout updates never rebuild an unchanged

@@ -71,6 +71,7 @@ import io.github.hugoambiehl.padboard.protocol.Layout
 import io.github.hugoambiehl.padboard.protocol.NavigatePayload
 import io.github.hugoambiehl.padboard.protocol.NavigateTarget
 import io.github.hugoambiehl.padboard.ui.connect.ForgetDialog
+import io.github.hugoambiehl.padboard.ui.connect.SPINNING_ATTEMPTS
 import io.github.hugoambiehl.padboard.ui.theme.PadboardColors
 import io.github.hugoambiehl.padboard.ui.theme.PadboardType
 import java.util.Date
@@ -551,7 +552,10 @@ private fun ConnectionPill(status: GridStatus, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        StatusDot(connected = status is GridStatus.Connected)
+        StatusDot(
+            connected = status is GridStatus.Connected,
+            pulsing = status is GridStatus.Reconnecting && status.attempt <= SPINNING_ATTEMPTS
+        )
         // Hostnames can be long ("My-Laptop-15-…"): keep the pill clear of the page dots.
         Text(
             status.serverName,
@@ -565,11 +569,14 @@ private fun ConnectionPill(status: GridStatus, onClick: () -> Unit) {
     }
 }
 
-/** Teal when connected; orange and pulsing (alpha only) while reconnecting. */
+/**
+ * Teal when connected; orange while reconnecting, pulsing (alpha only)
+ * during the first attempts only (see [SPINNING_ATTEMPTS]).
+ */
 @Composable
-private fun StatusDot(connected: Boolean) {
+private fun StatusDot(connected: Boolean, pulsing: Boolean) {
     val pulse =
-        if (connected) {
+        if (!pulsing) {
             1f
         } else {
             val transition = rememberInfiniteTransition(label = "pulse")

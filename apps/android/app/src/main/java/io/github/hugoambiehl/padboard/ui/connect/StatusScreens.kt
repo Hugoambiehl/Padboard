@@ -27,14 +27,37 @@ import io.github.hugoambiehl.padboard.R
 import io.github.hugoambiehl.padboard.ui.theme.PadboardColors
 import io.github.hugoambiehl.padboard.ui.theme.PadboardType
 
+/**
+ * Attempts during which the search indicator spins (about 20 s with the
+ * backoff). After that it stands still: a PC turned off for the night must
+ * not keep the tablet drawing 60 frames a second.
+ */
+const val SPINNING_ATTEMPTS = 6
+
+/** Spinning while a search is young, a still ring afterwards. */
+@Composable
+fun SearchIndicator(attempt: Int, modifier: Modifier = Modifier) {
+    if (attempt <= SPINNING_ATTEMPTS) {
+        CircularProgressIndicator(modifier.size(24.dp), color = PadboardColors.Accent, strokeWidth = 3.dp)
+    } else {
+        CircularProgressIndicator(
+            progress = { 1f },
+            modifier = modifier.size(24.dp),
+            color = PadboardColors.TextMuted,
+            strokeWidth = 3.dp,
+            trackColor = PadboardColors.TextMuted
+        )
+    }
+}
+
 /** Looking for the paired PC (no layout received yet). [serverName] null: starting up. */
 @Composable
-fun SearchingScreen(serverName: String?, onForget: (() -> Unit)?) {
+fun SearchingScreen(serverName: String?, onForget: (() -> Unit)?, attempt: Int = 0) {
     var confirm by rememberSaveable { mutableStateOf(false) }
     CenteredColumn {
         AppBadge()
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            CircularProgressIndicator(Modifier.size(24.dp), color = PadboardColors.Accent, strokeWidth = 3.dp)
+            SearchIndicator(attempt)
             Text(
                 serverName?.let { stringResource(R.string.searching_title, it) } ?: stringResource(R.string.starting),
                 style = PadboardType.CardTitle,
