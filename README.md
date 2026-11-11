@@ -16,6 +16,7 @@ Wi-Fi or USB, no cloud, free and open-source tools only.
 | `apps/desktop` | Desktop app (Tauri 2, Vue 3) |
 | `apps/android` | Tablet app (Kotlin, Jetpack Compose) |
 | `docs/design` | Reference mockups |
+| `docs/windows.md` | Windows install and test procedure |
 | `scripts/gen-types.sh` | Regenerates the TS and Kotlin protocol types |
 
 ## Using it
@@ -41,6 +42,11 @@ Wi-Fi or USB, no cloud, free and open-source tools only.
   OBS buttons are dimmed while OBS is closed and come back by themselves.
 - **Connexions** (the tablet pill in the header): server, connected and paired
   tablets, USB devices, OBS, recent presses.
+- **Logs**: `padboard.log` in the app's config directory
+  (`~/.config/io.github.hugoambiehl.padboard/`,
+  `%APPDATA%\io.github.hugoambiehl.padboard\`), started afresh at each launch.
+- **Windows**: install, adb, Wi-Fi pairing and a test of every action in
+  [docs/windows.md](docs/windows.md).
 
 ## Development setup (Linux)
 
@@ -150,7 +156,8 @@ The tests create a temporary directory per run (`PADBOARD_E2E_KEEP=1` keeps it).
 
 To try the real thing without touching your configuration, add
 `PADBOARD_TEST_SYSTEM=1` to a test-mode launch: the configuration stays in
-the test directory, but actions really run and states are really observed.
+the test directory, but actions really run and states are really observed
+(Wi-Fi can then be turned on with `PADBOARD_BIND=lan`).
 Helpers for such tests (Linux):
 
 ```sh

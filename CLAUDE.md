@@ -78,6 +78,7 @@ crates/actions         # ActionExecutor trait + Windows / Linux impls (cfg targe
 apps/desktop           # Tauri 2 (src-tauri = Rust, src = Vue/TS)
 apps/android           # Gradle project (created by Android Studio — never recreate it)
 docs/design            # reference mockups (Main, Pairing, Editor .dc.html)
+docs/windows.md        # Windows install + per-action test procedure
 scripts/gen-types.sh   # typeshare -> TS + Kotlin types
 Cargo.toml             # workspace
 ```
@@ -334,7 +335,9 @@ SM-T580, always measure in release builds.
   `t()`, so wording changes do not break selectors.
 - **Test mode** `PADBOARD_TEST_DIR` (`src-tauri/src/test_mode.rs`): separate
   config dir, `RecordingExecutor` (actions written to `actions.jsonl`, never
-  injected), no adb, Wi-Fi forced off, logs to `app.log`, and a runtime
+  injected), no adb, Wi-Fi forced off (except `PADBOARD_TEST_SYSTEM=1` with
+  `PADBOARD_BIND=lan`), logs to `app.log` (normal mode: `padboard.log` in the
+  config dir, truncated at launch), and a runtime
   simulated button states from `state.json` (`observe::start_from_file`),
   and a runtime capability letting the page close its window (WebDriver kills the process
   when it ends a session, so "close the app" goes through the page).
@@ -384,7 +387,7 @@ SM-T580, always measure in release builds.
 3. **Editor** ✅ — replica, library, inspector, drag & drop, persistence, live
    sync, undo/redo, edited vs displayed profile; tablet icons and page swipes;
    end-to-end tests on the real window (local).
-4. **Actions** — all MVP actions (Linux + Windows), stateful buttons, folders,
+4. **Actions** ✅ — all MVP actions (Linux + Windows), stateful buttons, folders,
    pages, multi-actions.
 5. **Tablet polish** — launcher, lock task, animations, disconnected overlay,
    screensaver, performance. Backlog: the Android 12L taskbar stays drawn over
