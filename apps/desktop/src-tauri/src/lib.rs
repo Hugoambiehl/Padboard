@@ -553,29 +553,50 @@ pub fn run() {
         });
 }
 
-/// Logs to stderr, or to `<test dir>/app.log` in test mode (the WebDriver
-/// that starts the app does not forward its output).
+/// Logs to stderr and to a file: `<test dir>/app.log` in test mode, else
+/// `padboard.log` in the config directory, started afresh at each launch (on
+/// Windows the app has no console, so the file is the only log).
 fn init_tracing(test_mode: Option<&TestMode>) {
-    use tracing_subscriber::EnvFilter;
+    use tracing_subscriber::layer::SubscriberExt as _;
+    use tracing_subscriber::util::SubscriberInitExt as _;
+    use tracing_subscriber::{EnvFilter, fmt};
     let filter = EnvFilter::try_from_env("PADBOARD_LOG").unwrap_or_else(|_| {
         EnvFilter::new("info,padboard_desktop_lib=debug,padboard_actions=debug")
     });
-    let builder = tracing_subscriber::fmt().with_env_filter(filter);
-    let log = test_mode.and_then(|mode| {
-        std::fs::create_dir_all(mode.dir()).ok()?;
-        std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(mode.log_file())
-            .ok()
-    });
-    let _ = match log {
-        Some(file) => builder
-            .with_ansi(false)
-            .with_writer(Mutex::new(file))
-            .try_init(),
-        None => builder.try_init(),
+    let file = match test_mode {
+        Some(mode) => std::fs::create_dir_all(mode.dir()).ok().and_then(|()| {
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(mode.log_file())
+                .ok()
+        }),
+        None => default_config_dir().and_then(|dir| {
+            std::fs::create_dir_all(&dir).ok()?;
+            std::fs::File::create(dir.join("padboard.log")).ok()
+        }),
     };
+    let to_file = file.map(|f| fmt::layer().with_ansi(false).with_writer(Mutex::new(f)));
+    let _ = tracing_subscriber::registry()
+        .with(filter)
+        .with(fmt::layer().with_writer(std::io::stderr))
+        .with(to_file)
+        .try_init();
+}
+
+/// Tauri's app config directory, known before Tauri starts (for the log).
+fn default_config_dir() -> Option<PathBuf> {
+    const IDENTIFIER: &str = "io.github.hugoambiehl.padboard";
+    let base = if cfg!(windows) {
+        std::env::var_os("APPDATA").map(PathBuf::from)
+    } else if cfg!(target_os = "macos") {
+        std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library/Application Support"))
+    } else {
+        std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
+    };
+    base.map(|b| b.join(IDENTIFIER))
 }
 
 /// Resolves on SIGTERM, SIGINT or SIGHUP (Ctrl+C / Ctrl+Break on Windows).
