@@ -15,7 +15,8 @@ use evdev::uinput::VirtualDevice;
 use evdev::{AttributeSet, EventType, InputEvent, KeyCode};
 
 use crate::{
-    Action, ActionError, ActionExecutor, HOTKEY_HOLD, Key, KeyInjector, log_outcome, run_hotkey,
+    Action, ActionError, ActionExecutor, HOTKEY_HOLD, Key, KeyInjector, log_outcome, not_yet,
+    run_hotkey,
 };
 
 const DEVICE_NAME: &str = "Padboard virtual keyboard";
@@ -87,6 +88,7 @@ impl ActionExecutor for LinuxExecutor {
     fn execute(&self, action: &Action) -> Result<(), ActionError> {
         let result = match action {
             Action::Hotkey(hotkey) => self.hotkey(hotkey),
+            other => not_yet(other),
         };
         log_outcome(action, &result);
         result

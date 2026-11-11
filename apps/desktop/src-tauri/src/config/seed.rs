@@ -270,6 +270,7 @@ pub fn config() -> Config {
             id: "demo".to_owned(),
             name: "Démo".to_owned(),
             grid: GridSize { cols: 5, rows: 3 },
+            folders: Vec::new(),
             pages: vec![PageConfig {
                 id: "page-1".to_owned(),
                 name: "Page 1".to_owned(),

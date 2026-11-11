@@ -16,7 +16,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 
 use crate::{
     Action, ActionError, ActionExecutor, HOTKEY_HOLD, Key, KeyInjector, WinKey, log_outcome,
-    run_hotkey,
+    not_yet, run_hotkey,
 };
 
 /// Executes actions on Windows.
@@ -34,6 +34,7 @@ impl ActionExecutor for WindowsExecutor {
     fn execute(&self, action: &Action) -> Result<(), ActionError> {
         let result = match action {
             Action::Hotkey(hotkey) => run_hotkey(&mut SendInputInjector, hotkey, HOTKEY_HOLD),
+            other => not_yet(other),
         };
         log_outcome(action, &result);
         result

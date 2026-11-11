@@ -2,7 +2,6 @@
 
 use std::collections::HashSet;
 
-use padboard_actions::Action;
 use serde::Serialize;
 use typeshare::typeshare;
 
@@ -11,6 +10,7 @@ use super::svg_path;
 
 pub const MAX_PROFILES: usize = 20;
 pub const MAX_PAGES: usize = 20;
+pub const MAX_FOLDERS: usize = 20;
 pub const MIN_GRID: u32 = 1;
 pub const MAX_COLS: u32 = 8;
 pub const MAX_ROWS: u32 = 6;
@@ -35,6 +35,8 @@ pub enum ConfigError {
     NoPage(String),
     #[error("profile {0:?} has too many pages (max {MAX_PAGES})")]
     TooManyPages(String),
+    #[error("profile {0:?} has too many folders (max {MAX_FOLDERS})")]
+    TooManyFolders(String),
     #[error("grid {cols}×{rows} out of bounds (1–{MAX_COLS} × 1–{MAX_ROWS})")]
     GridSize { cols: u32, rows: u32 },
     #[error("button {0:?} is outside the grid")]
@@ -63,6 +65,7 @@ impl ConfigError {
             Self::UnknownActiveProfile(_) => "unknownActiveProfile",
             Self::NoPage(_) => "noPage",
             Self::TooManyPages(_) => "tooManyPages",
+            Self::TooManyFolders(_) => "tooManyFolders",
             Self::GridSize { .. } => "gridSize",
             Self::OutsideGrid(_) => "outsideGrid",
             Self::CellTaken(_) => "cellTaken",
@@ -133,7 +136,11 @@ fn validate_profile(profile: &ProfileConfig, ids: &mut HashSet<String>) -> Resul
     if profile.pages.len() > MAX_PAGES {
         return Err(ConfigError::TooManyPages(profile.id.clone()));
     }
-    for page in &profile.pages {
+    if profile.folders.len() > MAX_FOLDERS {
+        return Err(ConfigError::TooManyFolders(profile.id.clone()));
+    }
+    // Pages and folders share the id space and the cell rules.
+    for page in profile.pages.iter().chain(&profile.folders) {
         check_id(&page.id, ids)?;
         check_text(&page.name, false)?;
         let mut cells = HashSet::new();
@@ -161,17 +168,17 @@ fn validate_button(button: &ButtonConfig) -> Result<(), ConfigError> {
     {
         return Err(ConfigError::InvalidIcon(button.id.clone()));
     }
-    match &button.action {
-        // An empty shortcut is a button still being set up: allowed in the
-        // configuration, refused when pressed (`Hotkey::validate`).
-        Action::Hotkey(hotkey) if hotkey.keys.is_empty() => Ok(()),
-        Action::Hotkey(hotkey) => hotkey.validate().map_err(|e| ConfigError::InvalidAction {
+    // Actions being set up (no key, no target yet) are allowed in the
+    // configuration and refused when pressed (`Action::validate`). Page and
+    // folder ids may dangle (deleted page): the tablet ignores them and the
+    // editor shows it.
+    button
+        .action
+        .validate_draft()
+        .map_err(|e| ConfigError::InvalidAction {
             button: button.id.clone(),
             detail: e.to_string(),
-        }),
-        // `Action` is non-exhaustive: new kinds validate themselves in phase 4.
-        _ => Ok(()),
-    }
+        })
 }
 
 fn icon_is_valid(icon: &IconConfig) -> bool {

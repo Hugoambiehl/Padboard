@@ -5,9 +5,9 @@
 //! does it replace the current configuration, so an invalid edit changes
 //! nothing. History entries are full snapshots (the configuration is small).
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 
-use padboard_actions::Action;
+use padboard_actions::{Action, NavigateAction, NavigateTo};
 use padboard_protocol::{Category, GridSize};
 use serde::{Deserialize, Serialize};
 use typeshare::typeshare;
@@ -46,14 +46,27 @@ pub enum Edit {
     },
     #[serde(rename_all = "camelCase")]
     AddPage { profile_id: String, name: String },
+    /// Renames a page or a folder.
     #[serde(rename_all = "camelCase")]
     RenamePage { page_id: String, name: String },
     /// Moves a page to `index` within its profile.
     #[serde(rename_all = "camelCase")]
     MovePage { page_id: String, index: u32 },
-    /// Refused for the last page of a profile.
+    /// Deletes a page (refused for the last one) or a folder. Buttons that
+    /// navigate to it are kept (the editor flags them).
     #[serde(rename_all = "camelCase")]
     DeletePage { page_id: String },
+    /// New empty folder, and a button opening it at a free cell of a page or
+    /// folder of the same profile. `createdId` is the folder's.
+    #[serde(rename_all = "camelCase")]
+    AddFolder {
+        page_id: String,
+        row: u32,
+        col: u32,
+        name: String,
+        icon: Option<IconConfig>,
+    },
+    /// Adds a button to a page or a folder.
     #[serde(rename_all = "camelCase")]
     AddButton {
         page_id: String,
@@ -65,8 +78,8 @@ pub enum Edit {
         color: Category,
         action: Action,
     },
-    /// Moves a button to a cell of a page of the same profile. If the cell is
-    /// taken, the two buttons swap places.
+    /// Moves a button to a cell of a page or folder of the same profile. If
+    /// the cell is taken, the two buttons swap places.
     #[serde(rename_all = "camelCase")]
     MoveButton {
         button_id: String,
@@ -249,27 +262,54 @@ fn profile_mut<'a>(c: &'a mut Config, id: &str) -> Result<&'a mut ProfileConfig,
         .ok_or_else(|| not_found("profile", id))
 }
 
-/// The profile holding a page, and the page's index in it.
-fn page_location(c: &Config, page_id: &str) -> Result<(usize, usize), EditError> {
-    c.profiles
-        .iter()
-        .enumerate()
-        .find_map(|(p, profile)| {
-            profile
-                .pages
-                .iter()
-                .position(|page| page.id == page_id)
-                .map(|i| (p, i))
-        })
-        .ok_or_else(|| not_found("page", page_id))
+/// A grid of buttons in a profile: a page or a folder (same id space).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Grid {
+    Page(usize),
+    Folder(usize),
 }
 
-/// (profile index, page index, button index) of a button.
-fn button_location(c: &Config, button_id: &str) -> Result<(usize, usize, usize), EditError> {
+fn grid_mut(profile: &mut ProfileConfig, grid: Grid) -> &mut PageConfig {
+    match grid {
+        Grid::Page(i) => &mut profile.pages[i],
+        Grid::Folder(i) => &mut profile.folders[i],
+    }
+}
+
+/// The profile holding a page or folder, and where it is in it.
+fn grid_location(c: &Config, id: &str) -> Result<(usize, Grid), EditError> {
     for (p, profile) in c.profiles.iter().enumerate() {
-        for (g, page) in profile.pages.iter().enumerate() {
-            if let Some(b) = page.buttons.iter().position(|b| b.id == button_id) {
-                return Ok((p, g, b));
+        if let Some(i) = profile.pages.iter().position(|g| g.id == id) {
+            return Ok((p, Grid::Page(i)));
+        }
+        if let Some(i) = profile.folders.iter().position(|g| g.id == id) {
+            return Ok((p, Grid::Folder(i)));
+        }
+    }
+    Err(not_found("page", id))
+}
+
+/// The profile holding a page (not a folder), and the page's index in it.
+fn page_location(c: &Config, page_id: &str) -> Result<(usize, usize), EditError> {
+    match grid_location(c, page_id)? {
+        (p, Grid::Page(i)) => Ok((p, i)),
+        (_, Grid::Folder(_)) => Err(not_found("page", page_id)),
+    }
+}
+
+/// (profile index, grid, button index) of a button.
+fn button_location(c: &Config, button_id: &str) -> Result<(usize, Grid, usize), EditError> {
+    for (p, profile) in c.profiles.iter().enumerate() {
+        let grids = (0..profile.pages.len())
+            .map(Grid::Page)
+            .chain((0..profile.folders.len()).map(Grid::Folder));
+        for grid in grids {
+            let buttons = match grid {
+                Grid::Page(i) => &profile.pages[i].buttons,
+                Grid::Folder(i) => &profile.folders[i].buttons,
+            };
+            if let Some(b) = buttons.iter().position(|b| b.id == button_id) {
+                return Ok((p, grid, b));
             }
         }
     }
@@ -278,7 +318,55 @@ fn button_location(c: &Config, button_id: &str) -> Result<(usize, usize, usize),
 
 fn button_mut<'a>(c: &'a mut Config, button_id: &str) -> Result<&'a mut ButtonConfig, EditError> {
     let (p, g, b) = button_location(c, button_id)?;
-    Ok(&mut c.profiles[p].pages[g].buttons[b])
+    Ok(&mut grid_mut(&mut c.profiles[p], g).buttons[b])
+}
+
+/// New ids for a copied profile, and its navigation buttons pointed at the
+/// copies of their pages and folders.
+fn renew_ids(profile: &mut ProfileConfig) {
+    let mut renamed = HashMap::new();
+    for grid in profile.pages.iter_mut().chain(&mut profile.folders) {
+        let id = new_id();
+        renamed.insert(std::mem::replace(&mut grid.id, id.clone()), id);
+        for button in &mut grid.buttons {
+            button.id = new_id();
+        }
+    }
+    for grid in profile.pages.iter_mut().chain(&mut profile.folders) {
+        for button in &mut grid.buttons {
+            retarget(&mut button.action, &renamed);
+        }
+    }
+}
+
+fn retarget(action: &mut Action, renamed: &HashMap<String, String>) {
+    match action {
+        Action::Navigate(NavigateAction { id: Some(id), .. }) => {
+            if let Some(new) = renamed.get(id) {
+                id.clone_from(new);
+            }
+        }
+        Action::Multi(multi) => {
+            for step in &mut multi.steps {
+                retarget(&mut step.action, renamed);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn add_button(c: &mut Config, grid_id: &str, button: ButtonConfig) -> Result<(), EditError> {
+    let (p, g) = grid_location(c, grid_id)?;
+    let grid = grid_mut(&mut c.profiles[p], g);
+    if grid
+        .buttons
+        .iter()
+        .any(|b| b.row == button.row && b.col == button.col)
+    {
+        return Err(ConfigError::CellTaken(grid_id.to_owned()).into());
+    }
+    grid.buttons.push(button);
+    Ok(())
 }
 
 fn empty_page(name: String) -> PageConfig {
@@ -299,6 +387,7 @@ fn apply(c: &mut Config, edit: Edit) -> Result<EditOutcome, EditError> {
                 name,
                 grid: GridSize { cols: 5, rows: 3 },
                 pages: vec![empty_page("Page 1".to_owned())],
+                folders: Vec::new(),
             });
             created = Some(id);
         }
@@ -306,12 +395,7 @@ fn apply(c: &mut Config, edit: Edit) -> Result<EditOutcome, EditError> {
             let mut copy = profile_mut(c, &profile_id)?.clone();
             copy.id = new_id();
             copy.name = name;
-            for page in &mut copy.pages {
-                page.id = new_id();
-                for button in &mut page.buttons {
-                    button.id = new_id();
-                }
-            }
+            renew_ids(&mut copy);
             created = Some(copy.id.clone());
             c.profiles.push(copy);
         }
@@ -345,8 +429,8 @@ fn apply(c: &mut Config, edit: Edit) -> Result<EditOutcome, EditError> {
             profile_mut(c, &profile_id)?.pages.push(page);
         }
         Edit::RenamePage { page_id, name } => {
-            let (p, g) = page_location(c, &page_id)?;
-            c.profiles[p].pages[g].name = name;
+            let (p, g) = grid_location(c, &page_id)?;
+            grid_mut(&mut c.profiles[p], g).name = name;
         }
         Edit::MovePage { page_id, index } => {
             let (p, g) = page_location(c, &page_id)?;
@@ -357,15 +441,49 @@ fn apply(c: &mut Config, edit: Edit) -> Result<EditOutcome, EditError> {
                 .min(pages.len());
             pages.insert(index, page);
         }
-        Edit::DeletePage { page_id } => {
-            let (p, g) = page_location(c, &page_id)?;
-            if c.profiles[p].pages.len() <= 1 {
-                return Err(refused(
-                    "lastPage",
-                    "the last page of a profile cannot be deleted",
-                ));
+        Edit::DeletePage { page_id } => match grid_location(c, &page_id)? {
+            (p, Grid::Page(g)) => {
+                if c.profiles[p].pages.len() <= 1 {
+                    return Err(refused(
+                        "lastPage",
+                        "the last page of a profile cannot be deleted",
+                    ));
+                }
+                c.profiles[p].pages.remove(g);
             }
-            c.profiles[p].pages.remove(g);
+            (p, Grid::Folder(g)) => {
+                c.profiles[p].folders.remove(g);
+            }
+        },
+        Edit::AddFolder {
+            page_id,
+            row,
+            col,
+            name,
+            icon,
+        } => {
+            let (p, _) = grid_location(c, &page_id)?;
+            let folder = empty_page(name.clone());
+            let folder_id = folder.id.clone();
+            c.profiles[p].folders.push(folder);
+            add_button(
+                c,
+                &page_id,
+                ButtonConfig {
+                    id: new_id(),
+                    row,
+                    col,
+                    label: name,
+                    subtitle: None,
+                    icon,
+                    color: Category::Violet,
+                    action: Action::Navigate(NavigateAction {
+                        to: NavigateTo::Folder,
+                        id: Some(folder_id.clone()),
+                    }),
+                },
+            )?;
+            created = Some(folder_id);
         }
         Edit::AddButton {
             page_id,
@@ -377,22 +495,21 @@ fn apply(c: &mut Config, edit: Edit) -> Result<EditOutcome, EditError> {
             color,
             action,
         } => {
-            let (p, g) = page_location(c, &page_id)?;
-            let page = &mut c.profiles[p].pages[g];
-            if page.buttons.iter().any(|b| b.row == row && b.col == col) {
-                return Err(ConfigError::CellTaken(page_id).into());
-            }
             let id = new_id();
-            page.buttons.push(ButtonConfig {
-                id: id.clone(),
-                row,
-                col,
-                label,
-                subtitle,
-                icon,
-                color,
-                action,
-            });
+            add_button(
+                c,
+                &page_id,
+                ButtonConfig {
+                    id: id.clone(),
+                    row,
+                    col,
+                    label,
+                    subtitle,
+                    icon,
+                    color,
+                    action,
+                },
+            )?;
             created = Some(id);
         }
         Edit::MoveButton {
@@ -411,7 +528,7 @@ fn apply(c: &mut Config, edit: Edit) -> Result<EditOutcome, EditError> {
         Edit::SetAction { button_id, action } => button_mut(c, &button_id)?.action = action,
         Edit::DeleteButton { button_id } => {
             let (p, g, b) = button_location(c, &button_id)?;
-            c.profiles[p].pages[g].buttons.remove(b);
+            grid_mut(&mut c.profiles[p], g).buttons.remove(b);
         }
     }
     Ok(EditOutcome {
@@ -426,30 +543,31 @@ fn move_button(
     row: u32,
     col: u32,
 ) -> Result<(), EditError> {
-    let (p, from_page, b) = button_location(c, button_id)?;
-    let (target_profile, to_page) = page_location(c, page_id)?;
+    let (p, from, b) = button_location(c, button_id)?;
+    let (target_profile, to) = grid_location(c, page_id)?;
     if target_profile != p {
         return Err(refused(
             "otherProfile",
             "buttons move within their profile only",
         ));
     }
-    let pages = &mut c.profiles[p].pages;
-    let mut button = pages[from_page].buttons.remove(b);
+    let profile = &mut c.profiles[p];
+    let mut button = grid_mut(profile, from).buttons.remove(b);
     // The button already in the target cell, if any, takes the vacated cell.
-    if let Some(i) = pages[to_page]
+    let target = grid_mut(profile, to);
+    if let Some(i) = target
         .buttons
         .iter()
         .position(|o| o.row == row && o.col == col)
     {
-        let mut other = pages[to_page].buttons.remove(i);
+        let mut other = target.buttons.remove(i);
         other.row = button.row;
         other.col = button.col;
-        pages[from_page].buttons.push(other);
+        grid_mut(profile, from).buttons.push(other);
     }
     button.row = row;
     button.col = col;
-    pages[to_page].buttons.push(button);
+    grid_mut(profile, to).buttons.push(button);
     Ok(())
 }
 
@@ -749,5 +867,190 @@ mod tests {
         }
         assert_eq!(button(&e, "copy").color, Category::Red);
         assert_eq!(button(&e, "copy").subtitle, None);
+    }
+
+    fn folder_button(e: &Editor, folder: &str) -> ButtonConfig {
+        e.config().profiles[0]
+            .pages
+            .iter()
+            .flat_map(|p| &p.buttons)
+            .find(|b| {
+                matches!(&b.action, Action::Navigate(NavigateAction { id: Some(id), .. }) if id == folder)
+            })
+            .cloned()
+            .unwrap()
+    }
+
+    fn add_folder(e: &mut Editor, name: &str) -> String {
+        let page = page_id(e);
+        e.apply(Edit::AddFolder {
+            page_id: page,
+            row: 2,
+            col: 3,
+            name: name.into(),
+            icon: None,
+        })
+        .unwrap()
+        .created_id
+        .unwrap()
+    }
+
+    #[test]
+    fn a_folder_comes_with_the_button_that_opens_it() {
+        let mut e = editor();
+        let folder = add_folder(&mut e, "Streaming");
+        let profile = &e.config().profiles[0];
+        assert_eq!(profile.folders.len(), 1);
+        assert_eq!(profile.folders[0].name, "Streaming");
+        let button = folder_button(&e, &folder);
+        assert_eq!(
+            (button.row, button.col, button.label.as_str()),
+            (2, 3, "Streaming")
+        );
+        // One undo entry removes both.
+        e.undo();
+        assert!(e.config().profiles[0].folders.is_empty());
+        assert!(
+            e.config().profiles[0].pages[0]
+                .buttons
+                .iter()
+                .all(|b| (b.row, b.col) != (2, 3))
+        );
+    }
+
+    #[test]
+    fn a_folder_needs_a_free_cell() {
+        let mut e = editor();
+        let page = page_id(&e);
+        let err = e
+            .apply(Edit::AddFolder {
+                page_id: page,
+                row: 0,
+                col: 0,
+                name: "X".into(),
+                icon: None,
+            })
+            .unwrap_err();
+        assert_eq!(err.code, "cellTaken");
+        assert!(e.config().profiles[0].folders.is_empty());
+    }
+
+    #[test]
+    fn folders_hold_buttons_like_pages() {
+        let mut e = editor();
+        let folder = add_folder(&mut e, "Streaming");
+        let added = e
+            .apply(Edit::AddButton {
+                page_id: folder.clone(),
+                row: 0,
+                col: 0,
+                label: "Scène".into(),
+                subtitle: None,
+                icon: None,
+                color: Category::Teal,
+                action: Action::Hotkey(Hotkey::new([])),
+            })
+            .unwrap()
+            .created_id
+            .unwrap();
+        // Moved out to a page, then back in.
+        let page = page_id(&e);
+        e.apply(Edit::MoveButton {
+            button_id: added.clone(),
+            page_id: page,
+            row: 2,
+            col: 4,
+        })
+        .unwrap();
+        // "lock" was in that cell: it took the moved button's place.
+        assert!(
+            e.config().profiles[0].folders[0]
+                .buttons
+                .iter()
+                .any(|b| b.id == "lock")
+        );
+        e.apply(Edit::MoveButton {
+            button_id: added.clone(),
+            page_id: folder.clone(),
+            row: 1,
+            col: 1,
+        })
+        .unwrap();
+        let inside = &e.config().profiles[0].folders[0].buttons;
+        assert_eq!(
+            inside.len(),
+            2,
+            "the swapped button followed it: {inside:?}"
+        );
+        e.apply(Edit::RenamePage {
+            page_id: folder.clone(),
+            name: "Live".into(),
+        })
+        .unwrap();
+        assert_eq!(e.config().profiles[0].folders[0].name, "Live");
+        e.apply(Edit::SetLabel {
+            button_id: added,
+            label: "Pause".into(),
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn deleting_a_folder_keeps_the_buttons_that_opened_it() {
+        let mut e = editor();
+        let folder = add_folder(&mut e, "Streaming");
+        e.apply(Edit::DeletePage {
+            page_id: folder.clone(),
+        })
+        .unwrap();
+        assert!(e.config().profiles[0].folders.is_empty());
+        // Dangling, flagged by the editor, ignored by the tablet.
+        folder_button(&e, &folder);
+        assert!(e.config().validate().is_ok());
+    }
+
+    #[test]
+    fn a_duplicated_profile_navigates_within_itself() {
+        let mut e = editor();
+        let folder = add_folder(&mut e, "Streaming");
+        let copy = e
+            .apply(Edit::DuplicateProfile {
+                profile_id: "demo".into(),
+                name: "Copie".into(),
+            })
+            .unwrap()
+            .created_id
+            .unwrap();
+        let copied = e.config().profiles.iter().find(|p| p.id == copy).unwrap();
+        let new_folder = &copied.folders[0].id;
+        assert_ne!(new_folder, &folder);
+        let opens_copy = copied.pages.iter().flat_map(|p| &p.buttons).any(|b| {
+            matches!(&b.action, Action::Navigate(NavigateAction { id: Some(id), .. }) if id == new_folder)
+        });
+        assert!(opens_copy);
+        assert!(e.config().validate().is_ok());
+    }
+
+    #[test]
+    fn actions_being_set_up_are_kept_but_bounds_are_enforced() {
+        use padboard_actions::{OpenAction, VolumeAction, VolumeCommand};
+        let mut e = editor();
+        e.apply(Edit::SetAction {
+            button_id: "copy".into(),
+            action: Action::Open(OpenAction {
+                target: String::new(),
+            }),
+        })
+        .unwrap();
+        let err = e
+            .apply(Edit::SetAction {
+                button_id: "copy".into(),
+                action: Action::Volume(VolumeAction {
+                    command: VolumeCommand::Set,
+                    value: Some(200),
+                }),
+            })
+            .unwrap_err();
+        assert_eq!(err.code, "invalidAction");
     }
 }

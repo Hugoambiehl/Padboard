@@ -30,10 +30,22 @@ export enum Category {
  * Something a button can do. Stored in the desktop configuration, never sent
  * to the tablet. JSON: `{ "type": "hotkey", "params": { "keys": [...] } }`
  * (adjacently tagged, the form typeshare can generate for the editor).
+ * 
+ * [`ActionExecutor`]s run the [system](Action::is_system) kinds; the desktop
+ * app carries out the others (navigation, multi actions, OBS).
  */
 export type Action = 
 	/** Press a key combination, e.g. `Ctrl + Alt + T`. */
-	| { type: "hotkey", params: Hotkey };
+	| { type: "hotkey", params: Hotkey }
+	| { type: "media", params: MediaAction }
+	| { type: "volume", params: VolumeAction }
+	| { type: "microphone", params: MicrophoneAction }
+	| { type: "open", params: OpenAction }
+	/** Lock the session. */
+	| { type: "lock", params?: undefined }
+	| { type: "navigate", params: NavigateAction }
+	| { type: "multi", params: MultiAction }
+	| { type: "obs", params: ObsAction };
 
 export interface ButtonConfig {
 	/** Unique across the whole configuration (sent in `button:press`). */
@@ -103,8 +115,10 @@ export interface ProfileConfig {
 	id: string;
 	name: string;
 	grid: GridSize;
-	/** At least one. */
+	/** At least one. Swiped through on the tablet. */
 	pages: PageConfig[];
+	/** Pages outside the swipe order, opened by a navigation button. */
+	folders: PageConfig[];
 }
 
 export interface Config {
@@ -221,6 +235,58 @@ export interface Layout {
 	folders: Folder[];
 }
 
+export enum MediaCommand {
+	PlayPause = "play_pause",
+	Next = "next",
+	Previous = "previous",
+	Stop = "stop",
+}
+
+/**
+ * Media player command. Sent to the active player (MPRIS on Linux, the
+ * system media session on Windows), with the media keys as a fallback.
+ */
+export interface MediaAction {
+	command: MediaCommand;
+}
+
+export enum MicrophoneCommand {
+	ToggleMute = "toggle_mute",
+	Mute = "mute",
+	Unmute = "unmute",
+}
+
+/** Default input device (microphone). */
+export interface MicrophoneAction {
+	command: MicrophoneCommand;
+}
+
+export interface MultiStep {
+	action: Action;
+	/** Pause after this step, in milliseconds. */
+	delayMs?: number;
+}
+
+/** Several actions in a row (desktop app). Steps cannot be multi actions. */
+export interface MultiAction {
+	steps: MultiStep[];
+}
+
+export enum NavigateTo {
+	Page = "page",
+	Folder = "folder",
+	Next = "next",
+	Previous = "previous",
+	Back = "back",
+}
+
+/** Moves the tablet that pressed the button (desktop app). */
+export interface NavigateAction {
+	to: NavigateTo;
+	/** Page or folder id, for `page` and `folder`. */
+	id?: string;
+}
+
 /**
  * Where `navigate` goes. Relative moves are resolved by the tablet, which
  * knows the page it shows; unknown ids are ignored.
@@ -242,6 +308,28 @@ export interface NavigatePayload {
 	to: NavigateTarget;
 	/** Page or folder id, for `page` and `folder`. */
 	id?: string;
+}
+
+export enum ObsCommand {
+	SetScene = "set_scene",
+	ToggleRecord = "toggle_record",
+	ToggleStream = "toggle_stream",
+	ToggleInputMute = "toggle_input_mute",
+}
+
+/** OBS Studio, through obs-websocket v5 (desktop app). */
+export interface ObsAction {
+	command: ObsCommand;
+	/** Scene name for `set_scene`, input (source) name for `toggle_input_mute`. */
+	target?: string;
+}
+
+/**
+ * Opens a URL (`https://…`), a file, a folder or a program with the
+ * system's default handler.
+ */
+export interface OpenAction {
+	target: string;
 }
 
 export enum PairFailureReason {
@@ -284,6 +372,23 @@ export interface Preset {
 	/** Lucide icon name (the frontend resolves its paths). */
 	icon: string;
 	action: Action;
+}
+
+export enum VolumeCommand {
+	Up = "up",
+	Down = "down",
+	Set = "set",
+	ToggleMute = "toggle_mute",
+}
+
+/** Output volume of the default device. */
+export interface VolumeAction {
+	command: VolumeCommand;
+	/**
+	 * Percent: the step for `up` / `down` (1–100), the level for `set` (0–100).
+	 * Ignored by `toggle_mute`.
+	 */
+	value?: number;
 }
 
 /** Authentication state of a connection, announced in `welcome`. */
@@ -343,6 +448,7 @@ export type Edit =
 	profileId: string;
 	name: string;
 }}
+	/** Renames a page or a folder. */
 	| { type: "renamePage", params: {
 	pageId: string;
 	name: string;
@@ -352,10 +458,25 @@ export type Edit =
 	pageId: string;
 	index: number;
 }}
-	/** Refused for the last page of a profile. */
+	/**
+	 * Deletes a page (refused for the last one) or a folder. Buttons that
+	 * navigate to it are kept (the editor flags them).
+	 */
 	| { type: "deletePage", params: {
 	pageId: string;
 }}
+	/**
+	 * New empty folder, and a button opening it at a free cell of a page or
+	 * folder of the same profile. `createdId` is the folder's.
+	 */
+	| { type: "addFolder", params: {
+	pageId: string;
+	row: number;
+	col: number;
+	name: string;
+	icon?: IconConfig;
+}}
+	/** Adds a button to a page or a folder. */
 	| { type: "addButton", params: {
 	pageId: string;
 	row: number;
@@ -367,8 +488,8 @@ export type Edit =
 	action: Action;
 }}
 	/**
-	 * Moves a button to a cell of a page of the same profile. If the cell is
-	 * taken, the two buttons swap places.
+	 * Moves a button to a cell of a page or folder of the same profile. If
+	 * the cell is taken, the two buttons swap places.
 	 */
 	| { type: "moveButton", params: {
 	buttonId: string;

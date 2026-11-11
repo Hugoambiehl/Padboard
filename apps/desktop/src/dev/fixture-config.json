@@ -315,7 +315,8 @@
           "name": "Streaming",
           "buttons": []
         }
-      ]
+      ],
+      "folders": []
     },
     {
       "id": "gaming",
@@ -330,7 +331,8 @@
           "name": "Page 1",
           "buttons": []
         }
-      ]
+      ],
+      "folders": []
     }
   ]
 }

@@ -12,7 +12,7 @@ mod validate;
 use std::collections::HashMap;
 
 use padboard_actions::Action;
-use padboard_protocol::{ButtonIcon, ButtonView, Layout, Page, ProfileInfo};
+use padboard_protocol::{ButtonIcon, ButtonView, Folder, Layout, Page, ProfileInfo};
 
 use crate::storage::{ConfigDir, Document};
 
@@ -21,7 +21,30 @@ pub use validate::EditError;
 
 impl Document for Config {
     const FILE: &'static str = "profiles.json";
-    const VERSION: u32 = 1;
+    /// 2: folders (phase 4).
+    const VERSION: u32 = 2;
+
+    fn migrate(
+        from: u32,
+        mut fields: serde_json::Map<String, serde_json::Value>,
+    ) -> Result<serde_json::Map<String, serde_json::Value>, String> {
+        match from {
+            1 => {
+                let profiles = fields
+                    .get_mut("profiles")
+                    .and_then(serde_json::Value::as_array_mut)
+                    .ok_or("no profiles array")?;
+                for profile in profiles {
+                    let profile = profile.as_object_mut().ok_or("profile is not an object")?;
+                    profile
+                        .entry("folders")
+                        .or_insert_with(|| serde_json::Value::Array(Vec::new()));
+                }
+                Ok(fields)
+            }
+            _ => Err(format!("no migration from version {from}")),
+        }
+    }
 }
 
 /// Loads `profiles.json`, creating it with the [`seed`] at first launch. A
@@ -111,11 +134,20 @@ impl Config {
                         buttons: buttons(page),
                     })
                     .collect(),
-                folders: Vec::new(),
+                folders: profile
+                    .folders
+                    .iter()
+                    .map(|folder| Folder {
+                        id: folder.id.clone(),
+                        name: folder.name.clone(),
+                        buttons: buttons(folder),
+                    })
+                    .collect(),
             },
             actions: profile
                 .pages
                 .iter()
+                .chain(&profile.folders)
                 .flat_map(|p| &p.buttons)
                 .map(|b| (b.id.clone(), b.action.clone()))
                 .collect(),
@@ -243,5 +275,23 @@ mod tests {
         let a = new_id();
         assert_eq!(a.len(), 12);
         assert_ne!(a, new_id());
+    }
+
+    #[test]
+    fn version_1_files_gain_empty_folders() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut v1 = serde_json::to_value(seed::config()).unwrap();
+        for profile in v1["profiles"].as_array_mut().unwrap() {
+            profile.as_object_mut().unwrap().remove("folders");
+        }
+        v1["version"] = 1.into();
+        std::fs::write(
+            dir.path().join(Config::FILE),
+            serde_json::to_vec(&v1).unwrap(),
+        )
+        .unwrap();
+        let config = load(&ConfigDir::open(dir.path()).unwrap());
+        assert_eq!(config.profiles[0].id, "demo");
+        assert!(config.profiles[0].folders.is_empty());
     }
 }

@@ -1,4 +1,4 @@
-//! The editable configuration: profiles → pages → buttons. Persisted in
+//! The editable configuration: profiles → pages and folders → buttons. Persisted in
 //! `profiles.json` (versioned, `storage.rs`), edited only through the
 //! operations of `ops.rs`, and mirrored in TypeScript by typeshare
 //! (`apps/desktop/src/generated/types.ts`).
@@ -27,8 +27,10 @@ pub struct ProfileConfig {
     pub id: String,
     pub name: String,
     pub grid: GridSize,
-    /// At least one.
+    /// At least one. Swiped through on the tablet.
     pub pages: Vec<PageConfig>,
+    /// Pages outside the swipe order, opened by a navigation button.
+    pub folders: Vec<PageConfig>,
 }
 
 #[typeshare]

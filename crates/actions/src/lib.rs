@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use typeshare::typeshare;
 
 mod keys;
+mod kinds;
 
 #[cfg(target_os = "linux")]
 mod linux;
@@ -26,6 +27,7 @@ mod unsupported;
 mod win;
 
 pub use keys::{Key, WinKey};
+pub use kinds::*;
 
 /// Maximum number of keys in a single hotkey.
 pub const MAX_HOTKEY_KEYS: usize = 6;
@@ -37,6 +39,9 @@ const HOTKEY_HOLD: Duration = Duration::from_millis(20);
 /// Something a button can do. Stored in the desktop configuration, never sent
 /// to the tablet. JSON: `{ "type": "hotkey", "params": { "keys": [...] } }`
 /// (adjacently tagged, the form typeshare can generate for the editor).
+///
+/// [`ActionExecutor`]s run the [system](Action::is_system) kinds; the desktop
+/// app carries out the others (navigation, multi actions, OBS).
 #[typeshare]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "params", rename_all = "camelCase")]
@@ -44,6 +49,15 @@ const HOTKEY_HOLD: Duration = Duration::from_millis(20);
 pub enum Action {
     /// Press a key combination, e.g. `Ctrl + Alt + T`.
     Hotkey(Hotkey),
+    Media(MediaAction),
+    Volume(VolumeAction),
+    Microphone(MicrophoneAction),
+    Open(OpenAction),
+    /// Lock the session.
+    Lock,
+    Navigate(NavigateAction),
+    Multi(MultiAction),
+    Obs(ObsAction),
 }
 
 impl Action {
@@ -52,6 +66,122 @@ impl Action {
     pub const fn kind(&self) -> &'static str {
         match self {
             Self::Hotkey(_) => "hotkey",
+            Self::Media(_) => "media",
+            Self::Volume(_) => "volume",
+            Self::Microphone(_) => "microphone",
+            Self::Open(_) => "open",
+            Self::Lock => "lock",
+            Self::Navigate(_) => "navigate",
+            Self::Multi(_) => "multi",
+            Self::Obs(_) => "obs",
+        }
+    }
+
+    /// Run by an [`ActionExecutor`] (blocking, on this PC).
+    #[must_use]
+    pub const fn is_system(&self) -> bool {
+        matches!(
+            self,
+            Self::Hotkey(_)
+                | Self::Media(_)
+                | Self::Volume(_)
+                | Self::Microphone(_)
+                | Self::Open(_)
+                | Self::Lock
+        )
+    }
+
+    /// Checks the parameters before running the action: ranges, lengths and
+    /// required values. Page and folder ids are resolved by the desktop app.
+    ///
+    /// # Errors
+    /// [`ActionError::Invalid`] describing the first problem found.
+    pub fn validate(&self) -> Result<(), ActionError> {
+        self.check(false)
+    }
+
+    /// Like [`validate`](Self::validate) for an action being edited: values
+    /// not filled in yet (no key, no target, no scene…) are accepted, bounds
+    /// are still enforced.
+    ///
+    /// # Errors
+    /// [`ActionError::Invalid`] describing the first problem found.
+    pub fn validate_draft(&self) -> Result<(), ActionError> {
+        self.check(true)
+    }
+
+    fn check(&self, draft: bool) -> Result<(), ActionError> {
+        let invalid = |m: String| Err(ActionError::Invalid(m));
+        // Missing names pass in drafts; present ones are always bounded.
+        let name_ok = |n: &Option<String>| match n.as_deref() {
+            None | Some("") => draft,
+            Some(n) => !n.trim().is_empty() && n.len() <= MAX_ACTION_NAME,
+        };
+        match self {
+            Self::Hotkey(hotkey) if draft && hotkey.keys.is_empty() => Ok(()),
+            Self::Hotkey(hotkey) => hotkey.validate(),
+            Self::Media(_) | Self::Microphone(_) | Self::Lock => Ok(()),
+            Self::Volume(v) => match (v.command, v.value) {
+                (VolumeCommand::Up | VolumeCommand::Down, Some(step))
+                    if !(1..=100).contains(&step) =>
+                {
+                    invalid(format!("volume step {step} % is not within 1–100"))
+                }
+                (VolumeCommand::Set, None) => invalid("volume level is missing".into()),
+                (VolumeCommand::Set, Some(level)) if level > 100 => {
+                    invalid(format!("volume level {level} % is above 100"))
+                }
+                _ => Ok(()),
+            },
+            Self::Open(o) => {
+                if o.target.trim().is_empty() && !(draft && o.target.is_empty()) {
+                    invalid("nothing to open".into())
+                } else if o.target.len() > MAX_OPEN_TARGET {
+                    invalid(format!("open target longer than {MAX_OPEN_TARGET} bytes"))
+                } else if o.target.contains('\0') {
+                    invalid("open target contains a NUL byte".into())
+                } else {
+                    Ok(())
+                }
+            }
+            Self::Navigate(n) => match n.to {
+                NavigateTo::Page | NavigateTo::Folder if !name_ok(&n.id) => {
+                    invalid("navigation needs a page or folder".into())
+                }
+                _ => Ok(()),
+            },
+            Self::Multi(m) => {
+                if m.steps.is_empty() {
+                    return invalid("multi action has no step".into());
+                }
+                if m.steps.len() > MAX_MULTI_STEPS {
+                    return invalid(format!(
+                        "multi action has more than {MAX_MULTI_STEPS} steps"
+                    ));
+                }
+                for (i, step) in m.steps.iter().enumerate() {
+                    if matches!(step.action, Self::Multi(_)) {
+                        return invalid(format!("step {} is a multi action", i + 1));
+                    }
+                    if step.delay_ms > MAX_MULTI_DELAY_MS {
+                        return invalid(format!(
+                            "step {} waits more than {MAX_MULTI_DELAY_MS} ms",
+                            i + 1
+                        ));
+                    }
+                    step.action
+                        .check(draft)
+                        .map_err(|e| ActionError::Invalid(format!("step {}: {e}", i + 1)))?;
+                }
+                Ok(())
+            }
+            Self::Obs(o) => {
+                if o.command.needs_target() && !name_ok(&o.target) {
+                    invalid("OBS command needs a scene or source name".into())
+                } else {
+                    Ok(())
+                }
+            }
         }
     }
 }
@@ -185,6 +315,23 @@ pub(crate) fn run_hotkey(
         }
     }
     result
+}
+
+/// For the kinds a platform executor does not run (yet, or ever: the desktop
+/// app carries out navigation, multi actions and OBS).
+#[cfg(any(target_os = "linux", windows))]
+pub(crate) fn not_yet(action: &Action) -> Result<(), ActionError> {
+    if action.is_system() {
+        Err(ActionError::Unsupported {
+            action: action.kind(),
+            platform: std::env::consts::OS,
+        })
+    } else {
+        Err(ActionError::Invalid(format!(
+            "{} actions are carried out by the desktop app",
+            action.kind()
+        )))
+    }
 }
 
 /// Logs the outcome of an action. Shared by the platform executors.
