@@ -194,12 +194,13 @@ async fn test_button(
         .config()
         .profiles
         .iter()
-        .flat_map(|p| &p.pages)
+        .flat_map(|p| p.pages.iter().chain(&p.folders))
         .flat_map(|p| &p.buttons)
         .find(|b| b.id == button_id)
         .map(|b| b.action.clone())
         .ok_or_else(|| format!("no button {button_id:?}"))?;
-    Ok(server::execute(&backend.server, action).await)
+    // No tablet here: navigation steps do nothing.
+    Ok(server::perform(&backend.server, action, None).await)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -343,6 +344,7 @@ pub fn run() {
                 next_connection_id: AtomicU64::new(1),
                 handshaking: AtomicUsize::new(0),
                 pairing: AtomicUsize::new(0),
+                running: Mutex::default(),
             });
 
             // Creating the executor may block (the uinput device needs time to

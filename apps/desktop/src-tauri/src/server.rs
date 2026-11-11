@@ -107,6 +107,9 @@ pub struct ServerContext {
     pub handshaking: AtomicUsize,
     /// Connections in the pairing phase.
     pub pairing: AtomicUsize,
+    /// Multi actions running, by button: a second press while one runs is
+    /// ignored (two sequences of keys would interleave).
+    pub running: std::sync::Mutex<std::collections::HashSet<String>>,
 }
 
 /// What happened, for the UI.
@@ -505,11 +508,14 @@ async fn session<S>(
     id: u64,
     mut kick: tokio::sync::oneshot::Receiver<crate::auth::Kick>,
     mut feeds: Feeds,
-    ctx: &ServerContext,
+    ctx: &Arc<ServerContext>,
 ) -> Result<(), ConnectionError>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
+    // Messages sent on behalf of what presses started (navigation, the
+    // outcome of a multi action running in its own task).
+    let (outbox, mut outgoing) = tokio::sync::mpsc::unbounded_channel::<Message>();
     let mut kick_pending = true;
     let mut layouts_open = true;
     let mut states_open = true;
@@ -525,6 +531,10 @@ where
                 } else {
                     layouts_open = false; // the app is shutting down
                 }
+                continue;
+            }
+            Some(message) = outgoing.recv() => {
+                send(ws, &message).await?;
                 continue;
             }
             changed = feeds.states.changed(), if states_open => {
@@ -555,7 +565,7 @@ where
         };
         match message {
             Message::ButtonPress(ButtonEvent { button_id }) => {
-                press(ws, id, ctx, button_id).await?;
+                press(ws, id, ctx, &outbox, button_id).await?;
             }
             // Long presses arrive in phase 4.
             Message::ButtonRelease(_) | Message::Pong(_) => {}
@@ -621,10 +631,14 @@ impl Feeds {
     }
 }
 
+/// Messages a session sends for the tasks its presses started.
+type Outbox = tokio::sync::mpsc::UnboundedSender<Message>;
+
 async fn press<S>(
     ws: &mut WebSocketStream<S>,
     client_id: u64,
-    ctx: &ServerContext,
+    ctx: &Arc<ServerContext>,
+    outbox: &Outbox,
     button_id: String,
 ) -> Result<(), ConnectionError>
 where
@@ -635,16 +649,48 @@ where
         let reason = format!("no button {button_id:?} in the current layout");
         return send_error(ws, ErrorCode::UnknownButton, reason).await;
     };
-    let outcome = match action {
-        // Navigation moves the tablet that pressed, nothing runs on the PC.
-        Action::Navigate(nav) => {
-            send(ws, &Message::Navigate(navigate_payload(&nav))).await?;
-            ActionOutcome::Ok
+    if matches!(action, Action::Multi(_)) {
+        // Steps and pauses can take seconds: in their own task, so the
+        // session keeps answering pings and other buttons.
+        let fresh = ctx
+            .running
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(button_id.clone());
+        if !fresh {
+            tracing::debug!(button = %button_id, "multi action already running, press ignored");
+            return Ok(());
         }
-        action => execute(ctx, action).await,
-    };
+        let ctx = Arc::clone(ctx);
+        let outbox = outbox.clone();
+        tokio::spawn(async move {
+            let outcome = perform(&ctx, action, Some(&outbox)).await;
+            ctx.running
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .remove(&button_id);
+            finish(&ctx, &outbox, client_id, button_id, outcome);
+        });
+        return Ok(());
+    }
+    let outcome = perform(ctx, action, Some(outbox)).await;
+    finish(ctx, outbox, client_id, button_id, outcome);
+    Ok(())
+}
+
+/// Reports the outcome of a press: an error to the tablet, the activity to the UI.
+fn finish(
+    ctx: &ServerContext,
+    outbox: &Outbox,
+    client_id: u64,
+    button_id: String,
+    outcome: ActionOutcome,
+) {
     if let ActionOutcome::Error { detail, .. } = &outcome {
-        send_error(ws, ErrorCode::ActionFailed, detail.clone()).await?;
+        let _ = outbox.send(Message::Error(ErrorPayload {
+            code: ErrorCode::ActionFailed,
+            message: detail.clone(),
+        }));
     }
     emit(
         ctx,
@@ -654,7 +700,67 @@ where
             outcome,
         },
     );
-    Ok(())
+}
+
+/// Carries out any action: system ones on the executor, navigation by a
+/// message to the tablet that pressed (`outbox`; nothing without one, e.g.
+/// "Tester l'action" in the editor), multi actions step by step. A failed
+/// step stops the sequence.
+pub async fn perform(
+    ctx: &ServerContext,
+    action: Action,
+    outbox: Option<&Outbox>,
+) -> ActionOutcome {
+    let Action::Multi(multi) = action else {
+        return perform_step(ctx, action, outbox).await;
+    };
+    let whole = Action::Multi(multi);
+    if let Err(e) = whole.validate() {
+        return ActionOutcome::from_error(&e);
+    }
+    let Action::Multi(multi) = whole else {
+        unreachable!("just built")
+    };
+    for (i, step) in multi.steps.into_iter().enumerate() {
+        if let ActionOutcome::Error { code, detail } = perform_step(ctx, step.action, outbox).await
+        {
+            return ActionOutcome::Error {
+                code,
+                detail: format!("step {}: {detail}", i + 1),
+            };
+        }
+        if step.delay_ms > 0 {
+            tokio::time::sleep(Duration::from_millis(u64::from(step.delay_ms))).await;
+        }
+    }
+    ActionOutcome::Ok
+}
+
+/// One action that is not a multi action (steps cannot be).
+async fn perform_step(
+    ctx: &ServerContext,
+    action: Action,
+    outbox: Option<&Outbox>,
+) -> ActionOutcome {
+    match action {
+        Action::Navigate(nav) => {
+            if let Err(e) = Action::Navigate(nav.clone()).validate() {
+                return ActionOutcome::from_error(&e);
+            }
+            if let Some(outbox) = outbox {
+                let _ = outbox.send(Message::Navigate(navigate_payload(&nav)));
+            }
+            ActionOutcome::Ok
+        }
+        Action::Multi(_) => ActionOutcome::from_error(&ActionError::Invalid(
+            "a multi action cannot be a step".into(),
+        )),
+        Action::Obs(_) => ActionOutcome::from_error(&ActionError::Unsupported {
+            action: "obs",
+            platform: std::env::consts::OS,
+        }),
+        action => execute(ctx, action).await,
+    }
 }
 
 fn navigate_payload(nav: &NavigateAction) -> NavigatePayload {
@@ -822,6 +928,7 @@ mod tests {
             next_connection_id: AtomicU64::new(1),
             handshaking: AtomicUsize::new(0),
             pairing: AtomicUsize::new(0),
+            running: std::sync::Mutex::default(),
         })
     }
 
@@ -1141,6 +1248,93 @@ mod tests {
         assert_eq!(nav.id.as_deref(), Some("f1"));
         // Nothing ran on the PC.
         assert!(h.executor.executed.lock().unwrap().is_empty());
+    }
+
+    /// The demo profile with its "copy" button bound to `action`.
+    fn with_copy_bound_to(h: &Harness, action: Action) {
+        let mut config = crate::config::seed::config();
+        config.profiles[0].pages[0].buttons[1].action = action;
+        h.layout.send_replace(Arc::new(config.active_layout()));
+    }
+
+    fn multi(steps: Vec<(Action, u32)>) -> Action {
+        Action::Multi(padboard_actions::MultiAction {
+            steps: steps
+                .into_iter()
+                .map(|(action, delay_ms)| padboard_actions::MultiStep { action, delay_ms })
+                .collect(),
+        })
+    }
+
+    fn key(k: Key) -> Action {
+        Action::Hotkey(Hotkey::new([k]))
+    }
+
+    #[tokio::test]
+    async fn multi_actions_run_their_steps_in_order() {
+        let h = start(Transport::Usb, false).await;
+        let next = Action::Navigate(NavigateAction {
+            to: NavigateTo::Next,
+            id: None,
+        });
+        with_copy_bound_to(
+            &h,
+            multi(vec![(key(Key::F13), 150), (next, 0), (key(Key::F14), 0)]),
+        );
+        let mut client = connected(&h).await;
+        let started = std::time::Instant::now();
+        send_msg(&mut client, &press("copy")).await;
+        let Message::Navigate(nav) = recv_msg(&mut client).await else {
+            panic!("expected navigate");
+        };
+        assert_eq!(nav.to, NavigateTarget::Next);
+        // The pause after the first step was observed.
+        assert!(started.elapsed() >= Duration::from_millis(150));
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(
+            *h.executor.executed.lock().unwrap(),
+            [key(Key::F13), key(Key::F14)]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failed_step_stops_the_multi_action() {
+        let h = start(Transport::Usb, true).await;
+        with_copy_bound_to(&h, multi(vec![(key(Key::F13), 0), (key(Key::F14), 0)]));
+        let mut client = connected(&h).await;
+        send_msg(&mut client, &press("copy")).await;
+        let Message::Error(e) = recv_msg(&mut client).await else {
+            panic!("expected error");
+        };
+        assert_eq!(e.code, ErrorCode::ActionFailed);
+        assert!(e.message.starts_with("step 1:"), "{}", e.message);
+        assert_eq!(*h.executor.executed.lock().unwrap(), [key(Key::F13)]);
+    }
+
+    #[tokio::test]
+    async fn a_running_multi_action_ignores_new_presses_but_not_pings() {
+        let h = start(Transport::Usb, false).await;
+        with_copy_bound_to(&h, multi(vec![(key(Key::F13), 600), (key(Key::F14), 0)]));
+        let mut client = connected(&h).await;
+        send_msg(&mut client, &press("copy")).await;
+        send_msg(&mut client, &press("copy")).await;
+        // The session answers while the sequence waits.
+        send_msg(&mut client, &Message::Ping(Heartbeat { seq: 9 })).await;
+        let started = std::time::Instant::now();
+        assert_eq!(
+            recv_msg(&mut client).await,
+            Message::Pong(Heartbeat { seq: 9 })
+        );
+        assert!(started.elapsed() < Duration::from_millis(300));
+        tokio::time::sleep(Duration::from_millis(900)).await;
+        assert_eq!(
+            *h.executor.executed.lock().unwrap(),
+            [key(Key::F13), key(Key::F14)]
+        );
+        // Done: it can run again.
+        send_msg(&mut client, &press("copy")).await;
+        tokio::time::sleep(Duration::from_millis(800)).await;
+        assert_eq!(h.executor.executed.lock().unwrap().len(), 4);
     }
 
     #[tokio::test]

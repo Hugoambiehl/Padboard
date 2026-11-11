@@ -200,6 +200,9 @@ fn drafts_accept_missing_values_but_not_out_of_bounds_ones() {
     });
     assert!(multi.validate_draft().is_ok());
     invalid(&multi);
+    let empty = Action::Multi(MultiAction { steps: vec![] });
+    assert!(empty.validate_draft().is_ok());
+    invalid(&empty);
     // Bounds hold in drafts too.
     let blank = Action::Open(OpenAction {
         target: "   ".into(),

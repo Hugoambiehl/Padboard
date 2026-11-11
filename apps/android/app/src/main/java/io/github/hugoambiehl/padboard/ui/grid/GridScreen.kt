@@ -40,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -69,8 +70,10 @@ import io.github.hugoambiehl.padboard.ui.connect.ForgetDialog
 import io.github.hugoambiehl.padboard.ui.theme.PadboardColors
 import io.github.hugoambiehl.padboard.ui.theme.PadboardType
 import java.util.Date
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 
 private const val ERROR_BANNER_MS = 3_000L
 
@@ -126,10 +129,23 @@ fun GridScreen(
         }
     }
     // Navigation buttons: the PC says where to go, relative moves are resolved here.
+    // The collector never waits for an animation: one that cannot finish
+    // (pages hidden by a folder, screen leaving) would block every later
+    // request. Each scroll runs on its own and the next one replaces it.
+    val scope = rememberCoroutineScope()
+    val scroll = remember { arrayOfNulls<Job>(1) }
     LaunchedEffect(navigations) {
         navigations.collect { request ->
             val current = currentLayout ?: return@collect
-            pageMemory.navigate(current, request, pagerState.currentPage)?.let { pagerState.animateScrollToPage(it) }
+            val folderShown = pageMemory.folderFor(current) != null
+            val target = pageMemory.navigate(current, request, pagerState.currentPage) ?: return@collect
+            scroll[0]?.cancel()
+            if (folderShown) {
+                // The pages come back with this request: no animation to see.
+                pagerState.requestScrollToPage(target)
+            } else {
+                scroll[0] = scope.launch { pagerState.animateScrollToPage(target) }
+            }
         }
     }
     val folder = layout?.let(pageMemory::folderFor)

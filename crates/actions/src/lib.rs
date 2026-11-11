@@ -153,7 +153,7 @@ impl Action {
                 _ => Ok(()),
             },
             Self::Multi(m) => {
-                if m.steps.is_empty() {
+                if m.steps.is_empty() && !draft {
                     return invalid("multi action has no step".into());
                 }
                 if m.steps.len() > MAX_MULTI_STEPS {

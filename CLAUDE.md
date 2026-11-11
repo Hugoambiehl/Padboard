@@ -215,6 +215,12 @@ SM-T580, always measure in release builds.
   A touch that moves first belongs to the pager and sends nothing.
   `button:release` follows on lift or when the pager takes over, in a
   `finally`, so a cancelled gesture never leaves a key held.
+- **Multi actions** (`server::perform`): steps run in order, a failed step
+  stops the sequence ("step N: …" to the tablet), pauses up to 10 s, steps
+  cannot be multi actions. A press starts its own task (the session keeps
+  answering pings and other buttons); a second press of the same button
+  while it runs is ignored. Navigation steps go to the pressing tablet
+  through the session's outbox; "Tester l'action" skips them.
 - **Navigation and folders**: a navigation button is not run on the PC: the
   desktop answers the pressing tablet with `navigate`. Folders are pages
   outside the swipe order (`ProfileConfig.folders`), edited in the same tabs;
@@ -228,7 +234,10 @@ SM-T580, always measure in release builds.
   wrong frame). Another profile starts on its first page; a page deleted live
   gives way to the page at its position; a page gone while disconnected, or an
   app restart, starts on the first page. The page indicator is drawn in a `Canvas` from the pager
-  position (draw phase only), hidden for a single page.
+  position (draw phase only), hidden for a single page. The `navigate`
+  collector never waits for an animation (a scroll that cannot finish, e.g.
+  pages hidden by a folder, blocked every later request): each scroll runs
+  in its own coroutine, the next one cancels it.
 - **Tablet icons**: the protocol's SVG paths become an `ImageVector` (Lucide
   24×24 grid, 2-unit round strokes, drawn white and tinted), cached by paths
   (`ui/grid/IconVectors.kt`) so layout updates never rebuild an unchanged

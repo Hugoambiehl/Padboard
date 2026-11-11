@@ -300,6 +300,10 @@
       "back": {
         "label": "Retour",
         "desc": "Ferme le dossier ouvert"
+      },
+      "multi": {
+        "label": "Multi-action",
+        "desc": "Plusieurs actions à la suite"
       }
     }
   },

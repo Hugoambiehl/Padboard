@@ -5,7 +5,7 @@
 
 use padboard_actions::{
     Action, Hotkey, Key, MediaAction, MediaCommand, MicrophoneAction, MicrophoneCommand,
-    NavigateAction, NavigateTo, VolumeAction, VolumeCommand,
+    MultiAction, NavigateAction, NavigateTo, VolumeAction, VolumeCommand,
 };
 use padboard_protocol::Category;
 use serde::Serialize;
@@ -122,6 +122,14 @@ pub fn presets() -> Vec<Preset> {
         preset("screenshot", System, Teal, "Camera", screenshot),
         preset("showDesktop", System, Grey, "Monitor", &[MetaLeft, KeyD]),
         with_action("lock", System, Red, "Lock", Action::Lock),
+        // Steps added in the inspector.
+        with_action(
+            "multi",
+            System,
+            Violet,
+            "ListChecks",
+            Action::Multi(MultiAction { steps: Vec::new() }),
+        ),
     ];
     if windows {
         list.push(preset(
@@ -181,7 +189,7 @@ mod tests {
         for p in &list {
             // Drafts: the empty shortcut (recorded in the inspector), the
             // folder (created with the button).
-            if p.id == "hotkey" || p.id == "folder" {
+            if ["hotkey", "folder", "multi"].contains(&p.id.as_str()) {
                 p.action.validate_draft().unwrap();
             } else {
                 p.action.validate().unwrap();
