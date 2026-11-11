@@ -74,6 +74,18 @@ export interface ButtonView {
 	category: Category;
 	/** Icon drawn above the label. Absent: the tablet shows the label's initial. */
 	icon?: ButtonIcon;
+	/**
+	 * Highlighted (Main.dc.html: active surface, border in the category
+	 * color), e.g. microphone muted, recording, current scene.
+	 */
+	active: boolean;
+	/**
+	 * The action cannot run now (e.g. OBS closed): drawn dimmed, presses
+	 * are not sent.
+	 */
+	unavailable: boolean;
+	/** Short tag in the corner, e.g. "REC", "EN DIRECT". Already localized. */
+	badge?: string;
 }
 
 export interface GridSize {
@@ -154,6 +166,14 @@ export interface ErrorPayload {
 	message: string;
 }
 
+export interface Folder {
+	id: string;
+	/** Shown in the tablet's top bar while the folder is open. */
+	name: string;
+	/** Buttons of the folder, on the profile's grid. Empty cells are absent. */
+	buttons: ButtonView[];
+}
+
 export interface Heartbeat {
 	/** Sequence number chosen by the `ping` sender, echoed in the `pong`. */
 	seq: number;
@@ -195,8 +215,33 @@ export interface Page {
 export interface Layout {
 	profile: ProfileInfo;
 	grid: GridSize;
-	/** Pages of the active profile, in display order. Never empty. */
+	/** Pages of the active profile, in display order (swiped through). Never empty. */
 	pages: Page[];
+	/** Folders: pages outside the swipe order, opened by a button (`navigate`). */
+	folders: Folder[];
+}
+
+/**
+ * Where `navigate` goes. Relative moves are resolved by the tablet, which
+ * knows the page it shows; unknown ids are ignored.
+ */
+export enum NavigateTarget {
+	/** The page `id` (closes any open folder). */
+	Page = "page",
+	/** The folder `id`, on top of what is shown. */
+	Folder = "folder",
+	/** The next page (none after the last one). */
+	Next = "next",
+	/** The previous page. */
+	Previous = "previous",
+	/** Closes the open folder (nothing if none is open). */
+	Back = "back",
+}
+
+export interface NavigatePayload {
+	to: NavigateTarget;
+	/** Page or folder id, for `page` and `folder`. */
+	id?: string;
 }
 
 export enum PairFailureReason {
@@ -380,6 +425,16 @@ export type Message =
 	 * authenticated; the tablet stores the token for its next `hello`s.
 	 */
 	| { type: "pair:success", payload: PairSuccessPayload }
+	/**
+	 * Desktop → tablet: new appearance of one button (state change), same
+	 * id. Replaces it wherever it is (page or folder); unknown ids are ignored.
+	 */
+	| { type: "button:update", payload: ButtonView }
+	/**
+	 * Desktop → tablet: show another page or folder (a navigation button
+	 * was pressed on this tablet).
+	 */
+	| { type: "navigate", payload: NavigatePayload }
 	/**
 	 * Desktop → tablet: the PIN was refused. The connection stays open
 	 * (unauthenticated) so the user can try again.

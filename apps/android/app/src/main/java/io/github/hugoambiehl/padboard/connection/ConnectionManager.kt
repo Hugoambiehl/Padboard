@@ -8,10 +8,12 @@ import io.github.hugoambiehl.padboard.protocol.Heartbeat
 import io.github.hugoambiehl.padboard.protocol.HelloPayload
 import io.github.hugoambiehl.padboard.protocol.Layout
 import io.github.hugoambiehl.padboard.protocol.Message
+import io.github.hugoambiehl.padboard.protocol.NavigatePayload
 import io.github.hugoambiehl.padboard.protocol.PROTOCOL_VERSION
 import io.github.hugoambiehl.padboard.protocol.PairFailureReason
 import io.github.hugoambiehl.padboard.protocol.PairRequestPayload
 import io.github.hugoambiehl.padboard.protocol.WelcomePayload
+import io.github.hugoambiehl.padboard.protocol.withButton
 import java.util.Base64
 import java.util.logging.Logger
 import kotlin.time.Duration
@@ -131,6 +133,12 @@ class ConnectionManager(
 
     /** Last layout received; kept while reconnecting so the grid stays visible. */
     val layout: StateFlow<Layout?> = _layout.asStateFlow()
+
+    private val _navigations =
+        MutableSharedFlow<NavigatePayload>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** `navigate` requests from the PC (a navigation button was pressed). */
+    val navigations: SharedFlow<NavigatePayload> = _navigations.asSharedFlow()
 
     private val _actionFailures =
         MutableSharedFlow<String>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
@@ -436,6 +444,8 @@ class ConnectionManager(
     ): End? {
         when (message) {
             is Message.LayoutSync -> _layout.value = message.payload
+            is Message.ButtonUpdate -> _layout.value?.let { _layout.value = it.withButton(message.payload) }
+            is Message.Navigate -> _navigations.tryEmit(message.payload)
             is Message.Ping -> link.session.send(Message.Pong(message.payload))
             is Message.Pong ->
                 pingsSent.remove(message.payload.seq)?.let { sent ->

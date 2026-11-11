@@ -549,6 +549,8 @@ where
             | Message::Welcome(_)
             | Message::Error(_)
             | Message::LayoutSync(_)
+            | Message::ButtonUpdate(_)
+            | Message::Navigate(_)
             | Message::PairRequest(_)
             | Message::PairSuccess(_)
             | Message::PairFailure(_)) => {

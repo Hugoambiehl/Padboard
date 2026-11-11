@@ -54,7 +54,15 @@ data class ButtonView (
 	val subtitle: String? = null,
 	val category: Category,
 	/// Icon drawn above the label. Absent: the tablet shows the label's initial.
-	val icon: ButtonIcon? = null
+	val icon: ButtonIcon? = null,
+	/// Highlighted (Main.dc.html: active surface, border in the category
+	/// color), e.g. microphone muted, recording, current scene.
+	val active: Boolean,
+	/// The action cannot run now (e.g. OBS closed): drawn dimmed, presses
+	/// are not sent.
+	val unavailable: Boolean,
+	/// Short tag in the corner, e.g. "REC", "EN DIRECT". Already localized.
+	val badge: String? = null
 )
 
 @Serializable
@@ -90,6 +98,15 @@ data class ErrorPayload (
 	/// Developer-oriented details (English). Clients display a localized text
 	/// based on `code`, never this message.
 	val message: String
+)
+
+@Serializable
+data class Folder (
+	val id: String,
+	/// Shown in the tablet's top bar while the folder is open.
+	val name: String,
+	/// Buttons of the folder, on the profile's grid. Empty cells are absent.
+	val buttons: List<ButtonView>
 )
 
 @Serializable
@@ -132,8 +149,38 @@ data class Page (
 data class Layout (
 	val profile: ProfileInfo,
 	val grid: GridSize,
-	/// Pages of the active profile, in display order. Never empty.
-	val pages: List<Page>
+	/// Pages of the active profile, in display order (swiped through). Never empty.
+	val pages: List<Page>,
+	/// Folders: pages outside the swipe order, opened by a button (`navigate`).
+	val folders: List<Folder>
+)
+
+/// Where `navigate` goes. Relative moves are resolved by the tablet, which
+/// knows the page it shows; unknown ids are ignored.
+@Serializable
+enum class NavigateTarget(val string: String) {
+	/// The page `id` (closes any open folder).
+	@SerialName("page")
+	Page("page"),
+	/// The folder `id`, on top of what is shown.
+	@SerialName("folder")
+	Folder("folder"),
+	/// The next page (none after the last one).
+	@SerialName("next")
+	Next("next"),
+	/// The previous page.
+	@SerialName("previous")
+	Previous("previous"),
+	/// Closes the open folder (nothing if none is open).
+	@SerialName("back")
+	Back("back"),
+}
+
+@Serializable
+data class NavigatePayload (
+	val to: NavigateTarget,
+	/// Page or folder id, for `page` and `folder`.
+	val id: String? = null
 )
 
 @Serializable
@@ -241,6 +288,16 @@ sealed class Message {
 	@Serializable
 	@SerialName("pair:success")
 	data class PairSuccess(val payload: PairSuccessPayload): Message()
+	/// Desktop → tablet: new appearance of one button (state change), same
+	/// id. Replaces it wherever it is (page or folder); unknown ids are ignored.
+	@Serializable
+	@SerialName("button:update")
+	data class ButtonUpdate(val payload: ButtonView): Message()
+	/// Desktop → tablet: show another page or folder (a navigation button
+	/// was pressed on this tablet).
+	@Serializable
+	@SerialName("navigate")
+	data class Navigate(val payload: NavigatePayload): Message()
 	/// Desktop → tablet: the PIN was refused. The connection stays open
 	/// (unauthenticated) so the user can try again.
 	@Serializable

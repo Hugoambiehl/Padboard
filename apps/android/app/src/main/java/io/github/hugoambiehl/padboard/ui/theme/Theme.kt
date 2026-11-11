@@ -107,5 +107,7 @@ object PadboardType {
     val TileLabel = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
     val TileSubtitle = TextStyle(fontFamily = Inter, fontSize = 13.sp)
     val Pill = TextStyle(fontFamily = Inter, fontSize = 14.sp)
+    val Badge =
+        TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, letterSpacing = 0.48.sp)
     val Small = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 20.sp)
 }

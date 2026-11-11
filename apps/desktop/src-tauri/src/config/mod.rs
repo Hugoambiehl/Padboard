@@ -72,6 +72,7 @@ impl Config {
                     },
                     grid: padboard_protocol::GridSize { cols: 1, rows: 1 },
                     pages: Vec::new(),
+                    folders: Vec::new(),
                 },
                 actions: HashMap::new(),
             };
@@ -89,6 +90,9 @@ impl Config {
                     icon: b.icon.as_ref().map(|i| ButtonIcon {
                         paths: i.paths.clone(),
                     }),
+                    active: false,
+                    unavailable: false,
+                    badge: None,
                 })
                 .collect()
         };
@@ -107,6 +111,7 @@ impl Config {
                         buttons: buttons(page),
                     })
                     .collect(),
+                folders: Vec::new(),
             },
             actions: profile
                 .pages

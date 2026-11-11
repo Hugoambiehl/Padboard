@@ -18,6 +18,11 @@
 //! - JSON fields are `camelCase`, enum values `snake_case`.
 //! - Every message type has a fixture in `fixtures/` (decoded by Rust and Kotlin tests).
 //!
+//! Protocol 3: folders in the layout, button state (`active`, `unavailable`,
+//! `badge`), `button:update` and `navigate`. The layout always carries the
+//! current state of every button, so a tablet that connects is up to date;
+//! changes then come as `button:update`.
+//!
 //! Authentication (protocol 2):
 //! - The tablet sends `hello` with its `deviceId` and, once paired, its token.
 //! - `welcome.auth` tells whether the session is authenticated. Connections on
@@ -34,10 +39,10 @@ mod fingerprint;
 mod layout;
 
 pub use fingerprint::{short_fingerprint, spki_sha256};
-pub use layout::{ButtonIcon, ButtonView, Category, GridSize, Layout, Page, ProfileInfo};
+pub use layout::{ButtonIcon, ButtonView, Category, Folder, GridSize, Layout, Page, ProfileInfo};
 
 /// Version of the wire protocol. Checked during the `hello` / `welcome` handshake.
-pub const PROTOCOL_VERSION: u32 = 2;
+pub const PROTOCOL_VERSION: u32 = 3;
 
 /// Returns `true` if a peer speaking `version` can talk to us.
 #[must_use]
@@ -81,6 +86,14 @@ pub enum Message {
     /// authenticated; the tablet stores the token for its next `hello`s.
     #[serde(rename = "pair:success")]
     PairSuccess(PairSuccessPayload),
+    /// Desktop → tablet: new appearance of one button (state change), same
+    /// id. Replaces it wherever it is (page or folder); unknown ids are ignored.
+    #[serde(rename = "button:update")]
+    ButtonUpdate(ButtonView),
+    /// Desktop → tablet: show another page or folder (a navigation button
+    /// was pressed on this tablet).
+    #[serde(rename = "navigate")]
+    Navigate(NavigatePayload),
     /// Desktop → tablet: the PIN was refused. The connection stays open
     /// (unauthenticated) so the user can try again.
     #[serde(rename = "pair:failure")]
@@ -202,6 +215,34 @@ pub enum ErrorCode {
 #[typeshare]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct NavigatePayload {
+    pub to: NavigateTarget,
+    /// Page or folder id, for `page` and `folder`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+}
+
+/// Where `navigate` goes. Relative moves are resolved by the tablet, which
+/// knows the page it shows; unknown ids are ignored.
+#[typeshare]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NavigateTarget {
+    /// The page `id` (closes any open folder).
+    Page,
+    /// The folder `id`, on top of what is shown.
+    Folder,
+    /// The next page (none after the last one).
+    Next,
+    /// The previous page.
+    Previous,
+    /// Closes the open folder (nothing if none is open).
+    Back,
+}
+
+#[typeshare]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ButtonEvent {
     pub button_id: String,
 }
@@ -247,6 +288,8 @@ impl Message {
             Self::PairRequest(_) => "pair:request",
             Self::PairSuccess(_) => "pair:success",
             Self::PairFailure(_) => "pair:failure",
+            Self::ButtonUpdate(_) => "button:update",
+            Self::Navigate(_) => "navigate",
         }
     }
 }

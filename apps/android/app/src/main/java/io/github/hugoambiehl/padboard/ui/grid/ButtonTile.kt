@@ -1,6 +1,10 @@
 package io.github.hugoambiehl.padboard.ui.grid
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -9,9 +13,12 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -30,12 +37,14 @@ import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.hugoambiehl.padboard.protocol.ButtonView
+import io.github.hugoambiehl.padboard.ui.theme.CategoryColors
 import io.github.hugoambiehl.padboard.ui.theme.PadboardColors
 import io.github.hugoambiehl.padboard.ui.theme.PadboardType
 import io.github.hugoambiehl.padboard.ui.theme.colors
@@ -45,6 +54,8 @@ private val IconShape = RoundedCornerShape(16.dp)
 private const val PRESS_MS = 120
 private const val PRESSED_SCALE = 0.94f
 private const val FLASH_ALPHA = 0.22f
+private const val UNAVAILABLE_ALPHA = 0.4f
+private const val STATE_MS = 200
 
 /** A touch held still this long is a press even before the finger lifts. */
 private const val HOLD_MS = 120L
@@ -67,6 +78,14 @@ fun ButtonTile(button: ButtonView, onPress: () -> Unit, onRelease: () -> Unit, m
     val currentOnRelease by rememberUpdatedState(onRelease)
 
     val scale by animateFloatAsState(if (pressed) PRESSED_SCALE else 1f, tween(PRESS_MS), label = "scale")
+    // State changes fade (alpha only): the active surface and border are an overlay.
+    val activeAlpha by animateFloatAsState(if (button.active) 1f else 0f, tween(STATE_MS), label = "active")
+    val tileAlpha by animateFloatAsState(
+        if (button.unavailable) UNAVAILABLE_ALPHA else 1f,
+        tween(STATE_MS),
+        label = "available"
+    )
+    val enabled by rememberUpdatedState(!button.unavailable)
     val flash by animateFloatAsState(
         targetValue = if (pressed) FLASH_ALPHA else 0f,
         animationSpec = tween(if (pressed) PRESS_MS / 2 else PRESS_MS * 2),
@@ -80,11 +99,13 @@ fun ButtonTile(button: ButtonView, onPress: () -> Unit, onRelease: () -> Unit, m
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
+                alpha = tileAlpha
             }.clip(TileShape)
             .background(PadboardColors.Surface2)
             .border(1.dp, PadboardColors.Border2, TileShape)
             .semantics {
                 role = Role.Button
+                if (button.unavailable) disabled()
                 onClick {
                     currentOnPress()
                     currentOnRelease()
@@ -93,6 +114,9 @@ fun ButtonTile(button: ButtonView, onPress: () -> Unit, onRelease: () -> Unit, m
             }.pointerInput(button.id) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    // Unavailable (e.g. OBS closed): no feedback, nothing sent;
+                    // the pager still gets the swipe.
+                    if (!enabled) return@awaitEachGesture
                     pressed = true
                     var sent = false
                     try {
@@ -116,6 +140,14 @@ fun ButtonTile(button: ButtonView, onPress: () -> Unit, onRelease: () -> Unit, m
                 }
             }
     ) {
+        // Active state: active surface and a border in the category color.
+        Box(
+            Modifier
+                .matchParentSize()
+                .graphicsLayer { alpha = activeAlpha }
+                .background(PadboardColors.SurfaceActive)
+                .border(1.dp, colors.foreground, TileShape)
+        )
         // Color flash overlay, animated through its alpha only.
         Box(
             Modifier
@@ -127,22 +159,29 @@ fun ButtonTile(button: ButtonView, onPress: () -> Unit, onRelease: () -> Unit, m
             modifier = Modifier.fillMaxSize().padding(20.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Box(
-                modifier = Modifier.size(56.dp).clip(IconShape).background(colors.background),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                // Cached by paths: an unchanged icon is not rebuilt on layout updates.
-                val icon = button.icon?.let { IconVectors.get(it.paths) }
-                if (icon != null) {
-                    Icon(icon, contentDescription = null, modifier = Modifier.size(28.dp), tint = colors.foreground)
-                } else {
-                    // No icon (or an unreadable one): the label's initial.
-                    Text(
-                        text = button.label.firstOrNull()?.uppercase() ?: "",
-                        style = PadboardType.Initial,
-                        color = colors.foreground
-                    )
+                Box(
+                    modifier = Modifier.size(56.dp).clip(IconShape).background(colors.background),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Cached by paths: an unchanged icon is not rebuilt on layout updates.
+                    val icon = button.icon?.let { IconVectors.get(it.paths) }
+                    if (icon != null) {
+                        Icon(icon, contentDescription = null, modifier = Modifier.size(28.dp), tint = colors.foreground)
+                    } else {
+                        // No icon (or an unreadable one): the label's initial.
+                        Text(
+                            text = button.label.firstOrNull()?.uppercase() ?: "",
+                            style = PadboardType.Initial,
+                            color = colors.foreground
+                        )
+                    }
                 }
+                button.badge?.let { Badge(it, colors) }
             }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
@@ -189,5 +228,35 @@ private suspend fun AwaitPointerEventScope.awaitLiftOrTakeover(id: PointerId) {
     while (true) {
         val change = awaitPointerEvent().changes.firstOrNull { it.id == id } ?: return
         if (!change.pressed || change.isConsumed) return
+    }
+}
+
+/** "REC", "EN DIRECT"…: tinted pill with a pulsing dot (alpha only), as in Main.dc.html. */
+@Composable
+private fun Badge(text: String, colors: CategoryColors) {
+    val transition = rememberInfiniteTransition(label = "badge")
+    val pulse by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.3f,
+        animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse),
+        label = "badgePulse"
+    )
+    Row(
+        modifier =
+        Modifier
+            .clip(CircleShape)
+            .background(colors.background)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(
+            Modifier
+                .size(6.dp)
+                .graphicsLayer { alpha = pulse }
+                .clip(CircleShape)
+                .background(colors.foreground)
+        )
+        Text(text, style = PadboardType.Badge, color = colors.foreground, maxLines = 1)
     }
 }

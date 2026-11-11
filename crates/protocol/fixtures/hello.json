@@ -1,7 +1,7 @@
 {
   "type": "hello",
   "payload": {
-    "protocolVersion": 2,
+    "protocolVersion": 3,
     "deviceName": "Galaxy Tab A",
     "deviceId": "3f2c8a9e-5b1d-4c7e-9a06-2d8f4b1e7c53",
     "token": "q8T1yZ0vKc3m5WjR7aLbN2xHf4pGsD9eUoVtEiMnQwA"

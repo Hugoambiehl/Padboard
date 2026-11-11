@@ -1,0 +1,7 @@
+{
+  "type": "navigate",
+  "payload": {
+    "to": "folder",
+    "id": "folder-streaming"
+  }
+}

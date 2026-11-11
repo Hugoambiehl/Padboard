@@ -10,8 +10,21 @@ use typeshare::typeshare;
 pub struct Layout {
     pub profile: ProfileInfo,
     pub grid: GridSize,
-    /// Pages of the active profile, in display order. Never empty.
+    /// Pages of the active profile, in display order (swiped through). Never empty.
     pub pages: Vec<Page>,
+    /// Folders: pages outside the swipe order, opened by a button (`navigate`).
+    pub folders: Vec<Folder>,
+}
+
+#[typeshare]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Folder {
+    pub id: String,
+    /// Shown in the tablet's top bar while the folder is open.
+    pub name: String,
+    /// Buttons of the folder, on the profile's grid. Empty cells are absent.
+    pub buttons: Vec<ButtonView>,
 }
 
 #[typeshare]
@@ -58,6 +71,15 @@ pub struct ButtonView {
     /// Icon drawn above the label. Absent: the tablet shows the label's initial.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<ButtonIcon>,
+    /// Highlighted (Main.dc.html: active surface, border in the category
+    /// color), e.g. microphone muted, recording, current scene.
+    pub active: bool,
+    /// The action cannot run now (e.g. OBS closed): drawn dimmed, presses
+    /// are not sent.
+    pub unavailable: bool,
+    /// Short tag in the corner, e.g. "REC", "EN DIRECT". Already localized.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub badge: Option<String>,
 }
 
 /// A stroke icon on a 24 × 24 grid, Lucide style: drawn with a 2-unit stroke
@@ -86,8 +108,9 @@ pub enum Category {
 }
 
 impl Layout {
-    /// Checks the invariants the tablet relies on: at least one page, buttons
-    /// inside the grid, unique button ids and at most one button per cell.
+    /// Checks the invariants the tablet relies on: at least one page, unique
+    /// page and folder ids, buttons inside the grid, unique button ids and at
+    /// most one button per cell.
     ///
     /// # Errors
     /// Returns a developer-oriented description of the first violation found.
@@ -104,9 +127,18 @@ impl Layout {
             return Err("layout must contain at least one page".into());
         }
         let mut ids = HashSet::new();
-        for page in &self.pages {
+        let mut containers = HashSet::new();
+        let grids = self
+            .pages
+            .iter()
+            .map(|p| (p.id.as_str(), &p.buttons))
+            .chain(self.folders.iter().map(|f| (f.id.as_str(), &f.buttons)));
+        for (id, buttons) in grids {
+            if !containers.insert(id) {
+                return Err(format!("duplicate page or folder id {id}"));
+            }
             let mut cells = HashSet::new();
-            for b in &page.buttons {
+            for b in buttons {
                 if b.row >= self.grid.rows || b.col >= self.grid.cols {
                     return Err(format!(
                         "button {} at ({}, {}) is outside the {}x{} grid",
@@ -118,8 +150,8 @@ impl Layout {
                 }
                 if !cells.insert((b.row, b.col)) {
                     return Err(format!(
-                        "page {} has two buttons at ({}, {})",
-                        page.id, b.row, b.col
+                        "page {id} has two buttons at ({}, {})",
+                        b.row, b.col
                     ));
                 }
             }

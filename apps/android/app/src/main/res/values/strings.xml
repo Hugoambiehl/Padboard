@@ -63,5 +63,6 @@
     <!-- "Page 2 sur 3": a position, not a quantity. -->
     <string name="page_indicator_description" tools:ignore="PluralsCandidate">Page %1$d sur %2$d</string>
     <string name="layout_waiting">Réception de la grille…</string>
+    <string name="folder_back">Retour (dossier %1$s)</string>
     <string name="action_failed">L’action a échoué sur le PC.</string>
 </resources>

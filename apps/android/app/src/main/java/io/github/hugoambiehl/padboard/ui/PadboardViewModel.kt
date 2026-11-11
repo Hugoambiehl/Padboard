@@ -36,6 +36,7 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
     val link = manager.state
     val layout = manager.layout
     val actionFailures = manager.actionFailures
+    val navigations = manager.navigations
     val pairingProblems = manager.pairingProblems
 
     /** The page the user is on, kept across reconnections (not app restarts). */

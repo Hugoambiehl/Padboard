@@ -302,6 +302,11 @@ async fn session<S: AsyncRead + AsyncWrite + Unpin>(
                         Message::LayoutSync(layout) => {
                             let ids: Vec<&str> = layout.pages.iter().flat_map(|p| &p.buttons).map(|b| b.id.as_str()).collect();
                             println!("Layout \"{}\": {}", layout.profile.name, ids.join(", "));
+                            for b in layout.pages.iter().flat_map(|p| &p.buttons).chain(layout.folders.iter().flat_map(|f| &f.buttons)) {
+                                if b.active || b.unavailable {
+                                    println!("State {}: active={} unavailable={}", b.id, b.active, b.unavailable);
+                                }
+                            }
                         }
                         Message::Error(e) => {
                             println!("Error from the PC: {:?} ({})", e.code, e.message);
@@ -310,6 +315,16 @@ async fn session<S: AsyncRead + AsyncWrite + Unpin>(
                                 ErrorCode::Superseded | ErrorCode::Unauthorized => return Ok(()),
                                 _ => {}
                             }
+                        }
+                        Message::ButtonUpdate(b) => {
+                            let mut flags = Vec::new();
+                            if b.active { flags.push("active".to_owned()); }
+                            if b.unavailable { flags.push("unavailable".to_owned()); }
+                            if let Some(badge) = &b.badge { flags.push(format!("badge={badge}")); }
+                            println!("Update {}: \"{}\" {}", b.id, b.label, flags.join(" "));
+                        }
+                        Message::Navigate(n) => {
+                            println!("Navigate {:?} {}", n.to, n.id.unwrap_or_default());
                         }
                         Message::Pong(_) => {}
                         other => println!("<- {}", other.type_tag()),

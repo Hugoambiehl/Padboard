@@ -1,6 +1,8 @@
 package io.github.hugoambiehl.padboard.ui.grid
 
 import android.text.format.DateFormat
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -61,6 +63,8 @@ import io.github.hugoambiehl.padboard.R
 import io.github.hugoambiehl.padboard.connection.Transport
 import io.github.hugoambiehl.padboard.protocol.ButtonView
 import io.github.hugoambiehl.padboard.protocol.Layout
+import io.github.hugoambiehl.padboard.protocol.NavigatePayload
+import io.github.hugoambiehl.padboard.protocol.NavigateTarget
 import io.github.hugoambiehl.padboard.ui.connect.ForgetDialog
 import io.github.hugoambiehl.padboard.ui.theme.PadboardColors
 import io.github.hugoambiehl.padboard.ui.theme.PadboardType
@@ -93,6 +97,7 @@ fun GridScreen(
     pageMemory: PageMemory,
     status: GridStatus,
     actionFailures: Flow<String>,
+    navigations: Flow<NavigatePayload>,
     onPress: (String) -> Unit,
     onRelease: (String) -> Unit,
     onPairWifi: () -> Unit,
@@ -120,6 +125,16 @@ fun GridScreen(
             currentLayout?.let { pageMemory.onShown(it, index) }
         }
     }
+    // Navigation buttons: the PC says where to go, relative moves are resolved here.
+    LaunchedEffect(navigations) {
+        navigations.collect { request ->
+            val current = currentLayout ?: return@collect
+            pageMemory.navigate(current, request, pagerState.currentPage)?.let { pagerState.animateScrollToPage(it) }
+        }
+    }
+    val folder = layout?.let(pageMemory::folderFor)
+    val back = { layout?.let { pageMemory.navigate(it, NavigatePayload(NavigateTarget.Back), 0) } }
+    BackHandler(enabled = folder != null) { back() }
     var errorVisible by remember { mutableStateOf(false) }
     LaunchedEffect(actionFailures) {
         actionFailures.collect {
@@ -136,6 +151,8 @@ fun GridScreen(
         ) {
             TopBar(
                 profileName = layout?.profile?.name.orEmpty(),
+                folderName = folder?.name,
+                onBack = { back() },
                 pageCount = pages.size,
                 pagerState = pagerState,
                 status = status,
@@ -153,24 +170,44 @@ fun GridScreen(
                 val live = status is GridStatus.Connected
                 val dim by animateFloatAsState(if (live) 1f else 0.4f, tween(200), label = "gridDim")
                 Box(Modifier.fillMaxWidth().weight(1f)) {
-                    HorizontalPager(
-                        state = pagerState,
-                        key = { currentPages.getOrNull(it)?.id ?: it },
-                        // Neighbours composed ahead, so a swipe starts without a hitch.
-                        beyondViewportPageCount = 1,
-                        pageSpacing = 40.dp,
-                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = dim }
-                    ) { index ->
-                        val page = currentPages.getOrNull(index)
-                        if (page != null) {
+                    // Alpha-only transition between the pages and an open folder.
+                    Crossfade(
+                        targetState = folder?.id,
+                        animationSpec = tween(150),
+                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = dim },
+                        label = "folder"
+                    ) { folderId ->
+                        val shownFolder = folderId?.let { id -> layout.folders.firstOrNull { it.id == id } }
+                        if (shownFolder != null) {
                             ButtonGrid(
                                 cols = layout.grid.cols.toInt(),
                                 rows = layout.grid.rows.toInt(),
-                                buttons = page.buttons,
+                                buttons = shownFolder.buttons,
                                 onPress = onPress,
                                 onRelease = onRelease,
                                 modifier = Modifier.fillMaxSize()
                             )
+                        } else {
+                            HorizontalPager(
+                                state = pagerState,
+                                key = { currentPages.getOrNull(it)?.id ?: it },
+                                // Neighbours composed ahead, so a swipe starts without a hitch.
+                                beyondViewportPageCount = 1,
+                                pageSpacing = 40.dp,
+                                modifier = Modifier.fillMaxSize()
+                            ) { index ->
+                                val page = currentPages.getOrNull(index)
+                                if (page != null) {
+                                    ButtonGrid(
+                                        cols = layout.grid.cols.toInt(),
+                                        rows = layout.grid.rows.toInt(),
+                                        buttons = page.buttons,
+                                        onPress = onPress,
+                                        onRelease = onRelease,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                            }
                         }
                     }
                     if (!live) {
@@ -253,14 +290,20 @@ private fun ButtonGrid(
 @Composable
 private fun TopBar(
     profileName: String,
+    folderName: String?,
+    onBack: () -> Unit,
     pageCount: Int,
     pagerState: PagerState,
     status: GridStatus,
     onPill: () -> Unit
 ) {
     Box(Modifier.fillMaxWidth().height(48.dp)) {
-        ProfileChip(profileName, Modifier.align(Alignment.CenterStart))
-        PageDots(pageCount, pagerState, Modifier.align(Alignment.Center))
+        if (folderName != null) {
+            BackChip(folderName, onBack, Modifier.align(Alignment.CenterStart))
+        } else {
+            ProfileChip(profileName, Modifier.align(Alignment.CenterStart))
+            PageDots(pageCount, pagerState, Modifier.align(Alignment.Center))
+        }
         Row(
             modifier = Modifier.align(Alignment.CenterEnd),
             verticalAlignment = Alignment.CenterVertically,
@@ -269,6 +312,33 @@ private fun TopBar(
             ConnectionPill(status, onPill)
             Clock()
         }
+    }
+}
+
+/** In a folder: back to the pages (or the enclosing folder). */
+@Composable
+private fun BackChip(folderName: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(14.dp)
+    val description = stringResource(R.string.folder_back, folderName)
+    Row(
+        modifier =
+        modifier
+            .clip(shape)
+            .background(PadboardColors.Surface2)
+            .border(1.dp, PadboardColors.Border2, shape)
+            .clickable(onClick = onBack)
+            .semantics { contentDescription = description }
+            .padding(start = 7.dp, top = 7.dp, bottom = 7.dp, end = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(PadboardColors.SurfaceActive),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(painterResource(R.drawable.ic_chevron_left), null, Modifier.size(18.dp), tint = PadboardColors.Text)
+        }
+        Text(folderName, style = PadboardType.Profile, color = PadboardColors.Text)
     }
 }
 

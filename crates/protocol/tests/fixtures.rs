@@ -33,6 +33,8 @@ fn fixture_stem(message: &Message) -> &'static str {
         Message::PairRequest(_) => "pair_request",
         Message::PairSuccess(_) => "pair_success",
         Message::PairFailure(_) => "pair_failure",
+        Message::ButtonUpdate(_) => "button_update",
+        Message::Navigate(_) => "navigate",
     }
 }
 
@@ -89,6 +91,8 @@ fn every_message_type_has_a_fixture() {
         "pair_request",
         "pair_success",
         "pair_failure",
+        "button_update",
+        "navigate",
     ]
     .into_iter()
     .map(String::from)

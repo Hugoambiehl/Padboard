@@ -9,6 +9,8 @@ import io.github.hugoambiehl.padboard.protocol.Fingerprint
 import io.github.hugoambiehl.padboard.protocol.GridSize
 import io.github.hugoambiehl.padboard.protocol.Layout
 import io.github.hugoambiehl.padboard.protocol.Message
+import io.github.hugoambiehl.padboard.protocol.NavigatePayload
+import io.github.hugoambiehl.padboard.protocol.NavigateTarget
 import io.github.hugoambiehl.padboard.protocol.PROTOCOL_VERSION
 import io.github.hugoambiehl.padboard.protocol.Page
 import io.github.hugoambiehl.padboard.protocol.PairFailurePayload
@@ -26,6 +28,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -119,6 +122,28 @@ class ConnectionManagerTest {
         assertNotNull(await(manager.layout, "layout") { it != null })
         // The token never travels over plain USB.
         assertTrue(pc.hellos.all { it.second == null || it.first == Transport.Wifi })
+    }
+
+    @Test
+    fun buttonUpdatesAndNavigationReachTheUi() {
+        pc.usbAvailable = true
+        paired()
+        manager.start(DEVICE_ID)
+        connected(Transport.Usb)
+        await(manager.layout, "layout") { it != null }
+        val navigation = CoroutineScope(SupervisorJob()).async {
+            withTimeout(5.seconds) { manager.navigations.first() }
+        }
+        // The collector must be subscribed before the PC sends.
+        Thread.sleep(100)
+
+        pc.sendToTablets(Message.ButtonUpdate(button("copy", "Copié").copy(active = true, badge = "OK")))
+        val updated = await(manager.layout, "updated button") { it?.pages?.first()?.buttons?.first()?.active == true }
+        assertEquals("Copié", updated!!.pages.first().buttons.first().label)
+        assertEquals("OK", updated.pages.first().buttons.first().badge)
+
+        pc.sendToTablets(Message.Navigate(NavigatePayload(NavigateTarget.Next)))
+        assertEquals(NavigateTarget.Next, runBlocking { navigation.await() }.to)
     }
 
     @Test
@@ -298,6 +323,9 @@ private class FakePc(val serverId: String, val name: String) {
     /** Cable unplugged: the forwarded connections end. */
     fun dropUsb() = usbSockets.forEach { it.close(1001, "unplugged") }
 
+    /** Sends to every authenticated session (state changes, navigation). */
+    fun sendToTablets(message: Message) = sessions.values.forEach { send(it, message) }
+
     fun revokeAll() {
         tokens.clear()
         sessions.values.forEach { send(it, Message.Error(ErrorPayload(ErrorCode.Revoked, "revoked"))) }
@@ -319,7 +347,8 @@ private class FakePc(val serverId: String, val name: String) {
         Layout(
             ProfileInfo("demo", "Démo"),
             GridSize(5u, 3u),
-            listOf(Page("p1", listOf(ButtonView("copy", 0u, 0u, "Copier", null, Category.Blue))))
+            listOf(Page("p1", listOf(button("copy", "Copier")))),
+            folders = emptyList()
         )
 
     private inner class Listener(private val transport: Transport) : WebSocketListener() {
@@ -383,3 +412,6 @@ private class FakePc(val serverId: String, val name: String) {
         }
     }
 }
+
+private fun button(id: String, label: String) =
+    ButtonView(id, 0u, 0u, label, category = Category.Blue, active = false, unavailable = false)

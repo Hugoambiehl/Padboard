@@ -1,8 +1,8 @@
 use padboard_protocol::{
-    AuthStatus, ButtonEvent, ButtonView, Category, ErrorCode, ErrorPayload, GridSize, Heartbeat,
-    HelloPayload, Layout, Message, PROTOCOL_VERSION, Page, PairFailurePayload, PairFailureReason,
-    PairRequestPayload, PairSuccessPayload, ProfileInfo, WelcomePayload, is_compatible,
-    short_fingerprint,
+    AuthStatus, ButtonEvent, ButtonView, Category, ErrorCode, ErrorPayload, Folder, GridSize,
+    Heartbeat, HelloPayload, Layout, Message, NavigatePayload, NavigateTarget, PROTOCOL_VERSION,
+    Page, PairFailurePayload, PairFailureReason, PairRequestPayload, PairSuccessPayload,
+    ProfileInfo, WelcomePayload, is_compatible, short_fingerprint,
 };
 use serde_json::json;
 
@@ -15,6 +15,9 @@ fn button(id: &str, row: u32, col: u32) -> ButtonView {
         subtitle: None,
         category: Category::Grey,
         icon: None,
+        active: false,
+        unavailable: false,
+        badge: None,
     }
 }
 
@@ -33,6 +36,7 @@ fn layout(cols: u32, rows: u32, pages: Vec<Vec<ButtonView>>) -> Layout {
                 buttons,
             })
             .collect(),
+        folders: Vec::new(),
     }
 }
 
@@ -78,6 +82,19 @@ fn all_messages() -> Vec<Message> {
         Message::PairFailure(PairFailurePayload {
             reason: PairFailureReason::Locked,
             attempts_left: 0,
+        }),
+        Message::ButtonUpdate(ButtonView {
+            active: true,
+            badge: Some("REC".into()),
+            ..button("a", 0, 0)
+        }),
+        Message::Navigate(NavigatePayload {
+            to: NavigateTarget::Folder,
+            id: Some("f".into()),
+        }),
+        Message::Navigate(NavigatePayload {
+            to: NavigateTarget::Back,
+            id: None,
         }),
     ]
 }
@@ -133,14 +150,21 @@ fn missing_payload_is_rejected() {
 }
 
 #[test]
-fn optional_subtitle_is_omitted_when_absent() {
+fn optional_fields_are_omitted_when_absent() {
     let value = serde_json::to_value(button("a", 0, 0)).unwrap();
-    assert!(value.get("subtitle").is_none());
+    for field in ["subtitle", "icon", "badge"] {
+        assert!(value.get(field).is_none(), "{field}");
+    }
+    // The state flags are always sent (required on the Kotlin side).
+    assert_eq!(value["active"], json!(false));
+    assert_eq!(value["unavailable"], json!(false));
     let parsed: ButtonView = serde_json::from_value(json!({
-        "id": "a", "row": 0, "col": 0, "label": "a", "category": "grey"
+        "id": "a", "row": 0, "col": 0, "label": "a", "category": "grey",
+        "active": false, "unavailable": false
     }))
     .unwrap();
     assert_eq!(parsed.subtitle, None);
+    assert_eq!(parsed.badge, None);
 }
 
 #[test]
@@ -221,4 +245,32 @@ fn short_fingerprint_format() {
         );
     }
     assert_ne!(short_fingerprint(b"a"), short_fingerprint(b"b"));
+}
+
+#[test]
+fn folders_share_the_id_and_cell_rules() {
+    let mut l = layout(2, 2, vec![vec![button("a", 0, 0)]]);
+    l.folders.push(Folder {
+        id: "f".into(),
+        name: "F".into(),
+        buttons: vec![button("b", 1, 1)],
+    });
+    assert!(l.validate().is_ok());
+
+    let mut dup = l.clone();
+    dup.folders[0].buttons.push(button("a", 0, 0));
+    assert!(dup.validate().unwrap_err().contains("duplicate button id"));
+
+    let mut outside = l.clone();
+    outside.folders[0].buttons[0].col = 2;
+    assert!(outside.validate().unwrap_err().contains("outside"));
+
+    let mut same_id = l;
+    same_id.folders[0].id = "page-0".into();
+    assert!(
+        same_id
+            .validate()
+            .unwrap_err()
+            .contains("duplicate page or folder id")
+    );
 }
