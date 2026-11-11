@@ -9,10 +9,10 @@ import { useEditor } from "../../composables/useEditor";
 import { useSelection } from "../../editor/selection";
 
 const { t } = useI18n();
-const { activeProfile, edit } = useEditor();
+const { editedProfile, edit } = useEditor();
 const { page, showPage } = useSelection();
 
-const pages = computed(() => activeProfile.value?.pages ?? []);
+const pages = computed(() => editedProfile.value?.pages ?? []);
 const index = computed(() => pages.value.findIndex((p) => p.id === page.value?.id));
 const menuOpen = ref(false);
 const confirmDelete = ref(false);
@@ -29,10 +29,10 @@ function closeMenu() {
 async function submit(name: string) {
   const kind = prompt.value;
   prompt.value = null;
-  if (kind === "add" && activeProfile.value) {
+  if (kind === "add" && editedProfile.value) {
     const outcome = await edit({
       type: "addPage",
-      params: { profileId: activeProfile.value.id, name },
+      params: { profileId: editedProfile.value.id, name },
     });
     if (outcome?.createdId) showPage(outcome.createdId);
   } else if (kind === "rename" && page.value) {

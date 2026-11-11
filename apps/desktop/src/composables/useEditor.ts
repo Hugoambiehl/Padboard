@@ -41,8 +41,19 @@ async function edit(op: Edit): Promise<EditOutcome | null> {
 }
 
 const config = computed(() => state.value?.config ?? null);
-const activeProfile = computed<ProfileConfig | null>(
+
+// Two different profiles: the one shown on the tablets (`activeProfileId`,
+// part of the configuration, changed by "Afficher sur la tablette") and the
+// one open in the editor (local to this window). Editing a profile never
+// changes what the tablets show.
+const displayedProfile = computed<ProfileConfig | null>(
   () => config.value?.profiles.find((p) => p.id === config.value?.activeProfileId) ?? null,
+);
+const editedProfileId = ref<string | null>(null);
+/** The profile open in the editor; the displayed one when none was chosen or it was deleted. */
+const editedProfile = computed<ProfileConfig | null>(
+  () =>
+    config.value?.profiles.find((p) => p.id === editedProfileId.value) ?? displayedProfile.value,
 );
 
 export function useEditor() {
@@ -53,7 +64,19 @@ export function useEditor() {
   return {
     state,
     config,
-    activeProfile,
+    editedProfile,
+    displayedProfile,
+    /** Whether the edited profile is the one the tablets show. */
+    editingDisplayed: computed(
+      () => !!editedProfile.value && editedProfile.value.id === displayedProfile.value?.id,
+    ),
+    /** Opens a profile in the editor (the tablets keep theirs). */
+    editProfile: (profileId: string) => (editedProfileId.value = profileId),
+    /** Shows the edited profile on the tablets. */
+    display: async () => {
+      const profile = editedProfile.value;
+      if (profile) await edit({ type: "setActiveProfile", params: { profileId: profile.id } });
+    },
     lastError,
     canUndo: computed(() => state.value?.canUndo ?? false),
     canRedo: computed(() => state.value?.canRedo ?? false),

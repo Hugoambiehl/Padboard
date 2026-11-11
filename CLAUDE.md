@@ -214,6 +214,13 @@ SM-T580, always measure in release builds.
   converts Lucide elements to paths (`src/icons/paths.ts`); the desktop
   validates them (count, size, syntax) before sending. User images: backlog
   (phase 4 or 5).
+- **Edited profile ≠ displayed profile**: the configuration's
+  `activeProfileId` is the profile the tablets show, changed only by
+  "Afficher sur la tablette" (`SetActiveProfile`). The profile open in the
+  editor is local frontend state (`useEditor().editedProfile`, falls back to
+  the displayed one); the profile menu only changes it, and marks the
+  displayed profile. Deleting the displayed profile moves the tablets to the
+  first remaining one (the confirmation names it).
 - **Pages** are identified by id, never by position. If the page shown on the
   tablet is deleted, the tablet falls back to an existing page.
 - **Library**: only working actions; shortcut presets are adapted to the OS

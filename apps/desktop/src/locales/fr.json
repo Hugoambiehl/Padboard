@@ -136,7 +136,8 @@
     "hint": "Clique sur une case pour la modifier · Glisse les cases pour les réorganiser",
     "keyboardHint": "Flèches : changer de case · Alt + flèches : déplacer le bouton · Suppr : le supprimer",
     "live": "Synchronisé en direct",
-    "noTablet": "Aucune tablette connectée : les modifications sont enregistrées"
+    "noTablet": "Aucune tablette connectée : les modifications sont enregistrées",
+    "notDisplayed": "Ce profil n’est pas affiché sur la tablette : les modifications sont enregistrées"
   },
   "profiles": {
     "label": "Profil :",
@@ -156,8 +157,12 @@
     },
     "delete": {
       "action": "Supprimer",
-      "confirm": "Confirmer la suppression"
-    }
+      "confirm": "Confirmer la suppression",
+      "confirmDisplayed": "Confirmer : la tablette affichera « {name} »"
+    },
+    "displayed": "Affiché sur la tablette",
+    "display": "Afficher sur la tablette",
+    "displayHint": "La tablette affiche actuellement « {name} »"
   },
   "pages": {
     "label": "Pages",

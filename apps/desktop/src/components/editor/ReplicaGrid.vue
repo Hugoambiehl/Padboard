@@ -10,10 +10,10 @@ import { drag, dropEffect, startDrag } from "../../editor/drag";
 import type { ButtonConfig } from "../../generated/types";
 
 const { t } = useI18n();
-const { activeProfile, edit } = useEditor();
+const { editedProfile, edit } = useEditor();
 const { page, selected, select } = useSelection();
 
-const grid = computed(() => activeProfile.value?.grid ?? { cols: 5, rows: 3 });
+const grid = computed(() => editedProfile.value?.grid ?? { cols: 5, rows: 3 });
 const cells = computed(() => {
   const p = page.value;
   if (!p) return [];

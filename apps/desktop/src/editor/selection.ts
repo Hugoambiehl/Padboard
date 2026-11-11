@@ -19,10 +19,10 @@ let watching = false;
 
 /** The page shown in the editor and the selected cell, shared by all panels. */
 export function useSelection() {
-  const { activeProfile } = useEditor();
+  const { editedProfile } = useEditor();
 
   const page = computed<PageConfig | null>(() => {
-    const pages = activeProfile.value?.pages ?? [];
+    const pages = editedProfile.value?.pages ?? [];
     return pages.find((p) => p.id === pageId.value) ?? pages[0] ?? null;
   });
 
@@ -37,7 +37,7 @@ export function useSelection() {
     // The page may disappear (deleted, other profile activated, undo): fall
     // back to the first page and drop a selection that no longer fits.
     watch(
-      [activeProfile, page],
+      [editedProfile, page],
       ([profile, current]) => {
         if (current && pageId.value !== current.id) pageId.value = current.id;
         if (preselect && current && !selected.value && pageId.value === current.id) {

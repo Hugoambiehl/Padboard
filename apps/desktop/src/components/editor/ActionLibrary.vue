@@ -15,7 +15,7 @@ import type { Preset, PresetGroup } from "../../generated/types";
 
 const emit = defineEmits<{ icons: [Record<string, string[]>] }>();
 const { t } = useI18n();
-const { activeProfile } = useEditor();
+const { editedProfile } = useEditor();
 const { page, selected } = useSelection();
 
 const presets = ref<Preset[]>([]);
@@ -52,7 +52,7 @@ const groups = computed(() => {
 /** Click (or Enter): into the selected empty cell, else the first free one. */
 function place(preset: Preset) {
   const p = page.value;
-  const grid = activeProfile.value?.grid;
+  const grid = editedProfile.value?.grid;
   if (!p || !grid) return;
   const s = selected.value;
   const cell =

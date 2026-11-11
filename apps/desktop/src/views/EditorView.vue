@@ -13,7 +13,7 @@ import { useEditor } from "../composables/useEditor";
 import { useStatus } from "../composables/useStatus";
 
 const { t } = useI18n();
-const { activeProfile } = useEditor();
+const { editedProfile, editingDisplayed } = useEditor();
 const { snapshot } = useStatus();
 const live = computed(() => (snapshot.value?.clients.length ?? 0) > 0);
 /** Paths of the library icons, for the drag ghost. */
@@ -26,7 +26,7 @@ const presetIcons = ref<Record<string, string[]>>({});
       <ActionLibrary @icons="presetIcons = $event" />
     </aside>
     <main class="flex min-w-0 flex-1 flex-col items-center gap-5 overflow-y-auto px-8 py-7">
-      <p v-if="!activeProfile" class="text-sm text-muted">{{ t("app.loading") }}</p>
+      <p v-if="!editedProfile" class="text-sm text-muted">{{ t("app.loading") }}</p>
       <template v-else>
         <div class="flex w-full max-w-[820px] flex-wrap items-center justify-between gap-3">
           <PageTabs />
@@ -37,7 +37,8 @@ const presetIcons = ref<Record<string, string[]>>({});
           class="flex w-full max-w-[820px] flex-wrap items-center justify-between gap-3 text-[13px] text-muted"
         >
           <span>{{ t("editor.hint") }}</span>
-          <span v-if="live" class="flex items-center gap-1.5 text-[#9FEBD9]">
+          <span v-if="!editingDisplayed">{{ t("editor.notDisplayed") }}</span>
+          <span v-else-if="live" class="flex items-center gap-1.5 text-[#9FEBD9]">
             <Check :size="14" class="text-cat-teal" aria-hidden="true" />
             {{ t("editor.live") }}
           </span>
@@ -48,7 +49,7 @@ const presetIcons = ref<Record<string, string[]>>({});
     <aside
       class="w-[340px] shrink-0 overflow-y-auto border-l border-line bg-surface px-[22px] py-6"
     >
-      <ButtonInspector v-if="activeProfile" />
+      <ButtonInspector v-if="editedProfile" />
     </aside>
     <DragGhost :preset-icons="presetIcons" />
     <EditErrorToast />
