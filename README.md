@@ -30,8 +30,17 @@ Wi-Fi or USB, no cloud, free and open-source tools only.
   la tablette** chooses the one the tablets show (marked in the menu).
 - **Tablet**: swipe to change page; the page stays in front of you through
   edits and reconnections.
+- **Actions**: keyboard shortcut, media (play/pause, next, previous, stop),
+  PC volume, microphone on/off, open a URL / file / folder / program, lock the
+  session, page and folder navigation, multi actions (steps with pauses) and
+  OBS Studio (scene, record, live, source mute). Microphone, volume, play/pause
+  and OBS buttons show their state on the tablet; a look "while active" can be
+  customised.
+- **OBS Studio**: in OBS, *Tools → WebSocket Server Settings → Enable*, then in
+  Padboard's connections view turn on *Piloter OBS* with the port and password.
+  OBS buttons are dimmed while OBS is closed and come back by themselves.
 - **Connexions** (the tablet pill in the header): server, connected and paired
-  tablets, USB devices, recent presses.
+  tablets, USB devices, OBS, recent presses.
 
 ## Development setup (Linux)
 
@@ -134,6 +143,17 @@ microphone, sound server and players, e.g.
 `{"audio": {"outputPercent": 50, "outputMuted": false, "inputMuted": true}, "mediaPlaying": false}`
 (`"audio": "unavailable"` for a missing sound server).
 The tests create a temporary directory per run (`PADBOARD_E2E_KEEP=1` keeps it).
+
+To try the real thing without touching your configuration, add
+`PADBOARD_TEST_SYSTEM=1` to a test-mode launch: the configuration stays in
+the test directory, but actions really run and states are really observed.
+Helpers for such tests (Linux):
+
+```sh
+cargo run -p padboard-actions --example audio-snapshot -- save /tmp/audio.json     # before
+cargo run -p padboard-actions --example audio-snapshot -- restore /tmp/audio.json  # after, exact
+cargo run -p padboard-actions --example fake-player   # an MPRIS player for media buttons
+```
 
 ### Run the tablet app
 
