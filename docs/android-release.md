@@ -51,6 +51,9 @@ cd apps/android
 adb install -r app/build/outputs/apk/release/app-release.apk   # update in place, data kept
 ```
 
+In kiosk mode the update stops the app; it comes back in front by itself
+right after (no need to press home).
+
 A tablet carrying a build signed with another key (the debug one) needs
 `adb uninstall io.github.hugoambiehl.padboard` first: its data (Wi-Fi
 pairing) is lost, pair it again.
@@ -68,7 +71,9 @@ user, the release build installed.
 ### Turn it on
 
 With the tablet plugged in over USB: Padboard on the PC → *Connexions* →
-*Appareils USB* → **Activer le mode kiosque**. Or by hand:
+*Appareils USB* → **Activer le mode kiosque**. The row then reads
+"Mode kiosque actif" (state read with `adb shell dpm list-owners`); if
+another app already owns the tablet, or it has an account, the row says so. Or by hand:
 
 ```sh
 adb shell dpm set-device-owner io.github.hugoambiehl.padboard/.kiosk.KioskAdmin
