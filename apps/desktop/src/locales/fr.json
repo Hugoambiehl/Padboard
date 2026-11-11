@@ -432,6 +432,8 @@
       "targetPlaceholder": "https://… ou ~/Documents",
       "pickFile": "Fichier…",
       "pickFolder": "Dossier…",
+      "pickFileTitle": "Choisir le fichier à ouvrir",
+      "pickFolderTitle": "Choisir le dossier à ouvrir",
       "navTo": {
         "page": "Aller à une page",
         "folder": "Ouvrir un dossier",

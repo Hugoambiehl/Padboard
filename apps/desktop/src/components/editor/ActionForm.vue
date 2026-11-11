@@ -47,7 +47,11 @@ const obsLists = computed(() => {
 });
 
 async function browse(directory: boolean) {
-  const path = await pickPath({ directory, multiple: false });
+  const path = await pickPath({
+    title: t(directory ? "actions.form.pickFolderTitle" : "actions.form.pickFileTitle"),
+    directory,
+    multiple: false,
+  });
   if (typeof path === "string") params({ target: path });
 }
 
