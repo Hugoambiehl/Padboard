@@ -261,6 +261,13 @@ SM-T580, always measure in release builds.
   and simply not placed while closed (composing either on each open/close
   dropped frames). Measure with a release APK signed locally with the debug
   key (`apksigner`), never committed.
+- **Install identity, never change it**: `bundle.publisher` ("Hugo Ambiehl"),
+  `identifier` (`io.github.hugoambiehl.padboard`) and `productName`
+  ("Padboard") in `tauri.conf.json`. The NSIS installer finds the previous
+  install under `HKCU\Software\<publisher>\<productName>` and the config
+  dir is named after the identifier: changing one makes an update install
+  beside the old version (seen from rc.3 to rc.4, when the publisher left
+  "github") or lose its configuration.
 - **Release signing**: one key outside the repo (`~/.padboard-signing/`,
   pointed to by `padboard.signing` in `~/.gradle/gradle.properties`); the
   tablet runs the release build. Never change the key: a device owner app

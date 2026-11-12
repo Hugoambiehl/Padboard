@@ -40,7 +40,15 @@ npm run tauri dev                 # or run it in development mode
 ```
 
 Configuration and the log of the last launch (`padboard.log`) live in
-`%APPDATA%\io.github.hugoambiehl.padboard\`.
+`%APPDATA%\io.github.hugoambiehl.padboard\`. Padboard keeps the log open
+for writing while it runs, so `[IO.File]::ReadAllBytes` (which does not
+share writing) fails on it then; read it with shared access:
+
+```powershell
+$log = "$env:APPDATA\io.github.hugoambiehl.padboard\padboard.log"
+$s = [IO.File]::Open($log, 'Open', 'Read', 'ReadWrite')
+$r = New-Object IO.StreamReader($s); $r.ReadToEnd(); $r.Close()
+```
 
 ## 2. Tablet over USB
 
