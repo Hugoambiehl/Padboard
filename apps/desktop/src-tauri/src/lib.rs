@@ -10,6 +10,7 @@
 mod adb;
 mod appearance;
 mod auth;
+mod autostart;
 mod config;
 mod editor_service;
 mod identity;
@@ -80,12 +81,7 @@ struct Backend {
     kiosk_busy: Mutex<std::collections::HashSet<String>>,
     /// Starting with the session: the system's entry, or a flag in test mode
     /// (tests never touch the real autostart).
-    autostart: Autostart,
-}
-
-enum Autostart {
-    System,
-    Simulated(std::sync::atomic::AtomicBool),
+    autostart: autostart::Autostart,
 }
 
 impl Backend {
@@ -176,34 +172,15 @@ fn quit_app(app: tauri::AppHandle) {
 
 /// Whether Padboard starts with the session.
 #[tauri::command]
-fn get_autostart(
-    app: tauri::AppHandle,
-    backend: tauri::State<'_, Backend>,
-) -> Result<bool, String> {
-    use tauri_plugin_autostart::ManagerExt as _;
-    match &backend.autostart {
-        Autostart::System => app.autolaunch().is_enabled().map_err(|e| e.to_string()),
-        Autostart::Simulated(on) => Ok(on.load(std::sync::atomic::Ordering::Relaxed)),
-    }
+fn get_autostart(backend: tauri::State<'_, Backend>) -> Result<bool, String> {
+    backend.autostart.is_enabled()
 }
 
 /// Adds or removes the session's autostart entry (it starts hidden in the tray).
 #[tauri::command]
-fn set_autostart(
-    app: tauri::AppHandle,
-    backend: tauri::State<'_, Backend>,
-    enabled: bool,
-) -> Result<(), String> {
-    use tauri_plugin_autostart::ManagerExt as _;
+fn set_autostart(backend: tauri::State<'_, Backend>, enabled: bool) -> Result<(), String> {
     tracing::info!(enabled, "start with the session");
-    match &backend.autostart {
-        Autostart::System if enabled => app.autolaunch().enable().map_err(|e| e.to_string()),
-        Autostart::System => app.autolaunch().disable().map_err(|e| e.to_string()),
-        Autostart::Simulated(on) => {
-            on.store(enabled, std::sync::atomic::Ordering::Relaxed);
-            Ok(())
-        }
-    }
+    backend.autostart.set(enabled)
 }
 
 #[tauri::command]
@@ -457,22 +434,16 @@ pub fn run() {
     // starting another one on the same ports. Not in test mode: a test app
     // must not hand over to the user's own Padboard.
     if test_mode.is_none() {
-        builder = builder
-            .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-                tracing::info!("launched again: showing the window");
-                tray::show_window(app);
-            }))
-            .plugin(
-                tauri_plugin_autostart::Builder::new()
-                    .arg(tray::HIDDEN_ARG)
-                    .build(),
-            );
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tracing::info!("launched again: showing the window");
+            tray::show_window(app);
+        }));
     }
     let start_hidden = std::env::args().any(|a| a == tray::HIDDEN_ARG);
     let autostart = if test_mode.is_some() {
-        Autostart::Simulated(std::sync::atomic::AtomicBool::new(false))
+        autostart::Autostart::simulated()
     } else {
-        Autostart::System
+        autostart::Autostart::system()
     };
     builder
         .plugin(tauri_plugin_dialog::init())
@@ -720,6 +691,7 @@ pub fn run() {
                 }
             });
 
+            autostart.refresh();
             app.manage(Backend {
                 config,
                 settings: settings.clone(),
