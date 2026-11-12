@@ -365,6 +365,15 @@ SM-T580, always measure in release builds.
   file from it (desktop PNGs, multi-size `.ico`, tray PNGs, favicon, Android
   adaptive + monochrome vector drawables). 32 px and below drop the halo
   (blurry under a pixel). Never edit the generated icons by hand.
+- **Releases** (`docs/releasing.md`): one SemVer version for everything,
+  `-rc.N` for release candidates. `scripts/release.sh X` writes it everywhere
+  (Android versionCode = MAJOR*1e6 + MINOR*1e4 + PATCH*100 + rc number, 99
+  for the release), regenerates `CHANGELOG.md` (git-cliff, `cliff.toml`:
+  feat/fix/perf only), commits and tags without pushing. A pushed `v*` tag
+  runs `release.yml`: NSIS installer (unsigned, SignPath once public), .deb
+  (built on Ubuntu 22.04), unsigned APK, draft release (pre-release for rc)
+  with SHA256SUMS. The APK is signed locally (`scripts/sign-apk.sh`) and
+  attached by hand: the key never goes to CI.
 - **Secret scanning**: gitleaks on the whole history in CI (`.gitleaks.toml`;
   the fixtures' fake token is allowed by value and path, not by commit, so
   the exception survives a history rewrite).

@@ -286,6 +286,8 @@ cargo deny check && scripts/licenses.sh   # cargo-about + cargo-deny, see below
 
 Run the whole workflow by hand (Windows job included): `gh workflow run CI --ref <branch>`.
 
+Releases (installers, `.deb`, APK, changelog): see [docs/releasing.md](docs/releasing.md).
+
 ## License
 
 Padboard is free software, released under the **GNU General Public License
