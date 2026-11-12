@@ -1,0 +1,17 @@
+# gitleaks configuration (CI job "Secret scan", or locally:
+# `gitleaks git --config .gitleaks.toml -v .`).
+#
+# Default rules, plus one exception: the fake pairing token of the shared
+# protocol fixtures. It is matched by its value and its files, not by commit
+# hash, so it stays ignored when the history is rewritten.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fake pairing token of the protocol fixtures (not a secret)"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^q8T1yZ0vKc3m5WjR7aLbN2xHf4pGsD9eUoVtEiMnQwA$''']
+paths = ['''^crates/protocol/fixtures/[^/]+\.json$''']
