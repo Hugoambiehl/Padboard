@@ -20,7 +20,7 @@ const choices = computed(() =>
   validKeys.value
     .filter((k) => !props.keys.includes(k))
     .map((k) => ({ code: k, label: keyLabel(k) }))
-    .sort((a, b) => a.label.localeCompare(b.label, locale.value)),
+    .sort((a, b) => a.label.localeCompare(b.label, locale.value, { numeric: true })),
 );
 
 function onKeydown(event: KeyboardEvent) {
