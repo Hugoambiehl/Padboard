@@ -1,0 +1,43 @@
+# git-cliff: CHANGELOG.md and release notes from the Conventional Commits
+# (scripts/release.sh, release workflow). Only what users notice is listed:
+# features, fixes and performance; docs, CI, tests and chores are left out.
+
+[changelog]
+header = """
+# Changelog
+
+Notable changes of Padboard, generated from the commit history with
+[git-cliff](https://git-cliff.org). Versions follow [Semantic Versioning](https://semver.org).
+
+"""
+body = """
+{% if version %}\
+## {{ version | trim_start_matches(pat="v") }} ({{ timestamp | date(format="%Y-%m-%d") }})
+{% else %}\
+## Unreleased
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim | upper_first }}
+{% for commit in commits %}
+- {% if commit.scope %}**{{ commit.scope }}**: {% endif %}{{ commit.message | upper_first }}\
+{% endfor %}
+{% endfor %}\n
+"""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+protect_breaking_commits = true
+filter_commits = true
+tag_pattern = "v[0-9].*"
+# Release candidates fold into the release that follows them.
+ignore_tags = "-rc\\.[0-9]+$"
+sort_commits = "oldest"
+commit_parsers = [
+    { message = "^feat", group = "<!-- 0 -->Features" },
+    { message = "^fix", group = "<!-- 1 -->Fixes" },
+    { message = "^perf", group = "<!-- 2 -->Performance" },
+    { message = ".*", skip = true },
+]

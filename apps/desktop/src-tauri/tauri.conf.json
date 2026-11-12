@@ -29,13 +29,36 @@
   "bundle": {
     "active": true,
     "license": "GPL-3.0-or-later",
-    "targets": "all",
+    "targets": [
+      "nsis",
+      "deb"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.png",
       "icons/icon.ico"
-    ]
+    ],
+    "shortDescription": "Turns an Android tablet into a touch control surface for your PC",
+    "category": "Utility",
+    "copyright": "Copyright (C) 2026 Padboard contributors. GPL-3.0-or-later.",
+    "windows": {
+      "nsis": {
+        "languages": [
+          "English",
+          "French"
+        ],
+        "displayLanguageSelector": false
+      }
+    },
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/share/doc/padboard/copyright": "../../../LICENSE"
+        }
+      }
+    },
+    "longDescription": "Padboard runs actions on your PC (shortcuts, media, volume, microphone, OBS, apps) from a grid of buttons shown on a dedicated Android tablet, over USB or Wi-Fi, without any cloud service."
   }
 }
