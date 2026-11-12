@@ -170,8 +170,7 @@ impl Config {
 }
 
 /// "Dossier · 3 boutons" under a button opening a folder (Main.dc.html),
-/// unless the user wrote a subtitle. French, like the other texts the state
-/// engine sends (`appearance.rs`).
+/// unless the user wrote a subtitle, in the PC's language (`locale.rs`).
 fn folder_subtitle(profile: &ProfileConfig, action: &Action) -> Option<String> {
     let Action::Navigate(padboard_actions::NavigateAction {
         to: padboard_actions::NavigateTo::Folder,
@@ -181,11 +180,7 @@ fn folder_subtitle(profile: &ProfileConfig, action: &Action) -> Option<String> {
         return None;
     };
     let folder = profile.folders.iter().find(|f| &f.id == id)?;
-    Some(match folder.buttons.len() {
-        0 => "Dossier · vide".to_owned(),
-        1 => "Dossier · 1 bouton".to_owned(),
-        n => format!("Dossier · {n} boutons"),
-    })
+    Some(crate::locale::texts().folder(folder.buttons.len()))
 }
 
 /// A fresh id for a profile, page or button (12 hex characters).

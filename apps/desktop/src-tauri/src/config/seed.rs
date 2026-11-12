@@ -266,8 +266,54 @@ fn native(id: &str) -> Option<Action> {
     }
 }
 
+/// English labels and subtitles of the demo buttons (the seeds are French).
+fn english(id: &str) -> Option<(&'static str, Option<&'static str>)> {
+    Some(match id {
+        "explorer" => ("Explorer", None),
+        "copy" => ("Copy", None),
+        "paste" => ("Paste", None),
+        "undo" => ("Undo", None),
+        "screenshot" => (
+            "Screenshot",
+            Some(if cfg!(windows) {
+                "Win + Shift + S"
+            } else {
+                "Print Screen"
+            }),
+        ),
+        "play-pause" => ("Play / Pause", Some("Media")),
+        "previous" => ("Previous track", Some("Media")),
+        "next" => ("Next track", Some("Media")),
+        "volume-down" => ("Volume −", Some("PC sound")),
+        "volume-up" => ("Volume +", Some("PC sound")),
+        "mute" => ("Mute", Some("PC sound")),
+        "discord" => ("Discord", Some("F13 · global shortcut")),
+        "desktop" => ("Desktop", None),
+        "lock" => ("Lock", None),
+        _ => return None,
+    })
+}
+
+/// The demo profile, in the PC's language (`locale.rs`).
 #[must_use]
 pub fn config() -> Config {
+    let mut config = french();
+    if crate::locale::current() == crate::locale::Locale::En {
+        let profile = &mut config.profiles[0];
+        "Demo".clone_into(&mut profile.name);
+        for button in &mut profile.pages[0].buttons {
+            if let Some((label, subtitle)) = english(&button.id) {
+                label.clone_into(&mut button.label);
+                if let Some(subtitle) = subtitle {
+                    button.subtitle = Some(subtitle.to_owned());
+                }
+            }
+        }
+    }
+    config
+}
+
+fn french() -> Config {
     let buttons = seeds()
         .into_iter()
         .map(|s| ButtonConfig {
@@ -310,5 +356,16 @@ mod tests {
     #[test]
     fn the_seed_is_valid() {
         super::config().validate().unwrap();
+    }
+
+    #[test]
+    fn every_demo_button_has_an_english_label() {
+        for button in &super::french().profiles[0].pages[0].buttons {
+            assert!(
+                super::english(&button.id).is_some() || button.id == "terminal",
+                "{}",
+                button.id
+            );
+        }
     }
 }

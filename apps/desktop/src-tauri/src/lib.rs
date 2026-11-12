@@ -12,6 +12,7 @@ mod auth;
 mod config;
 mod editor_service;
 mod identity;
+mod locale;
 mod netif;
 mod obs;
 mod observe;
@@ -139,6 +140,12 @@ fn get_status(state: tauri::State<'_, SharedSnapshot>) -> Snapshot {
 }
 
 /// Shows a new pairing PIN on the desktop (replacing any previous one).
+/// The PC's language (`locale.rs`): the editor uses the same as the tablets.
+#[tauri::command]
+fn get_locale() -> locale::Locale {
+    locale::current()
+}
+
 #[tauri::command]
 fn start_pairing(backend: tauri::State<'_, Backend>) -> Result<PairingView, String> {
     backend.auth.start_pairing().map_err(|e| e.to_string())
@@ -342,6 +349,7 @@ pub fn run() {
     let test_mode = TestMode::from_env();
     init_tracing(test_mode.as_ref().ok().and_then(Option::as_ref));
 
+    tracing::info!(locale = ?locale::current(), "language");
     let mut settings = Settings::from_env();
     for (variable, value) in &settings.invalid {
         tracing::warn!("ignoring invalid {variable}={value:?}, using the default");
@@ -375,6 +383,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             get_status,
+            get_locale,
             start_pairing,
             cancel_pairing,
             revoke_device,

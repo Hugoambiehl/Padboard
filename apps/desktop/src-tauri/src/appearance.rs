@@ -49,19 +49,6 @@ impl SystemState {
     }
 }
 
-/// Texts shown on the tablet by the state engine (French; English comes
-/// with the rest of the translations before open-sourcing).
-mod text {
-    pub const MUTED: &str = "Muet";
-    pub const SCENE_ACTIVE: &str = "Scène active";
-    pub const RECORDING: &str = "REC";
-    pub const LIVE: &str = "EN DIRECT";
-    pub const OUTPUT_MUTED: &str = "Coupé";
-    pub fn volume(percent: u32) -> String {
-        format!("Volume {percent} %")
-    }
-}
-
 /// Lucide icons (ISC) used by states, converted like `src/icons/paths.ts`.
 mod icons {
     pub const MIC_OFF: &[&str] = &[
@@ -102,26 +89,27 @@ fn switched_off(button: &mut ButtonView, paths: &[&str], subtitle: &str) {
 
 /// The appearance of one button for `state`.
 fn apply(button: &mut ButtonView, action: &Action, state: &SystemState) {
+    let text = crate::locale::texts();
     match (action, state.audio) {
         (Action::Microphone(_), Observed::Unavailable) => button.unavailable = true,
         (Action::Microphone(_), Observed::Known(audio)) => match audio.input_muted {
             None => button.unavailable = true,
-            Some(true) => switched_off(button, icons::MIC_OFF, text::MUTED),
+            Some(true) => switched_off(button, icons::MIC_OFF, text.muted),
             Some(false) => {}
         },
         (Action::Volume(_), Observed::Unavailable) => button.unavailable = true,
         (Action::Volume(v), Observed::Known(audio)) => match v.command {
             VolumeCommand::ToggleMute if audio.output_muted => {
-                switched_off(button, icons::VOLUME_X, text::OUTPUT_MUTED);
+                switched_off(button, icons::VOLUME_X, text.output_muted);
             }
             VolumeCommand::ToggleMute => {}
             // The level, unless the user wrote their own subtitle.
             VolumeCommand::Up | VolumeCommand::Down | VolumeCommand::Set => {
                 if button.subtitle.is_none() {
                     button.subtitle = Some(if audio.output_muted {
-                        text::OUTPUT_MUTED.to_owned()
+                        text.output_muted.to_owned()
                     } else {
-                        text::volume(audio.output_percent)
+                        text.volume(audio.output_percent)
                     });
                 }
             }
@@ -132,15 +120,15 @@ fn apply(button: &mut ButtonView, action: &Action, state: &SystemState) {
             Observed::Known(obs) => match o.command {
                 ObsCommand::SetScene if obs.scene.is_some() && obs.scene == o.target => {
                     button.active = true;
-                    button.subtitle = Some(text::SCENE_ACTIVE.to_owned());
+                    button.subtitle = Some(text.scene_active.to_owned());
                 }
                 ObsCommand::ToggleRecord if obs.recording => {
                     button.active = true;
-                    button.badge = Some(text::RECORDING.to_owned());
+                    button.badge = Some(text.recording.to_owned());
                 }
                 ObsCommand::ToggleStream if obs.streaming => {
                     button.active = true;
-                    button.badge = Some(text::LIVE.to_owned());
+                    button.badge = Some(text.live.to_owned());
                 }
                 ObsCommand::ToggleInputMute
                     if o.target
@@ -149,7 +137,7 @@ fn apply(button: &mut ButtonView, action: &Action, state: &SystemState) {
                 {
                     button.active = true;
                     button.category = Category::Red;
-                    button.subtitle = Some(text::OUTPUT_MUTED.to_owned());
+                    button.subtitle = Some(text.output_muted.to_owned());
                 }
                 _ => {}
             },

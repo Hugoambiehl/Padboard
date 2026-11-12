@@ -71,14 +71,16 @@ export class App {
     /** The PADBOARD_TEST_DIR of this app: configuration and recorded actions. */
     readonly dir: string,
     usbPort: number,
+    /** UI language (PADBOARD_LOCALE); `t()` reads the French texts. */
+    private readonly locale: "fr" | "en",
   ) {
     this.usbPort = usbPort;
   }
 
   /** A fresh test directory, then tauri-driver, then the app. */
-  static async start(): Promise<App> {
+  static async start(locale: "fr" | "en" = "fr"): Promise<App> {
     const dir = await mkdtemp(join(tmpdir(), "padboard-e2e-"));
-    const app = new App(dir, await freePort());
+    const app = new App(dir, await freePort(), locale);
     try {
       await app.startDriver();
       await app.open();
@@ -100,6 +102,7 @@ export class App {
     const env = {
       ...process.env,
       PADBOARD_TEST_DIR: this.dir,
+      PADBOARD_LOCALE: this.locale,
       PADBOARD_PORT: String(this.usbPort),
       PADBOARD_LOG: process.env.PADBOARD_LOG ?? "warn,padboard_desktop_lib=info",
     };
