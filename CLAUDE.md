@@ -501,7 +501,7 @@ SM-T580, always measure in release builds.
   frontend logic (Vitest), end-to-end on the real window (local, see above).
 - Config persisted as versioned JSON (with migrations) in the user config dir.
 - Commits: small, **in English**, Conventional Commits
-  (`feat|fix|docs|style|refactor|test|chore|perf(scope): summary`). No
+  (`feat|fix|docs|style|refactor|test|chore|perf|build|ci(scope): summary`). No
   `Co-Authored-By` / "Generated with" lines.
 - Never commit secrets, keystores or `local.properties`.
 - Work phase by phase; ask before any significant architecture decision.
