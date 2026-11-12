@@ -28,8 +28,8 @@ android {
         applicationId = "io.github.hugoambiehl.padboard"
         minSdk = 26
         targetSdk = 37
-        versionCode = 10004
-        versionName = "0.1.0-rc.4"
+        versionCode = 10099
+        versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
