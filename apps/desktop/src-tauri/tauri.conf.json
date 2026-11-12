@@ -57,10 +57,7 @@
       "deb": {
         "files": {
           "/usr/share/doc/padboard/copyright": "../../../LICENSE"
-        },
-        "depends": [
-          "libayatana-appindicator3-1"
-        ]
+        }
       }
     },
     "longDescription": "Padboard runs actions on your PC (shortcuts, media, volume, microphone, OBS, apps) from a grid of buttons shown on a dedicated Android tablet, over USB or Wi-Fi, without any cloud service."

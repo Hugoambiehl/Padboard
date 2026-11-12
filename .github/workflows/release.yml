@@ -142,11 +142,14 @@ jobs:
           name: licenses
           path: apps/desktop/src/generated
 
+      # appindicator: the tray; the bundler finds it and adds the package's
+      # runtime dependency to the .deb.
       - name: Install Tauri system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev libdbus-1-dev pkg-config file
+            libwebkit2gtk-4.1-dev libdbus-1-dev pkg-config file \
+            libayatana-appindicator3-dev
 
       - uses: actions/setup-node@v7
         with:
