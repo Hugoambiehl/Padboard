@@ -107,7 +107,7 @@ fun IncompatibleScreen(onRetry: () -> Unit) {
 
 /** Confirmation before forgetting the paired PC (its token and pinned key). */
 @Composable
-fun ForgetDialog(serverName: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+fun ForgetDialog(serverName: String, onConfirm: () -> Unit, onDismiss: () -> Unit, onAbout: (() -> Unit)? = null) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = PadboardColors.Surface2,
@@ -120,9 +120,21 @@ fun ForgetDialog(serverName: String, onConfirm: () -> Unit, onDismiss: () -> Uni
             }) { Text(stringResource(R.string.forget_confirm), color = PadboardColors.Red) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = PadboardColors.Text) }
+            Row {
+                if (onAbout != null) AboutButton(onDismiss, onAbout)
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = PadboardColors.Text) }
+            }
         }
     )
+}
+
+/** "À propos et licences" in a dialog: closes it, then opens the screen. */
+@Composable
+fun AboutButton(onDismiss: () -> Unit, onAbout: () -> Unit) {
+    TextButton(onClick = {
+        onDismiss()
+        onAbout()
+    }) { Text(stringResource(R.string.about_open), color = PadboardColors.TextMuted2) }
 }
 
 @Composable

@@ -59,7 +59,8 @@ fun SetupScreen(
     problems: Flow<PairingProblem>,
     onPick: (DiscoveredPc) -> Unit,
     onManual: (Endpoint) -> Unit,
-    onBack: (() -> Unit)?
+    onBack: (() -> Unit)?,
+    onAbout: () -> Unit
 ) {
     var problem by rememberSaveable { mutableStateOf<PairingProblem?>(null) }
     LaunchedEffect(problems) { problems.collect { problem = it } }
@@ -96,6 +97,9 @@ fun SetupScreen(
                 TextButton(onClick = onBack) {
                     Text(stringResource(R.string.setup_back), color = PadboardColors.Accent)
                 }
+            }
+            TextButton(onClick = onAbout) {
+                Text(stringResource(R.string.about_open), color = PadboardColors.TextMuted2)
             }
         }
         Column(

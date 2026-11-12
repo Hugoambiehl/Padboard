@@ -70,6 +70,7 @@ import io.github.hugoambiehl.padboard.protocol.ButtonView
 import io.github.hugoambiehl.padboard.protocol.Layout
 import io.github.hugoambiehl.padboard.protocol.NavigatePayload
 import io.github.hugoambiehl.padboard.protocol.NavigateTarget
+import io.github.hugoambiehl.padboard.ui.connect.AboutButton
 import io.github.hugoambiehl.padboard.ui.connect.ForgetDialog
 import io.github.hugoambiehl.padboard.ui.connect.SPINNING_ATTEMPTS
 import io.github.hugoambiehl.padboard.ui.theme.PadboardColors
@@ -116,6 +117,7 @@ fun GridScreen(
     onRelease: (String) -> Unit,
     onPairWifi: () -> Unit,
     onForget: () -> Unit,
+    onAbout: () -> Unit,
     onRetry: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
@@ -321,16 +323,22 @@ fun GridScreen(
         ErrorBanner(visible = errorVisible, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp))
     }
     if (menu) {
-        LinkMenu(status, onPairWifi = onPairWifi, onForget = onForget, onDismiss = { menu = false })
+        LinkMenu(status, onPairWifi = onPairWifi, onForget = onForget, onAbout = onAbout, onDismiss = { menu = false })
     }
 }
 
 /** Opened from the connection pill. */
 @Composable
-private fun LinkMenu(status: GridStatus, onPairWifi: () -> Unit, onForget: () -> Unit, onDismiss: () -> Unit) {
+private fun LinkMenu(
+    status: GridStatus,
+    onPairWifi: () -> Unit,
+    onForget: () -> Unit,
+    onAbout: () -> Unit,
+    onDismiss: () -> Unit
+) {
     val usbOnly = status is GridStatus.Connected && !status.paired
     if (!usbOnly) {
-        ForgetDialog(status.serverName, onConfirm = onForget, onDismiss = onDismiss)
+        ForgetDialog(status.serverName, onConfirm = onForget, onDismiss = onDismiss, onAbout = onAbout)
         return
     }
     AlertDialog(
@@ -345,7 +353,10 @@ private fun LinkMenu(status: GridStatus, onPairWifi: () -> Unit, onForget: () ->
             }) { Text(stringResource(R.string.pair_wifi), color = PadboardColors.Accent) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = PadboardColors.Text) }
+            Row {
+                AboutButton(onDismiss, onAbout)
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = PadboardColors.Text) }
+            }
         }
     )
 }

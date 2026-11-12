@@ -11,6 +11,7 @@ import io.github.hugoambiehl.padboard.connection.DiscoveredPc
 import io.github.hugoambiehl.padboard.connection.LinkState
 import io.github.hugoambiehl.padboard.kiosk.KioskExitCorner
 import io.github.hugoambiehl.padboard.protocol.Layout
+import io.github.hugoambiehl.padboard.ui.about.AboutScreen
 import io.github.hugoambiehl.padboard.ui.connect.IncompatibleScreen
 import io.github.hugoambiehl.padboard.ui.connect.PinScreen
 import io.github.hugoambiehl.padboard.ui.connect.SearchingScreen
@@ -39,6 +40,11 @@ fun PadboardApp(viewModel: PadboardViewModel) {
 private fun Screens(viewModel: PadboardViewModel, link: LinkState, layout: Layout?, pcs: List<DiscoveredPc>) {
     /** The user asked to pair over Wi-Fi while connected over USB. */
     var setupRequested by rememberSaveable { mutableStateOf(false) }
+    var aboutOpen by rememberSaveable { mutableStateOf(false) }
+    if (aboutOpen) {
+        AboutScreen(onBack = { aboutOpen = false })
+        return
+    }
     LaunchedEffect(link is LinkState.Pairing) { if (link is LinkState.Pairing) setupRequested = false }
 
     val setup = @Composable { onBack: (() -> Unit)? ->
@@ -47,7 +53,8 @@ private fun Screens(viewModel: PadboardViewModel, link: LinkState, layout: Layou
             problems = viewModel.pairingProblems,
             onPick = viewModel::pair,
             onManual = viewModel::pair,
-            onBack = onBack
+            onBack = onBack,
+            onAbout = { aboutOpen = true }
         )
     }
 
@@ -87,6 +94,7 @@ private fun Screens(viewModel: PadboardViewModel, link: LinkState, layout: Layou
                         onRelease = viewModel::release,
                         onPairWifi = { setupRequested = true },
                         onForget = viewModel::forget,
+                        onAbout = { aboutOpen = true },
                         onRetry = viewModel::retryNow
                     )
             }

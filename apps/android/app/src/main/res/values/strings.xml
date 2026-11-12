@@ -78,4 +78,15 @@
     <string name="screensaver_recording">REC</string>
     <string name="screensaver_live">EN DIRECT</string>
     <string name="screensaver_offline">PC non connecté</string>
+    <string name="about_open">À propos et licences</string>
+    <string name="about_title">À propos</string>
+    <string name="about_version">Padboard, version %1$s</string>
+    <string name="about_license">Logiciel libre, distribué sous licence GNU GPL version 3 ou ultérieure.</string>
+    <string name="about_warranty">Fourni sans aucune garantie, dans les limites permises par la loi.</string>
+    <string name="about_source">Code source</string>
+    <string name="about_back">Retour</string>
+    <string name="about_section_app">APPLICATION</string>
+    <string name="about_section_assets">POLICES ET ICÔNES</string>
+    <string name="about_section_libraries">BIBLIOTHÈQUES</string>
+    <string name="about_no_text">Texte de licence non inclus : voir le dépôt du composant.</string>
 </resources>
