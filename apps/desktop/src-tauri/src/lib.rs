@@ -4,7 +4,8 @@
 //! run on Tauri's tokio runtime and report [`server::ServerEvent`]s; they are
 //! folded into a [`state::Snapshot`] which is pushed to the frontend through
 //! the `status` event and can be fetched with the `get_status` command. The
-//! other commands drive pairing, revocation and the Wi-Fi toggle.
+//! other commands drive pairing, revocation and the Wi-Fi toggle. The app
+//! lives in the notification area (`tray`): closing the window hides it.
 
 mod adb;
 mod appearance;
@@ -26,6 +27,7 @@ mod state;
 mod storage;
 mod test_mode;
 mod tls;
+mod tray;
 mod wifi;
 
 use std::path::PathBuf;
@@ -76,6 +78,14 @@ struct Backend {
     adb_refresh: tokio::sync::mpsc::UnboundedSender<()>,
     /// Devices whose kiosk mode is being turned on (one command at a time).
     kiosk_busy: Mutex<std::collections::HashSet<String>>,
+    /// Starting with the session: the system's entry, or a flag in test mode
+    /// (tests never touch the real autostart).
+    autostart: Autostart,
+}
+
+enum Autostart {
+    System,
+    Simulated(std::sync::atomic::AtomicBool),
 }
 
 impl Backend {
@@ -131,6 +141,68 @@ impl Backend {
         }
         self.adb_path.send_replace(path);
         Ok(())
+    }
+}
+
+/// Hides the window in the tray, and remembers the user saw why (first close).
+#[tauri::command]
+fn hide_to_tray(
+    window: tauri::WebviewWindow,
+    backend: tauri::State<'_, Backend>,
+) -> Result<(), String> {
+    {
+        let mut preferences = backend
+            .preferences
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if !preferences.close_hint_shown {
+            preferences.close_hint_shown = true;
+            backend
+                .config
+                .save(&*preferences)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    tracing::info!("window hidden in the tray");
+    window.hide().map_err(|e| e.to_string())
+}
+
+/// Quits the app (first close: "Quit" instead of hiding).
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    tracing::info!("quit from the window");
+    app.exit(0);
+}
+
+/// Whether Padboard starts with the session.
+#[tauri::command]
+fn get_autostart(
+    app: tauri::AppHandle,
+    backend: tauri::State<'_, Backend>,
+) -> Result<bool, String> {
+    use tauri_plugin_autostart::ManagerExt as _;
+    match &backend.autostart {
+        Autostart::System => app.autolaunch().is_enabled().map_err(|e| e.to_string()),
+        Autostart::Simulated(on) => Ok(on.load(std::sync::atomic::Ordering::Relaxed)),
+    }
+}
+
+/// Adds or removes the session's autostart entry (it starts hidden in the tray).
+#[tauri::command]
+fn set_autostart(
+    app: tauri::AppHandle,
+    backend: tauri::State<'_, Backend>,
+    enabled: bool,
+) -> Result<(), String> {
+    use tauri_plugin_autostart::ManagerExt as _;
+    tracing::info!(enabled, "start with the session");
+    match &backend.autostart {
+        Autostart::System if enabled => app.autolaunch().enable().map_err(|e| e.to_string()),
+        Autostart::System => app.autolaunch().disable().map_err(|e| e.to_string()),
+        Autostart::Simulated(on) => {
+            on.store(enabled, std::sync::atomic::Ordering::Relaxed);
+            Ok(())
+        }
     }
 }
 
@@ -379,9 +451,35 @@ pub fn run() {
         }
     }
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    // A second launch (menu, autostart) shows the running app instead of
+    // starting another one on the same ports. Not in test mode: a test app
+    // must not hand over to the user's own Padboard.
+    if test_mode.is_none() {
+        builder = builder
+            .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+                tracing::info!("launched again: showing the window");
+                tray::show_window(app);
+            }))
+            .plugin(
+                tauri_plugin_autostart::Builder::new()
+                    .arg(tray::HIDDEN_ARG)
+                    .build(),
+            );
+    }
+    let start_hidden = std::env::args().any(|a| a == tray::HIDDEN_ARG);
+    let autostart = if test_mode.is_some() {
+        Autostart::Simulated(std::sync::atomic::AtomicBool::new(false))
+    } else {
+        Autostart::System
+    };
+    builder
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            hide_to_tray,
+            quit_app,
+            get_autostart,
+            set_autostart,
             get_status,
             get_locale,
             start_pairing,
@@ -452,6 +550,14 @@ pub fn run() {
                 auth.paired_devices(),
             )));
 
+            // The tray shows the connected tablets.
+            match tray::Tray::create(app.handle(), locale::current()) {
+                Ok(tray) => {
+                    app.manage(tray);
+                }
+                Err(e) => tracing::error!("cannot create the tray icon: {e}"),
+            }
+
             // Fold server events into the snapshot and push it to the UI.
             tauri::async_runtime::spawn(async move {
                 while let Some(event) = events_rx.recv().await {
@@ -464,6 +570,9 @@ pub fn run() {
                         s.apply(event);
                         s.clone()
                     };
+                    if let Some(tray) = handle.try_state::<tray::Tray<tauri::Wry>>() {
+                        tray.set_clients(&fresh.clients);
+                    }
                     if let Err(e) = handle.emit(STATUS_EVENT, fresh) {
                         tracing::warn!("cannot emit status: {e}");
                     }
@@ -618,6 +727,7 @@ pub fn run() {
                 adb_allowed,
                 adb_refresh,
                 kiosk_busy: Mutex::default(),
+                autostart,
             });
 
             // Quitting from a signal (session logout, Ctrl+C in a terminal)
@@ -635,7 +745,8 @@ pub fn run() {
                 app.add_capability(
                     tauri::ipc::CapabilityBuilder::new("e2e-close")
                         .window("main")
-                        .permission("core:window:allow-close"),
+                        .permission("core:window:allow-close")
+                        .permission("core:window:allow-destroy"),
                 )?;
             }
 
@@ -645,8 +756,39 @@ pub fn run() {
                 } else {
                     "Padboard"
                 })?;
+                // The window is created hidden: started with the session, it
+                // stays in the tray (if there is one to reopen it from).
+                if start_hidden && tray::host_available() {
+                    tracing::info!("started hidden in the tray");
+                } else {
+                    window.show()?;
+                }
             }
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Closing hides the window in the tray, where the app keeps
+            // serving the tablets; explained the first time. Without a tray
+            // host (Linux), closing quits: nothing could show the window again.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event
+                && window.label() == "main"
+                && tray::host_available()
+            {
+                api.prevent_close();
+                let hint_shown = window.try_state::<Backend>().is_none_or(|backend| {
+                    backend
+                        .preferences
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .close_hint_shown
+                });
+                if hint_shown {
+                    tracing::info!("window hidden in the tray");
+                    let _ = window.hide();
+                } else {
+                    let _ = window.emit(tray::CLOSE_TO_TRAY_EVENT, ());
+                }
+            }
         })
         .build(tauri::generate_context!())
         .expect("error while building the Tauri application")

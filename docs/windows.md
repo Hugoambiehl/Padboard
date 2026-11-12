@@ -92,6 +92,17 @@ PowerShell gives a separate configuration whose actions are only recorded
 Also check: the tablet shows the right states right after connecting, after
 a cable unplug/replug, and after the PC wakes from sleep.
 
+## 5. Notification area and startup
+
+| Check | Do | Expect |
+|---|---|---|
+| Tray icon | Start Padboard | The Padboard icon is in the notification area (maybe under the `^` overflow); its tooltip and menu show the connected tablet (*Galaxy Tab A · USB*) or *Aucune tablette connectée* |
+| Tray menu | Left click the icon; right click → *Ouvrir Padboard* / *Quitter Padboard* | Left click and *Ouvrir* show the window; *Quitter* closes Padboard (the tablet loses the PC) |
+| First close | Close the window (X) for the first time | A dialog explains Padboard stays in the notification area: *Réduire…* hides the window, the tablet keeps working; *Quitter* quits |
+| Next closes | Close the window again | It hides at once, no dialog |
+| Second launch | Start Padboard from the Start menu while it runs hidden | The running window comes back (no second Padboard) |
+| Startup | *Connexions* → *Démarrage* → turn on, sign out and in | Padboard starts hidden in the notification area and the tablet connects; turned off: it does not start (*Task Manager → Startup apps* lists it while on) |
+
 ## Known Windows limits
 
 - Keys cannot be sent to elevated (administrator) windows.

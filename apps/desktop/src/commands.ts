@@ -55,3 +55,11 @@ export const getObs = () => invoke<ObsInfo>("get_obs");
 /** `password`: undefined keeps the saved one, "" removes it. */
 export const setObs = (enabled: boolean, host: string, port: number, password?: string) =>
   invoke<void>("set_obs", { enabled, host, port, password: password ?? null });
+
+// Window and session
+/** Hides the window in the tray (and remembers the first-close explanation was seen). */
+export const hideToTray = () => invoke<void>("hide_to_tray");
+export const quitApp = () => invoke<void>("quit_app");
+/** Start with the session (hidden in the tray). */
+export const getAutostart = () => invoke<boolean>("get_autostart");
+export const setAutostart = (enabled: boolean) => invoke<void>("set_autostart", { enabled });

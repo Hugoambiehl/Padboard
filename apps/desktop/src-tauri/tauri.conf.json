@@ -19,7 +19,8 @@
         "minWidth": 1100,
         "minHeight": 680,
         "backgroundColor": "#0E0F12",
-        "theme": "Dark"
+        "theme": "Dark",
+        "visible": false
       }
     ],
     "security": {
@@ -56,7 +57,10 @@
       "deb": {
         "files": {
           "/usr/share/doc/padboard/copyright": "../../../LICENSE"
-        }
+        },
+        "depends": [
+          "libayatana-appindicator3-1"
+        ]
       }
     },
     "longDescription": "Padboard runs actions on your PC (shortcuts, media, volume, microphone, OBS, apps) from a grid of buttons shown on a dedicated Android tablet, over USB or Wi-Fi, without any cloud service."

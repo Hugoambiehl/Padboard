@@ -500,6 +500,17 @@
     "minutes": "{n} min sans toucher",
     "hint": "Écran noir avec l’horloge, luminosité au minimum, et les états importants (micro coupé, REC, EN DIRECT). Le premier toucher réveille seulement l’écran."
   },
+  "tray": {
+    "closeTitle": "Padboard reste ouvert",
+    "closeText": "Fermer la fenêtre réduit Padboard dans la zone de notification : la tablette continue de fonctionner. Pour rouvrir l’éditeur ou quitter, utilisez l’icône Padboard.",
+    "hide": "Réduire dans la zone de notification",
+    "quit": "Quitter Padboard"
+  },
+  "startup": {
+    "title": "Démarrage",
+    "toggle": "Lancer Padboard à l’ouverture de session",
+    "hint": "Padboard démarre réduit dans la zone de notification, prêt pour la tablette."
+  },
   "about": {
     "title": "À propos",
     "version": "version {version}",

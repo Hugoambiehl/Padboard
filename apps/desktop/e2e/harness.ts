@@ -129,15 +129,16 @@ export class App {
   }
 
   /**
-   * Closes the window the way the user does, and waits for the app to exit
-   * (ending the WebDriver session would kill it instead).
+   * Quits the app the way "Quit" does (closing the window only hides it in
+   * the tray): destroys the window and waits for the app to exit, through
+   * the same exit path (ending the WebDriver session would kill it instead).
    */
   async close(): Promise<void> {
     const exits = async () =>
       (await this.log()).split("\n").filter((l) => l.endsWith(" exited")).length;
     const before = await exits();
     await this.session
-      .execute("window.__TAURI_INTERNALS__.invoke('plugin:window|close', { label: 'main' })")
+      .execute("window.__TAURI_INTERNALS__.invoke('plugin:window|destroy', { label: 'main' })")
       .catch(() => undefined);
     await this.session.waitUntil(
       async () => (await exits()) > before,
@@ -193,6 +194,11 @@ export class App {
     }[];
   }> {
     return JSON.parse(await readFile(join(this.dir, "config", "profiles.json"), "utf8"));
+  }
+
+  /** A file of the test configuration directory (`preferences.json`…). */
+  readConfigFile(name: string): Promise<string> {
+    return readFile(join(this.dir, "config", name), "utf8");
   }
 
   /** Screenshot of the window, in the screenshots directory. */

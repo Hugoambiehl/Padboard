@@ -126,6 +126,41 @@ pub fn texts() -> &'static Texts {
     texts_for(current())
 }
 
+/// The notification area icon's menu and tooltip.
+#[derive(Debug)]
+pub struct TrayTexts {
+    pub app: &'static str,
+    pub open: &'static str,
+    pub quit: &'static str,
+    pub no_tablet: &'static str,
+    /// `{n}` tablets connected (2 or more).
+    pub tablets: &'static str,
+}
+
+const TRAY_FR: TrayTexts = TrayTexts {
+    app: "Padboard",
+    open: "Ouvrir Padboard",
+    quit: "Quitter Padboard",
+    no_tablet: "Aucune tablette connectée",
+    tablets: "{n} tablettes connectées",
+};
+
+const TRAY_EN: TrayTexts = TrayTexts {
+    app: "Padboard",
+    open: "Open Padboard",
+    quit: "Quit Padboard",
+    no_tablet: "No tablet connected",
+    tablets: "{n} tablets connected",
+};
+
+#[must_use]
+pub fn tray_texts(locale: Locale) -> &'static TrayTexts {
+    match locale {
+        Locale::Fr => &TRAY_FR,
+        Locale::En => &TRAY_EN,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

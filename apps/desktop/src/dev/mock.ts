@@ -122,6 +122,8 @@ export function install() {
           };
         case "set_obs":
           return null;
+        case "get_autostart":
+          return false;
         case "get_screensaver":
           return { enabled: true, delaySeconds: 300 };
         case "test_button":

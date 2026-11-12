@@ -19,6 +19,9 @@ pub struct Preferences {
     /// The tablets' screensaver (sent to them with `tablet:settings`).
     #[serde(default)]
     pub screensaver: Screensaver,
+    /// Closing the window hides it in the tray: explained once, then silent.
+    #[serde(default)]
+    pub close_hint_shown: bool,
 }
 
 /// Shortest and longest screensaver delays accepted.
@@ -85,6 +88,7 @@ mod tests {
                 enabled: false,
                 delay_seconds: 60,
             },
+            close_hint_shown: true,
         };
         config.save(&changed).unwrap();
         assert_eq!(config.load::<Preferences>().unwrap(), Some(changed));
@@ -102,5 +106,6 @@ mod tests {
         let prefs = config.load::<Preferences>().unwrap().unwrap();
         assert!(prefs.lan_enabled);
         assert_eq!(prefs.screensaver, Screensaver::default());
+        assert!(!prefs.close_hint_shown);
     }
 }

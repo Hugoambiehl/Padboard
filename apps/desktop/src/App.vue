@@ -2,8 +2,10 @@
 import { ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useEventListener } from "@vueuse/core";
+import { listen } from "@tauri-apps/api/event";
 import AppHeader from "./components/AppHeader.vue";
 import PairingDialog from "./components/PairingDialog.vue";
+import CloseToTrayDialog from "./components/CloseToTrayDialog.vue";
 import EditorView from "./views/EditorView.vue";
 import ConnectionsView from "./views/ConnectionsView.vue";
 import { useStatus } from "./composables/useStatus";
@@ -19,6 +21,11 @@ const view = ref<"editor" | "connections">(
     : "editor",
 );
 const pairingOpen = ref(false);
+/** First close of the window: explain that Padboard stays in the tray. */
+const closeHintOpen = ref(false);
+void listen("close-to-tray", () => {
+  closeHintOpen.value = true;
+});
 
 // Undo / redo everywhere, text fields included: the configuration's history
 // (typing in a field is one entry) replaces the fields' native undo.
@@ -56,5 +63,6 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
         @close="pairingOpen = false"
       />
     </template>
+    <CloseToTrayDialog v-if="closeHintOpen" @close="closeHintOpen = false" />
   </div>
 </template>

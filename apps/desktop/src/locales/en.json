@@ -500,6 +500,17 @@
     "minutes": "{n} min without a touch",
     "hint": "A black screen with the clock, the lowest brightness and the important states (microphone muted, REC, LIVE). The first touch only wakes the screen."
   },
+  "tray": {
+    "closeTitle": "Padboard keeps running",
+    "closeText": "Closing the window minimizes Padboard to the notification area: the tablet keeps working. To open the editor again or quit, use the Padboard icon.",
+    "hide": "Minimize to the notification area",
+    "quit": "Quit Padboard"
+  },
+  "startup": {
+    "title": "Startup",
+    "toggle": "Start Padboard when I sign in",
+    "hint": "Padboard starts minimized to the notification area, ready for the tablet."
+  },
   "about": {
     "title": "About",
     "version": "version {version}",
