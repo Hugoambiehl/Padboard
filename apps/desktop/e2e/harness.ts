@@ -210,13 +210,11 @@ export class App {
 
   /** Connects a fake tablet over "USB" (the app's loopback port). */
   async connectTablet(id = "e2e"): Promise<FakeTablet> {
-    const tablet = new FakeTablet(FAKE_TABLET(), [
-      "usb",
-      "--port",
-      String(this.usbPort),
-      "--id",
-      id,
-    ]);
+    const tablet = new FakeTablet(
+      FAKE_TABLET(),
+      ["usb", "--port", String(this.usbPort), "--id", id],
+      this.dir,
+    );
     this.tablets.push(tablet);
     await tablet.waitFor(/^Layout /);
     return tablet;
@@ -299,8 +297,12 @@ export class FakeTablet {
   readonly lines: string[] = [];
   private readonly child: ChildProcess;
 
-  constructor(binary: string, args: string[]) {
-    this.child = spawn(binary, args, { stdio: ["pipe", "pipe", "inherit"] });
+  /** `tmpDir`: where it keeps its pairing state (removed with the test directory). */
+  constructor(binary: string, args: string[], tmpDir: string) {
+    this.child = spawn(binary, args, {
+      stdio: ["pipe", "pipe", "inherit"],
+      env: { ...process.env, TMPDIR: tmpDir },
+    });
     let partial = "";
     this.child.stdout!.on("data", (chunk: Buffer) => {
       partial += chunk.toString("utf8");
