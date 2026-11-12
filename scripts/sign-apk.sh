@@ -19,7 +19,8 @@ if [[ ! -f "$unsigned" || "$unsigned" != *-unsigned.apk ]]; then
 fi
 signed="${unsigned%-unsigned.apk}.apk"
 
-prop() { grep -E "^$1=" "$2" | tail -n1 | cut -d= -f2-; }
+# A property's value, empty when absent (keyPassword is optional).
+prop() { { grep -E "^$1=" "$2" || true; } | tail -n1 | cut -d= -f2-; }
 signing="${PADBOARD_SIGNING:-}"
 if [[ -z "$signing" && -f "$HOME/.gradle/gradle.properties" ]]; then
   signing="$(prop padboard.signing "$HOME/.gradle/gradle.properties")"
@@ -47,5 +48,5 @@ tools="$(find "$sdk/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tai
   --ks-pass env:PADBOARD_STORE_PASS --key-pass env:PADBOARD_KEY_PASS \
   --out "$signed" "$unsigned"
 rm -f "$signed.idsig"
-"$tools/apksigner" verify --print-certs "$signed" | grep -E "Signer #1 certificate (DN|SHA-256)"
+"$tools/apksigner" verify --print-certs "$signed" | grep -m2 -E "certificate (DN|SHA-256 digest):"
 echo "Signed: $signed"
