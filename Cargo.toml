@@ -31,6 +31,14 @@ dbg_macro = "warn"
 todo = "warn"
 unwrap_used = "warn"
 
+# Smaller dev builds (target/ reached 60 GB): line tables only for our code
+# (backtraces keep file and line), no debug info for dependencies.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 [profile.release]
 lto = "thin"
 codegen-units = 1

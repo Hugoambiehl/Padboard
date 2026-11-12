@@ -490,6 +490,12 @@ SM-T580, always measure in release builds.
 - **Paths contain a space** (`Projets persos`): always quote paths in shell scripts,
   CI and config.
 - Rust: `cargo fmt` + `cargo clippy -- -D warnings`. TS: ESLint + Prettier.
+- **Build size** (the dev PC is short on disk): dev profile with line
+  tables only for our crates and no debug info for dependencies; the e2e
+  build (`target/e2e`, separate so `tauri dev` stays cached) runs without
+  incremental cache or debug info. Dev + e2e ≈ 5.5 GB (was 60 GB).
+  Don't build twice without need (`desktop-e2e.sh --no-build` reuses the
+  last build); clean temporary files at the end of each step.
   Kotlin: ktlint.
 - Tests: protocol round-trip serialization, configuration logic (migrations…),
   frontend logic (Vitest), end-to-end on the real window (local, see above).

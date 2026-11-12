@@ -54,7 +54,10 @@ fi
 
 # A separate target directory: the e2e build embeds the frontend (no dev
 # server), which would otherwise invalidate the `tauri dev` build each time.
+# Built once per run, so no incremental cache and no debug info (size).
 export CARGO_TARGET_DIR="$ROOT/target/e2e"
+export CARGO_INCREMENTAL=0
+export CARGO_PROFILE_DEV_DEBUG=false
 cd "$ROOT/apps/desktop"
 if ((build)); then
   # The "Licences" dialog (e2e/about) needs the generated list.
