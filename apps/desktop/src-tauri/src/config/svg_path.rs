@@ -185,7 +185,7 @@ mod tests {
     /// Every Lucide icon, as converted by `src/icons/paths.ts`, must pass.
     /// Run after upgrading `lucide`:
     /// `PADBOARD_LUCIDE_JSON=<export> cargo test -p padboard-desktop -- --ignored lucide`
-    /// (the export maps icon names to their paths; see the README).
+    /// (the export maps icon names to their paths; see docs/development.md, "Lucide upgrades").
     #[test]
     #[ignore = "needs an export of the lucide icons"]
     fn all_lucide_icons_are_valid() {

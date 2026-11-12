@@ -1,4 +1,4 @@
-# Tablet: release signing and kiosk mode
+# Tablet: release signing
 
 ## Release signing key
 
@@ -58,58 +58,5 @@ A tablet carrying a build signed with another key (the debug one) needs
 `adb uninstall io.github.hugoambiehl.padboard` first: its data (Wi-Fi
 pairing) is lost, pair it again.
 
-## Kiosk mode
-
-The app becomes the tablet's **device owner**: it locks itself in front
-(lock task: no home, recents, notifications or status bar; the power menu
-still works), is the home app (starts at boot), turns the lock screen off and
-keeps the screen on (the screensaver dims it).
-
-Requirements: no account on the tablet (*Settings → Accounts*), a single
-user, the release build installed.
-
-### Turn it on
-
-With the tablet plugged in over USB: Padboard on the PC → *Connexions* →
-*Appareils USB* → **Activer le mode kiosque**. The row then reads
-"Mode kiosque actif" (state read with `adb shell dpm list-owners`); if
-another app already owns the tablet, or it has an account, the row says so. Or by hand:
-
-```sh
-adb shell dpm set-device-owner io.github.hugoambiehl.padboard/.kiosk.KioskAdmin
-adb shell content insert --uri content://lineagesettings/system --bind name:s:enable_taskbar --bind value:s:0
-adb shell am start -n io.github.hugoambiehl.padboard/.MainActivity
-```
-
-The second command turns off the Android 12L taskbar of LineageOS, which
-otherwise stays drawn over the app in lock task mode (it reports no inset).
-The plain navigation bar replaces it outside the app. To get the taskbar
-back: same command with `value:s:1`.
-
-### Turn it off (removes the device owner for good)
-
-- From the PC: *Connexions* → *Tablettes connectées* → **Libérer la tablette**
-  (click twice).
-- On the tablet, even without a PC: hold the **top-right corner** (the clock)
-  for 5 seconds, then *Quitter le mode kiosque*.
-
-Both undo every policy, then give up the device owner role
-(`clearDeviceOwnerApp`): the tablet is an ordinary one again, Padboard can be
-uninstalled. Only the steps above can turn kiosk mode on again.
-
-### Rescue
-
-If the app can no longer start (crash at launch) while it is the device
-owner, in this order:
-
-1. **Install a fixed build** signed with the same key
-   (`adb install -r …`): updates are allowed in kiosk mode. This is why the
-   key backup matters.
-2. If adb still works and the app starts at all, use the corner gesture or
-   `adb shell am start -n io.github.hugoambiehl.padboard/.MainActivity` then
-   the gesture.
-3. Last resort, **factory reset from the recovery** (wipes the tablet): power
-   off, hold *Volume up + Home + Power* until the recovery shows, *Factory
-   reset → Format data / factory reset*, reboot, install Padboard again.
-   (`adb shell dpm remove-active-admin` does not work: it is only allowed for
-   apps flagged `testOnly`.)
+Kiosk mode (turning it on and off, rescue when the app no longer starts):
+[install-tablet.md](install-tablet.md#kiosk-mode).

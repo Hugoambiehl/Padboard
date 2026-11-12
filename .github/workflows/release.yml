@@ -114,7 +114,7 @@ jobs:
         with:
           key: release
 
-      # Unsigned for now: SmartScreen warns on first launch (docs/install-windows.md).
+      # Unsigned for now: SmartScreen warns on first launch (docs/install-windows.md); SignPath once public.
       - name: Build the installer
         working-directory: apps/desktop
         run: |
@@ -238,9 +238,11 @@ jobs:
           cat >> notes.md <<'EOF'
 
           ---
-          Install: see the guides in `docs/` (Windows, Linux, tablet). The Windows
-          installer is not signed yet: SmartScreen asks for confirmation on first launch.
-          Check the downloads against `SHA256SUMS`.
+          Install: [Windows](https://github.com/Hugoambiehl/Padboard/blob/main/docs/install-windows.md),
+          [Linux](https://github.com/Hugoambiehl/Padboard/blob/main/docs/install-linux.md),
+          [tablet](https://github.com/Hugoambiehl/Padboard/blob/main/docs/install-tablet.md).
+          The Windows installer is not signed yet: SmartScreen asks for confirmation on
+          first launch. Check the downloads against `SHA256SUMS`.
           EOF
 
       - name: Create the draft release

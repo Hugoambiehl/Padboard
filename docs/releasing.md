@@ -51,7 +51,7 @@ for `apksigner`.
    It prints the certificate's SHA-256: it must be the one in
    `docs/android-release.md`.
 
-4. **Test** the builds (Windows: `docs/windows.md`; the tablet:
+4. **Test** the builds (Windows: `docs/windows-test-plan.md`; the tablet:
    `adb install -r padboard-X.apk`).
 
 5. **Attach the signed APK** and its checksum, remove the unsigned one:

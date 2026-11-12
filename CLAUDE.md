@@ -43,7 +43,7 @@ Same WebSocket protocol over two transports:
   `adb reverse tcp:47321 tcp:47321` on every (re)plug, **only on devices where
   Padboard is installed**; the tablet connects to `127.0.0.1:47321`. Connections
   on this port are authenticated without PIN (the cable is the proof). Accepted
-  risk, documented in the README: any local process can connect to loopback too,
+  risk, documented in SECURITY.md: any local process can connect to loopback too,
   so on a PC shared between several user accounts another account could send
   keys into the session.
 - **`adb`**: from PATH or a location chosen in the settings. Downloading
@@ -79,8 +79,10 @@ crates/actions         # ActionExecutor trait + Windows / Linux impls (cfg targe
 apps/desktop           # Tauri 2 (src-tauri = Rust, src = Vue/TS)
 apps/android           # Gradle project (created by Android Studio — never recreate it)
 docs/design            # reference mockups (Main, Pairing, Editor .dc.html)
-docs/windows.md        # Windows install + per-action test procedure
-docs/android-release.md # tablet signing key (outside the repo), kiosk mode, rescue
+docs/install-*.md      # user guides (Windows, Linux, tablet incl. kiosk mode and rescue)
+docs/development.md    # build, run, test (README is user-facing)
+docs/windows-test-plan.md # Windows per-action manual test plan
+docs/android-release.md # tablet signing key (outside the repo), release builds
 scripts/gen-types.sh   # typeshare -> TS + Kotlin types
 Cargo.toml             # workspace
 ```
@@ -156,7 +158,7 @@ SM-T580, always measure in release builds.
 ## Durable decisions
 
 - **Linux keyboard injection: uinput** (`evdev` crate), works on X11 and Wayland.
-  The udev rule granting access to `/dev/uinput` is documented in the README.
+  The udev rule granting access to `/dev/uinput` is documented in `docs/install-linux.md`.
 - **Ports**: USB 47321 on `127.0.0.1` only (plain `ws://`, trusted), Wi-Fi
   47322 on `0.0.0.0` (TLS, pairing required), constants in `crates/protocol`.
   Wi-Fi is a persisted UI setting (`preferences.json`); `PADBOARD_BIND`
@@ -262,7 +264,7 @@ SM-T580, always measure in release builds.
 - **Release signing**: one key outside the repo (`~/.padboard-signing/`,
   pointed to by `padboard.signing` in `~/.gradle/gradle.properties`); the
   tablet runs the release build. Never change the key: a device owner app
-  cannot be uninstalled (see `docs/android-release.md`).
+  cannot be uninstalled (see `docs/install-tablet.md`, kiosk mode).
 - **Kiosk mode** (`kiosk/Kiosk.kt`): the app is the device owner (set with
   `adb shell dpm set-device-owner`, from the PC's USB card), locks itself in
   (lock task, only the power menu), is the home app (`HomeAlias`, enabled

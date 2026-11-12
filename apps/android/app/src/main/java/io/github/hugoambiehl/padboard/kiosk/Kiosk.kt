@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Kiosk mode (see README, "Kiosk mode"): once the app is the device owner
+ * Kiosk mode (see docs/install-tablet.md, "Kiosk mode"): once the app is the device owner
  * (`adb shell dpm set-device-owner …`, possible only on a tablet without
  * accounts), it locks itself in front (lock task), becomes the home app,
  * and turns off the lock screen and the status bar.

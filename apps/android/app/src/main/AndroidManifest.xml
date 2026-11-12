@@ -45,7 +45,7 @@
             </intent-filter>
         </activity-alias>
 
-        <!-- Kiosk mode: device owner set with adb (README, "Kiosk mode"). -->
+        <!-- Kiosk mode: device owner set with adb (docs/install-tablet.md, "Kiosk mode"). -->
         <receiver
             android:name=".kiosk.KioskAdmin"
             android:exported="true"

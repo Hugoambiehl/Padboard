@@ -1,7 +1,8 @@
-# Padboard on Windows: install and test
+# Windows test plan
 
-How to put the desktop app on a Windows 10/11 PC, connect the tablet over
-USB and Wi-Fi, and check every action. The installer is not signed yet.
+Manual checks of a Windows build before a release: install it, connect the
+tablet over USB and Wi-Fi, and try every action. The user guide is
+[install-windows.md](install-windows.md).
 
 ## 1. Get the app
 
