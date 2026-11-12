@@ -8,7 +8,7 @@
 //! Keyboard injection goes through a uinput virtual keyboard: it works the same
 //! on X11 and Wayland, for every application, because events enter the kernel
 //! input stack like a real keyboard. Access to `/dev/uinput` is granted to the
-//! active session user by a udev rule (`TAG+="uaccess"`, see the README).
+//! active session user by a udev rule (`TAG+="uaccess"`, see docs/install-linux.md).
 
 use std::fmt;
 use std::io;
@@ -180,7 +180,7 @@ fn create_keyboard() -> Result<VirtualDevice, ActionError> {
         io::ErrorKind::PermissionDenied | io::ErrorKind::NotFound => {
             ActionError::Unavailable(format!(
                 "cannot open /dev/uinput ({e}): keyboard shortcuts are disabled. \
-                 Install the udev rule described in the README (section \"Linux: uinput access\")."
+                 Install the udev rule of docs/install-linux.md (section \"Allow keyboard shortcuts\")."
             ))
         }
         _ => ActionError::Failed(format!("cannot create the uinput virtual keyboard: {e}")),
