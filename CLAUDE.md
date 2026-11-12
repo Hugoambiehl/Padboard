@@ -19,7 +19,8 @@ nothing that requires approval, no Google Play Services / Firebase / ML Kit.
 ## Stack
 
 - **Desktop**: Tauri 2. Rust backend; frontend Vue 3 + TypeScript + Tailwind,
-  Motion for Vue (GSAP if needed), Lucide icons. Tray icon + autostart (Tauri plugins).
+  Motion for Vue (GSAP if needed), Lucide icons. Tray icon (Tauri), autostart
+  and single instance (Tauri plugins).
 - **Android**: Kotlin + Jetpack Compose, OkHttp WebSocket, kotlinx.serialization,
   NsdManager, DataStore. Dependencies declared in `gradle/libs.versions.toml` only.
 - **Protocol**: JSON over WebSocket, envelope `{ type, payload }`, versioned
@@ -362,18 +363,29 @@ SM-T580, always measure in release builds.
   with the APK) plus the texts in `assets/licenses/`.
 - **App icon**: single source `assets/icon/padboard.svg` (the 2×2 grid, the
   bottom-right tile being pressed); `node scripts/icons.mjs` generates every
-  file from it (desktop PNGs, multi-size `.ico`, tray PNGs, favicon, Android
-  adaptive + monochrome vector drawables). 32 px and below drop the halo
+  file from it (desktop PNGs, multi-size `.ico`, tray PNGs, favicon (also the
+  editor's header badge), Android adaptive + monochrome vector drawables,
+  `ic_padboard` for the tablet's headers). 32 px and below drop the halo
   (blurry under a pixel). Never edit the generated icons by hand.
 - **Releases** (`docs/releasing.md`): one SemVer version for everything,
   `-rc.N` for release candidates. `scripts/release.sh X` writes it everywhere
   (Android versionCode = MAJOR*1e6 + MINOR*1e4 + PATCH*100 + rc number, 99
   for the release), regenerates `CHANGELOG.md` (git-cliff, `cliff.toml`:
-  feat/fix/perf only), commits and tags without pushing. A pushed `v*` tag
+  feat/fix/perf only; 0.1.0 has a written summary instead), commits and tags without pushing. A pushed `v*` tag
   runs `release.yml`: NSIS installer (unsigned, SignPath once public), .deb
   (built on Ubuntu 22.04), unsigned APK, draft release (pre-release for rc)
   with SHA256SUMS. The APK is signed locally (`scripts/sign-apk.sh`) and
   attached by hand: the key never goes to CI.
+- **Tray and startup** (`tray.rs`): the icon's menu opens the window,
+  shows the connected tablets, quits. Closing the window hides it there
+  (explained once by a dialog, `closeHintShown` in `preferences.json`);
+  on Linux without a StatusNotifier host (GNOME without the AppIndicator
+  extension) closing quits, so the app never runs unreachable. A second
+  launch shows the running window (single-instance plugin, not in test
+  mode). "Démarrage" card: start with the session (autostart plugin, entry
+  with `--hidden`, off by default; simulated in test mode). e2e tests quit
+  with `destroy` (closing only hides). The `.deb` depends on
+  `libayatana-appindicator3-1`.
 - **Secret scanning**: gitleaks on the whole history in CI (`.gitleaks.toml`;
   the fixtures' fake token is allowed by value and path, not by commit, so
   the exception survives a history rewrite).
