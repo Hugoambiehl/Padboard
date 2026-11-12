@@ -219,8 +219,7 @@ SM-T580, always measure in release builds.
   `button:update` only for buttons whose resolved look differs from what it
   last sent. Unknown state (test mode, not observed yet) keeps the resting
   look; an unreachable source makes the buttons `unavailable`. Tablet texts
-  of the states are French constants in `appearance.rs` (to translate with
-  the rest).
+  of the states come from `locale.rs` (the PC's language).
 - **Tablet presses vs page swipes**: the tile reacts (scale, flash) on touch
   down, but `button:press` is sent only once the touch is not a swipe: on lift
   without moving past the touch slop (tap), or after 120 ms held still (hold).
@@ -332,8 +331,14 @@ SM-T580, always measure in release builds.
 - **Shared JSON fixtures** in `crates/protocol/fixtures/`, tested both on the Rust
   side and the Kotlin side.
 - **Android package**: `io.github.hugoambiehl.padboard`.
-- **i18n**: French by default, **no hard-coded UI text**. Android: `strings.xml`
-  resources; desktop: `vue-i18n`. English to be added before open-sourcing.
+- **i18n**: English and French, **no hard-coded UI text**. Desktop: the
+  PC's language (`locale.rs`: French if the system language is French,
+  English otherwise; `PADBOARD_LOCALE=fr|en` forces it, e2e tests run in
+  French) decides both the editor (`get_locale`, vue-i18n with
+  `locales/fr.json` + `en.json`, same keys / parameters / plural forms
+  checked by `locales.test.ts`) and the texts sent to tablets (button states,
+  folder subtitles, the demo profile created at first launch). Tablet:
+  Android's language, English in `values/`, French in `values-fr/`.
 - **CI (private repo, Windows minutes count double)**: `.github/workflows/ci.yml`.
   Windows job only on push to `main`, pull requests and manual runs
   (`workflow_dispatch`); cache Cargo, npm and Gradle; `concurrency` with
