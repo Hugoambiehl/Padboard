@@ -52,7 +52,7 @@ fun SearchIndicator(attempt: Int, modifier: Modifier = Modifier) {
 
 /** Looking for the paired PC (no layout received yet). [serverName] null: starting up. */
 @Composable
-fun SearchingScreen(serverName: String?, onForget: (() -> Unit)?, attempt: Int = 0) {
+fun SearchingScreen(serverName: String?, onForget: (() -> Unit)?, attempt: Int = 0, onAbout: (() -> Unit)? = null) {
     var confirm by rememberSaveable { mutableStateOf(false) }
     CenteredColumn {
         AppBadge()
@@ -72,9 +72,16 @@ fun SearchingScreen(serverName: String?, onForget: (() -> Unit)?, attempt: Int =
                 modifier = Modifier.widthIn(max = 560.dp)
             )
         }
-        if (onForget != null) {
-            TextButton(onClick = { confirm = true }) {
-                Text(stringResource(R.string.forget_button), color = PadboardColors.Accent)
+        Row {
+            if (onForget != null) {
+                TextButton(onClick = { confirm = true }) {
+                    Text(stringResource(R.string.forget_button), color = PadboardColors.Accent)
+                }
+            }
+            if (onAbout != null) {
+                TextButton(onClick = onAbout) {
+                    Text(stringResource(R.string.about_open), color = PadboardColors.TextMuted2)
+                }
             }
         }
     }

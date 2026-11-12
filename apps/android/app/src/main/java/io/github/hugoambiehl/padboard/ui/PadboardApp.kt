@@ -81,7 +81,8 @@ private fun Screens(viewModel: PadboardViewModel, link: LinkState, layout: Layou
                     SearchingScreen(
                         serverName = (state as LinkState.Searching).serverName,
                         onForget = viewModel::forget.takeIf { (state as LinkState.Searching).wifi },
-                        attempt = (state as LinkState.Searching).attempt
+                        attempt = (state as LinkState.Searching).attempt,
+                        onAbout = { aboutOpen = true }
                     )
                 else ->
                     GridScreen(
