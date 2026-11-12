@@ -84,7 +84,7 @@ PowerShell gives a separate configuration whose actions are only recorded
 | Media | Play something in Spotify or YouTube in Edge/Firefox; *Lecture / Pause*, *Suivant*, *Précédent*, *Stop* | The player obeys; the tile shows the pause icon while playing (within a second); with no player, the media key is sent |
 | Volume | *Volume +* / *−* (5 %), *Régler à 30 %*, *Muet* | Same value as the Windows volume slider; muted: red *Coupé* tile; change it from Windows: the tablet follows within half a second |
 | Microphone | *Micro* on the default **recording** device | Mutes / unmutes (*Settings → Sound → Input*); red tile while muted, also when muted from Windows; no microphone: dimmed tile |
-| Open | `https://example.org`, `%USERPROFILE%\Documents`, a `.txt` file, `notepad.exe`, a Start menu `.lnk` | Each opens with its default handler |
+| Open | `https://example.org`, the library's *Documents* button (`shell:Personal`, works with redirected Documents), `%USERPROFILE%\Desktop`, a `.txt` file, `notepad.exe`, a Start menu `.lnk` | Each opens with its default handler |
 | Lock | *Verrouiller* | The session locks (as Win + L) |
 | Navigation | Next / previous page, folder, back | As on Linux |
 | Multi action | Micro, pause 500 ms, volume +, next page | Steps in order; pressing again while it runs does nothing |
@@ -97,12 +97,13 @@ a cable unplug/replug, and after the PC wakes from sleep.
 
 | Check | Do | Expect |
 |---|---|---|
-| Tray icon | Start Padboard | The Padboard icon is in the notification area (maybe under the `^` overflow); its tooltip and menu show the connected tablet (*Galaxy Tab A · USB*) or *Aucune tablette connectée* |
+| Tray icon | Start Padboard | The Padboard icon is in the notification area (maybe under the `^` overflow); its tooltip and menu show the connected tablet (*Galaxy Tab A · USB*) or *Aucune tablette connectée*; *Settings → Personalization → Taskbar → Other system tray icons* names it *Padboard* |
 | Tray menu | Left click the icon; right click → *Ouvrir Padboard* / *Quitter Padboard* | Left click and *Ouvrir* show the window; *Quitter* closes Padboard (the tablet loses the PC) |
 | First close | Close the window (X) for the first time | A dialog explains Padboard stays in the notification area: *Réduire…* hides the window, the tablet keeps working; *Quitter* quits |
 | Next closes | Close the window again | It hides at once, no dialog |
-| Second launch | Start Padboard from the Start menu while it runs hidden | The running window comes back (no second Padboard) |
-| Startup | *Connexions* → *Démarrage* → turn on, sign out and in | Padboard starts hidden in the notification area and the tablet connects; turned off: it does not start (*Task Manager → Startup apps* lists it while on) |
+| Second launch | Start Padboard from the Start menu while it runs hidden | The running window comes back (no second Padboard); `%APPDATA%\io.github.hugoambiehl.padboard\padboard.log` keeps the running instance's lines and gains *launched again: showing the window* |
+| Startup | *Connexions* → *Démarrage* → turn on, sign out and in | Padboard starts hidden in the notification area and the tablet connects; turned off: it does not start (*Task Manager → Startup apps* lists it while on). The `Padboard` value of `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` is `"<install dir>\padboard-desktop.exe" --hidden`, path in quotes |
+| Installed apps | *Settings → Apps → Installed apps* | Padboard's publisher is *Hugo Ambiehl* |
 
 ## Known Windows limits
 

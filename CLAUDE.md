@@ -20,7 +20,7 @@ nothing that requires approval, no Google Play Services / Firebase / ML Kit.
 
 - **Desktop**: Tauri 2. Rust backend; frontend Vue 3 + TypeScript + Tailwind,
   Motion for Vue (GSAP if needed), Lucide icons. Tray icon (Tauri), autostart
-  and single instance (Tauri plugins).
+  (`auto-launch`) and single instance (Tauri plugin).
 - **Android**: Kotlin + Jetpack Compose, OkHttp WebSocket, kotlinx.serialization,
   NsdManager, DataStore. Dependencies declared in `gradle/libs.versions.toml` only.
 - **Protocol**: JSON over WebSocket, envelope `{ type, payload }`, versioned
@@ -384,8 +384,15 @@ SM-T580, always measure in release builds.
   on Linux without a StatusNotifier host (GNOME without the AppIndicator
   extension) closing quits, so the app never runs unreachable. A second
   launch shows the running window (single-instance plugin, not in test
-  mode). "Démarrage" card: start with the session (autostart plugin, entry
-  with `--hidden`, off by default; simulated in test mode). e2e tests quit
+  mode). "Démarrage" card: start with the session (`autostart.rs`: the
+  `auto-launch` crate with the program path quoted by us, since neither it
+  nor the Tauri plugin quote it; entry with `--hidden`, off by default,
+  rewritten at launch when on; simulated in test mode). The log file is
+  opened in setup, after the single instance check (a second launch must
+  not truncate the running instance's log). The tooltip the icon is
+  created with names it in Windows settings: fixed "Padboard", the status
+  is set right after. Windows menus are forced dark (uxtheme
+  `SetPreferredAppMode`). e2e tests quit
   with `destroy` (closing only hides). The `.deb` build needs
   `libayatana-appindicator3-dev` (the bundler then adds the runtime
   dependency itself).
