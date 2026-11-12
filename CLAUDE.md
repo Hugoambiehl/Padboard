@@ -386,8 +386,9 @@ SM-T580, always measure in release builds.
   launch shows the running window (single-instance plugin, not in test
   mode). "Démarrage" card: start with the session (autostart plugin, entry
   with `--hidden`, off by default; simulated in test mode). e2e tests quit
-  with `destroy` (closing only hides). The `.deb` depends on
-  `libayatana-appindicator3-1`.
+  with `destroy` (closing only hides). The `.deb` build needs
+  `libayatana-appindicator3-dev` (the bundler then adds the runtime
+  dependency itself).
 - **Secret scanning**: gitleaks on the whole history in CI (`.gitleaks.toml`;
   the fixtures' fake token is allowed by value and path, not by commit, so
   the exception survives a history rewrite).
