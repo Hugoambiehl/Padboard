@@ -30,6 +30,7 @@
   "bundle": {
     "active": true,
     "license": "GPL-3.0-or-later",
+    "publisher": "Hugo Ambiehl",
     "targets": [
       "nsis",
       "deb"
