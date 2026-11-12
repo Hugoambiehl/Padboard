@@ -1,92 +1,91 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Default resources are French (default UI language); English goes in values-en. -->
+    <!-- Default texts (English); French in values-fr. Same keys in both (Lint MissingTranslation). -->
     <string name="app_name" translatable="false">Padboard</string>
 
     <!-- Setup (no paired PC), layout of Pairing.dc.html -->
-    <string name="setup_title">Associer la tablette\nà ton PC</string>
-    <string name="setup_body">Sur ton PC, clique sur « Associer un appareil » dans Padboard : un code à 6 chiffres s’affiche. Choisis ton PC ici, puis tape le code. Tu ne le feras qu’une fois.</string>
-    <string name="setup_usb_hint">En USB, pas besoin de code : branche simplement la tablette (débogage USB activé), la connexion est automatique.</string>
-    <string name="setup_found">PC trouvés sur le réseau</string>
-    <string name="setup_searching">Recherche d’autres PC…</string>
-    <string name="setup_incompatible">Version de Padboard incompatible</string>
-    <string name="setup_manual">Saisir l’adresse du PC</string>
-    <string name="setup_host_label">Adresse IP du PC</string>
-    <string name="setup_invalid_host">Adresse invalide.</string>
-    <string name="setup_manual_connect">Se connecter</string>
-    <string name="setup_back">Retour à la grille</string>
-    <string name="pairing_unreachable">Impossible de joindre ce PC en Wi-Fi. Vérifie que le Wi-Fi est activé dans Padboard sur le PC et que les deux appareils sont sur le même réseau.</string>
-    <string name="pairing_lost">La connexion au PC a été interrompue pendant l’association. Recommence.</string>
+    <string name="setup_title">Pair the tablet\nwith your PC</string>
+    <string name="setup_body">On your PC, click “Pair a device” in Padboard: a 6-digit code shows up. Pick your PC here, then type the code. You only do this once.</string>
+    <string name="setup_usb_hint">Over USB, no code needed: just plug in the tablet (USB debugging on), it connects automatically.</string>
+    <string name="setup_found">PCs found on the network</string>
+    <string name="setup_searching">Looking for other PCs…</string>
+    <string name="setup_incompatible">Incompatible Padboard version</string>
+    <string name="setup_manual">Type the PC’s address</string>
+    <string name="setup_host_label">PC’s IP address</string>
+    <string name="setup_invalid_host">Invalid address.</string>
+    <string name="setup_manual_connect">Connect</string>
+    <string name="setup_back">Back to the grid</string>
+    <string name="pairing_unreachable">Cannot reach this PC over Wi-Fi. Check that Wi-Fi is on in Padboard on the PC and that both devices are on the same network.</string>
+    <string name="pairing_lost">The connection to the PC was lost while pairing. Start again.</string>
 
     <!-- PIN entry -->
-    <string name="pin_title">Code affiché\nsur ton PC</string>
-    <string name="pin_server">Association avec %1$s</string>
-    <string name="pin_body">Tape le code à 6 chiffres affiché dans la fenêtre « Associer une tablette » de ton PC.</string>
-    <string name="pin_code_label">Code affiché sur ton PC</string>
-    <!-- "3 chiffres saisis sur 6": a progress, not a quantity. -->
-    <string name="pin_digits_description" tools:ignore="PluralsCandidate">%1$d chiffres saisis sur %2$d</string>
-    <string name="pin_check_title">Vérifie que ton PC affiche ce code</string>
-    <string name="pin_check_hint">S’il est différent, ne tape pas le code et annule : un autre appareil se fait passer pour ton PC.</string>
-    <string name="pin_checking">Vérification…</string>
+    <string name="pin_title">Code shown\non your PC</string>
+    <string name="pin_server">Pairing with %1$s</string>
+    <string name="pin_body">Type the 6-digit code shown in the “Pair a tablet” window of your PC.</string>
+    <string name="pin_code_label">Code shown on your PC</string>
+    <!-- "3 of 6 digits typed": a progress, not a quantity. -->
+    <string name="pin_digits_description" tools:ignore="PluralsCandidate">%1$d of %2$d digits typed</string>
+    <string name="pin_check_title">Check that your PC shows this code</string>
+    <string name="pin_check_hint">If it is different, do not type the code and cancel: another device is pretending to be your PC.</string>
+    <string name="pin_checking">Checking…</string>
     <plurals name="pin_invalid">
-        <item quantity="one">Code incorrect. %1$d essai restant.</item>
-        <item quantity="many">Code incorrect. %1$d essais restants.</item>
-        <item quantity="other">Code incorrect. %1$d essais restants.</item>
+        <item quantity="one">Wrong code. %1$d attempt left.</item>
+        <item quantity="other">Wrong code. %1$d attempts left.</item>
     </plurals>
-    <string name="pin_expired">Le code a expiré. Affiche un nouveau code sur le PC.</string>
-    <string name="pin_locked">Trop d’essais : affiche un nouveau code sur le PC.</string>
-    <string name="pin_no_code">Aucun code affiché sur le PC : clique sur « Associer un appareil ».</string>
-    <string name="pin_erase">Effacer</string>
-    <string name="pin_cancel">Annuler</string>
+    <string name="pin_expired">The code has expired. Show a new code on the PC.</string>
+    <string name="pin_locked">Too many attempts: show a new code on the PC.</string>
+    <string name="pin_no_code">No code shown on the PC: click “Pair a device”.</string>
+    <string name="pin_erase">Erase</string>
+    <string name="pin_cancel">Cancel</string>
 
     <!-- Searching / failures -->
-    <string name="starting">Démarrage…</string>
-    <string name="searching_title">Recherche de %1$s…</string>
-    <string name="searching_body">Branche la tablette en USB, ou vérifie que Padboard est lancé sur le PC avec le Wi-Fi activé et que les deux appareils sont sur le même réseau.</string>
-    <string name="failure_incompatible">Les versions de Padboard sur le PC et sur la tablette sont incompatibles. Mets les deux à jour.</string>
-    <string name="retry">Réessayer</string>
-    <string name="cancel">Annuler</string>
+    <string name="starting">Starting…</string>
+    <string name="searching_title">Looking for %1$s…</string>
+    <string name="searching_body">Plug the tablet in over USB, or check that Padboard runs on the PC with Wi-Fi on and that both devices are on the same network.</string>
+    <string name="failure_incompatible">The Padboard versions on the PC and on the tablet are incompatible. Update both.</string>
+    <string name="retry">Try again</string>
+    <string name="cancel">Cancel</string>
 
     <!-- Forget the paired PC -->
-    <string name="forget_button">Associer un autre PC</string>
-    <string name="forget_title">Oublier %1$s ?</string>
-    <string name="forget_body">La tablette ne se connectera plus à ce PC en Wi-Fi tant qu’elle n’aura pas été associée de nouveau. L’USB reste possible.</string>
-    <string name="forget_confirm">Oublier ce PC</string>
-    <string name="usb_only_body">Connectée en USB. Associe la tablette à ce PC pour pouvoir aussi l’utiliser en Wi-Fi, câble débranché.</string>
-    <string name="pair_wifi">Associer en Wi-Fi</string>
+    <string name="forget_button">Pair another PC</string>
+    <string name="forget_title">Forget %1$s?</string>
+    <string name="forget_body">The tablet will no longer connect to this PC over Wi-Fi until it is paired again. USB still works.</string>
+    <string name="forget_confirm">Forget this PC</string>
+    <string name="usb_only_body">Connected over USB. Pair the tablet with this PC to also use it over Wi-Fi, without the cable.</string>
+    <string name="pair_wifi">Pair over Wi-Fi</string>
 
     <!-- Grid -->
     <string name="transport_usb">USB</string>
     <string name="transport_wifi">Wi-Fi</string>
     <string name="pill_latency">%1$s · %2$d ms</string>
-    <string name="pill_reconnecting">Reconnexion…</string>
-    <string name="kiosk_exit_title">Quitter le mode kiosque ?</string>
-    <string name="kiosk_exit_body">Padboard ne sera plus verrouillé à l’écran ni l’écran d’accueil, et la tablette redevient une tablette ordinaire (barre d’état, écran de verrouillage). Pour le réactiver : tablette branchée en USB, « Activer le mode kiosque » dans les connexions du PC.</string>
-    <string name="kiosk_exit_confirm">Quitter le mode kiosque</string>
-    <string name="disconnected_title">Connexion au PC perdue</string>
-    <string name="disconnected_body_wifi">Recherche par câble USB et par Wi-Fi. Vérifie que Padboard est lancé sur le PC.</string>
-    <string name="disconnected_body_usb">Rebranche le câble USB, ou associe la tablette en Wi-Fi pour pouvoir t’en passer.</string>
-    <string name="disconnected_next_attempt">Nouvelle tentative dans %1$d s</string>
-    <string name="disconnected_trying">Tentative en cours…</string>
-    <string name="disconnected_retry">Réessayer maintenant</string>
-    <string name="connection_pill_description">%1$s, %2$s. Toucher pour les options de connexion.</string>
-    <!-- "Page 2 sur 3": a position, not a quantity. -->
-    <string name="page_indicator_description" tools:ignore="PluralsCandidate">Page %1$d sur %2$d</string>
-    <string name="layout_waiting">Réception de la grille…</string>
-    <string name="folder_back">Retour (dossier %1$s)</string>
-    <string name="action_failed">L’action a échoué sur le PC.</string>
-    <string name="screensaver_mic_muted">MICRO COUPÉ</string>
+    <string name="pill_reconnecting">Reconnecting…</string>
+    <string name="kiosk_exit_title">Leave kiosk mode?</string>
+    <string name="kiosk_exit_body">Padboard will no longer be locked on screen nor be the home screen, and the tablet becomes an ordinary tablet again (status bar, lock screen). To turn it back on: plug the tablet in over USB, then “Turn on kiosk mode” in the PC’s connections.</string>
+    <string name="kiosk_exit_confirm">Leave kiosk mode</string>
+    <string name="disconnected_title">Connection to the PC lost</string>
+    <string name="disconnected_body_wifi">Looking over the USB cable and Wi-Fi. Check that Padboard runs on the PC.</string>
+    <string name="disconnected_body_usb">Plug the USB cable back in, or pair the tablet over Wi-Fi to do without it.</string>
+    <string name="disconnected_next_attempt">Next attempt in %1$d s</string>
+    <string name="disconnected_trying">Trying…</string>
+    <string name="disconnected_retry">Try now</string>
+    <string name="connection_pill_description">%1$s, %2$s. Tap for the connection options.</string>
+    <!-- "Page 2 of 3": a position, not a quantity. -->
+    <string name="page_indicator_description" tools:ignore="PluralsCandidate">Page %1$d of %2$d</string>
+    <string name="layout_waiting">Receiving the grid…</string>
+    <string name="folder_back">Back (folder %1$s)</string>
+    <string name="action_failed">The action failed on the PC.</string>
+    <string name="screensaver_mic_muted">MIC MUTED</string>
     <string name="screensaver_recording">REC</string>
-    <string name="screensaver_live">EN DIRECT</string>
-    <string name="screensaver_offline">PC non connecté</string>
-    <string name="about_open">À propos et licences</string>
-    <string name="about_title">À propos</string>
+    <string name="screensaver_live">LIVE</string>
+    <string name="screensaver_offline">PC not connected</string>
+    <string name="about_open">About and licenses</string>
+    <string name="about_title">About</string>
     <string name="about_version">Padboard, version %1$s</string>
-    <string name="about_license">Logiciel libre, distribué sous licence GNU GPL version 3 ou ultérieure.</string>
-    <string name="about_warranty">Fourni sans aucune garantie, dans les limites permises par la loi.</string>
-    <string name="about_source">Code source</string>
-    <string name="about_back">Retour</string>
-    <string name="about_section_app">APPLICATION</string>
-    <string name="about_section_assets">POLICES ET ICÔNES</string>
-    <string name="about_section_libraries">BIBLIOTHÈQUES</string>
-    <string name="about_no_text">Texte de licence non inclus : voir le dépôt du composant.</string>
+    <string name="about_license">Free software, released under the GNU GPL version 3 or later.</string>
+    <string name="about_warranty">Provided without any warranty, to the extent permitted by law.</string>
+    <string name="about_source">Source code</string>
+    <string name="about_back">Back</string>
+    <string name="about_section_app">APP</string>
+    <string name="about_section_assets">FONTS AND ICONS</string>
+    <string name="about_section_libraries">LIBRARIES</string>
+    <string name="about_no_text">License text not included: see the component’s repository.</string>
 </resources>
