@@ -57,6 +57,8 @@ fi
 export CARGO_TARGET_DIR="$ROOT/target/e2e"
 cd "$ROOT/apps/desktop"
 if ((build)); then
+  # The "Licences" dialog (e2e/about) needs the generated list.
+  "$ROOT/scripts/licenses.sh"
   npm run tauri build -- --debug --no-bundle
   cargo build -p padboard-desktop --example fake-tablet
 fi

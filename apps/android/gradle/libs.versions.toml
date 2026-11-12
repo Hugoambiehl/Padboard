@@ -12,6 +12,8 @@ okhttp = "5.5.1"
 kotlinxSerialization = "1.9.0"
 kotlinxCoroutines = "1.10.2"
 ktlintGradle = "14.2.0"
+# Third-party license check and in-app list (1.14.x: last line supporting Gradle 8, works with 9).
+licensee = "1.14.1"
 junit = "4.13.2"
 junitVersion = "1.1.5"
 espressoCore = "3.5.1"
@@ -45,3 +47,4 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintGradle" }
+licensee = { id = "app.cash.licensee", version.ref = "licensee" }

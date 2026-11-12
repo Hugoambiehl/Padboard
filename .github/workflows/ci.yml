@@ -114,6 +114,52 @@ jobs:
       - name: Scan the history
         run: '"$RUNNER_TEMP/gitleaks" git --config .gitleaks.toml --redact --verbose --no-banner .'
 
+  licenses:
+    name: Licenses and advisories
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      # Must match CARGO_ABOUT_VERSION in scripts/licenses.sh.
+      CARGO_ABOUT_VERSION: 0.9.3
+      CARGO_DENY_VERSION: 0.20.2
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Rust toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+
+      - name: Cache cargo-about and cargo-deny
+        id: tools-cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/bin/cargo-about
+            ~/.cargo/bin/cargo-deny
+          key: license-tools-${{ runner.os }}-${{ env.CARGO_ABOUT_VERSION }}-${{ env.CARGO_DENY_VERSION }}
+
+      - name: Install cargo-about and cargo-deny
+        if: steps.tools-cache.outputs.cache-hit != 'true'
+        run: |
+          cargo install cargo-about --version "$CARGO_ABOUT_VERSION" --features cli --locked
+          cargo install cargo-deny --version "$CARGO_DENY_VERSION" --locked
+
+      # Licenses (deny.toml), crates.io only, RustSec advisories.
+      - name: cargo deny
+        run: cargo deny --locked check
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      # The notices shown by the desktop app: every crate and npm package must
+      # have an accepted license (about.toml, scripts/licenses.mjs).
+      - name: Third-party notices
+        run: |
+          npm ci --prefix apps/desktop
+          scripts/licenses.sh
+
   types:
     name: Generated protocol types
     runs-on: ubuntu-24.04
