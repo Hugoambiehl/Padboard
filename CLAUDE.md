@@ -355,6 +355,11 @@ SM-T580, always measure in release builds.
   show an empty list). Tablet: "À propos et licences" (setup screen and
   connection menu), from Licensee's `assets/licenses/libraries.json` (built
   with the APK) plus the texts in `assets/licenses/`.
+- **App icon**: single source `assets/icon/padboard.svg` (the 2×2 grid, the
+  bottom-right tile being pressed); `node scripts/icons.mjs` generates every
+  file from it (desktop PNGs, multi-size `.ico`, tray PNGs, favicon, Android
+  adaptive + monochrome vector drawables). 32 px and below drop the halo
+  (blurry under a pixel). Never edit the generated icons by hand.
 - **Secret scanning**: gitleaks on the whole history in CI (`.gitleaks.toml`;
   the fixtures' fake token is allowed by value and path, not by commit, so
   the exception survives a history rewrite).
