@@ -5,7 +5,8 @@
 
 use padboard_actions::{
     Action, Hotkey, Key, MediaAction, MediaCommand, MicrophoneAction, MicrophoneCommand,
-    MultiAction, NavigateAction, NavigateTo, ObsAction, ObsCommand, VolumeAction, VolumeCommand,
+    MultiAction, NavigateAction, NavigateTo, ObsAction, ObsCommand, OpenAction, VolumeAction,
+    VolumeCommand,
 };
 use padboard_protocol::Category;
 use serde::Serialize;
@@ -136,6 +137,15 @@ pub fn presets() -> Vec<Preset> {
         preset("screenshot", System, Teal, "Camera", screenshot),
         preset("showDesktop", System, Grey, "Monitor", &[MetaLeft, KeyD]),
         with_action("lock", System, Red, "Lock", Action::Lock),
+        with_action(
+            "documents",
+            System,
+            Blue,
+            "FolderOpen",
+            Action::Open(OpenAction {
+                target: documents_folder(),
+            }),
+        ),
         // Steps added in the inspector.
         with_action(
             "multi",
@@ -212,6 +222,40 @@ pub fn presets() -> Vec<Preset> {
         ),
     ]);
     list
+}
+
+/// The user's Documents folder, as the system knows it (it may be
+/// redirected or translated, so never a path built by hand).
+#[cfg(windows)]
+fn documents_folder() -> String {
+    // The shell's name of the Documents known folder (FOLDERID_Documents):
+    // `open` hands it to ShellExecute, which resolves it, redirection
+    // (OneDrive, another drive) included.
+    "shell:Personal".to_owned()
+}
+
+/// The user's Documents folder, as the system knows it (XDG user
+/// directory, translated on some systems), `~/` for the home folder.
+#[cfg(not(windows))]
+fn documents_folder() -> String {
+    let resolved = std::process::Command::new("xdg-user-dir")
+        .arg("DOCUMENTS")
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .and_then(|out| String::from_utf8(out.stdout).ok())
+        .map(|dir| dir.trim().to_owned());
+    let home = std::env::var("HOME").ok();
+    match (resolved, home) {
+        // xdg-user-dir answers the home folder itself when unset.
+        (Some(dir), Some(home)) if dir != home.trim_end_matches('/') => {
+            match dir.strip_prefix(&format!("{}/", home.trim_end_matches('/'))) {
+                Some(rest) => format!("~/{rest}"),
+                None => dir,
+            }
+        }
+        _ => "~/Documents".to_owned(),
+    }
 }
 
 #[cfg(test)]

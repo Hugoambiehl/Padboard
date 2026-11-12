@@ -268,6 +268,10 @@
         "label": "Lock",
         "desc": "Locks the session"
       },
+      "documents": {
+        "label": "Documents",
+        "desc": "Opens the Documents folder"
+      },
       "taskManager": {
         "label": "Task Manager",
         "desc": "Ctrl + Shift + Esc"
@@ -452,6 +456,7 @@
       },
       "target": "Address, file, folder or program",
       "targetPlaceholder": "https://… or ~/Documents",
+      "targetPlaceholderWin": "https://…, C:\\… or shell:Personal (Documents)",
       "pickFile": "File…",
       "pickFolder": "Folder…",
       "pickFileTitle": "Choose the file to open",

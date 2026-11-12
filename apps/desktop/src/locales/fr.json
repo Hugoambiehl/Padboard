@@ -268,6 +268,10 @@
         "label": "Verrouiller",
         "desc": "Verrouille la session"
       },
+      "documents": {
+        "label": "Documents",
+        "desc": "Ouvre le dossier Documents"
+      },
       "taskManager": {
         "label": "Gestionnaire des tâches",
         "desc": "Ctrl + Maj + Échap"
@@ -452,6 +456,7 @@
       },
       "target": "Adresse, fichier, dossier ou programme",
       "targetPlaceholder": "https://… ou ~/Documents",
+      "targetPlaceholderWin": "https://…, C:\\… ou shell:Personal (Documents)",
       "pickFile": "Fichier…",
       "pickFolder": "Dossier…",
       "pickFileTitle": "Choisir le fichier à ouvrir",

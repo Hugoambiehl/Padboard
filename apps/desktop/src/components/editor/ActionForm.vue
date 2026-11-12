@@ -5,6 +5,7 @@ import { open as pickPath } from "@tauri-apps/plugin-dialog";
 import { ChevronDown, ChevronUp, FileText, FolderOpen, Plus, X } from "lucide-vue-next";
 import HotkeyEditor from "./HotkeyEditor.vue";
 import DraftInput from "./DraftInput.vue";
+import { isWindows } from "../../editor/keys";
 import { useEditor } from "../../composables/useEditor";
 import { useObs } from "../../composables/useObs";
 import { defaultAction, ACTION_KINDS, type ActionKind } from "../../editor/actionDefaults";
@@ -185,7 +186,9 @@ function delay(event: Event): number {
           data-field="target"
           :value="action.params.target"
           :maxlength="2048"
-          :placeholder="t('actions.form.targetPlaceholder')"
+          :placeholder="
+            t(isWindows ? 'actions.form.targetPlaceholderWin' : 'actions.form.targetPlaceholder')
+          "
           @input="(target) => params({ target }, false)"
         />
       </label>
