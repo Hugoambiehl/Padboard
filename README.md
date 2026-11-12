@@ -267,7 +267,9 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push:
 | --- | --- |
 | Rust + desktop frontend (Linux) | ESLint, Prettier, Vitest, type-check of the e2e tests (not run), `vue-tsc` + Vite build, `cargo fmt`, `cargo clippy -D warnings`, `cargo test` |
 | Generated protocol types | `scripts/gen-types.sh --check` |
-| Android | ktlint, unit tests, Android Lint, debug APK |
+| Android | ktlint, unit tests, Android Lint (and the Licensee license check), debug APK |
+| Secret scan (gitleaks) | the whole history (`.gitleaks.toml`) |
+| Licenses and advisories | `cargo deny check` (licenses, sources, RustSec), `scripts/licenses.sh` |
 | Rust (Windows) | `cargo clippy -D warnings`, `cargo test` — only on pushes to `main`, pull requests and manual runs |
 
 To run the same checks locally before pushing:
@@ -278,7 +280,38 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 scripts/gen-types.sh --check
+cargo deny check && scripts/licenses.sh   # cargo-about + cargo-deny, see below
 (cd apps/android && ./gradlew ktlintCheck testDebugUnitTest lintDebug assembleDebug)
 ```
 
 Run the whole workflow by hand (Windows job included): `gh workflow run CI --ref <branch>`.
+
+## License
+
+Padboard is free software, released under the **GNU General Public License
+v3.0 or later** (`GPL-3.0-or-later`, see [LICENSE](LICENSE)). It comes with no
+warranty.
+
+Third-party components keep their own licenses, all compatible with the GPL:
+
+- **Desktop**: Rust crates and npm packages (MIT, Apache-2.0, ISC, BSD,
+  MPL-2.0, Unicode, Zlib…), the Inter and Space Grotesk fonts (SIL OFL 1.1)
+  and the Lucide icons (ISC). The full list with license texts is in the app
+  (connections view → *À propos* → *Licences*), built by
+  `scripts/licenses.sh` (cargo-about with `about.toml`, then
+  `scripts/licenses.mjs` for npm). Release builds generate it; development
+  builds show an empty list unless you run the script once:
+
+  ```sh
+  cargo install cargo-about --version 0.9.3 --features cli --locked
+  scripts/licenses.sh
+  ```
+
+- **Tablet**: AndroidX, Kotlin, kotlinx, OkHttp (Apache-2.0), protobuf
+  (BSD-3-Clause), the same fonts and icons. The Licensee Gradle plugin fails the
+  build on any license missing from the allow-list in
+  `apps/android/app/build.gradle.kts` and bundles the list in the APK
+  (*À propos et licences*, from the setup screen or the connection menu).
+
+`cargo deny check` (`deny.toml`) enforces the same license list on the Rust
+side, plus crates.io as the only source and the RustSec advisories.

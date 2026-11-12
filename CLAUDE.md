@@ -194,7 +194,8 @@ SM-T580, always measure in release builds.
   translates.
 - **Android dependencies**: every library must support minSdk 26 — check the
   `minSdkVersion` in its AAR manifest before adding it (the manifest merger and
-  Android Lint `NewApi` check it again at build time). Kotlin is 2.2.10, so
+  Android Lint `NewApi` check it again at build time), and its license against
+  the Licensee allow-list. Kotlin is 2.2.10, so
   libraries must be built with Kotlin ≤ 2.2/2.3 (kotlinx-serialization stays on
   1.9.x until Kotlin is upgraded). Versions only in `gradle/libs.versions.toml`.
 - **Android code style**: ktlint (`android_studio` style, `.editorconfig`), the
@@ -341,6 +342,22 @@ SM-T580, always measure in release builds.
   (MIT) — its default provider is proprietary. Bump `TYPESHARE_VERSION` in the
   workflow together with `scripts/gen-types.sh`. A CI change is validated on a
   branch (no Windows job) before reaching `main`.
+- **License**: GPL-3.0-or-later (`LICENSE`, `license` in the workspace
+  `Cargo.toml`, `package.json`, `tauri.conf.json`). Third-party licenses must
+  be GPL-compatible and are enforced at build time: Rust by cargo-deny
+  (`deny.toml`) and cargo-about (`about.toml`, same allow-list), npm by
+  `scripts/licenses.mjs` (`NPM_ALLOWED`), Android by the Licensee Gradle
+  plugin (`licensee { allow(...) }`). Adding a dependency under a new license
+  means extending these lists (after checking compatibility).
+- **"Licences" screens**: desktop connections view → "À propos" card →
+  dialog fed by `apps/desktop/src/generated/licenses.json`, built by
+  `scripts/licenses.sh` (not committed; CI and releases build it, dev builds
+  show an empty list). Tablet: "À propos et licences" (setup screen and
+  connection menu), from Licensee's `assets/licenses/libraries.json` (built
+  with the APK) plus the texts in `assets/licenses/`.
+- **Secret scanning**: gitleaks on the whole history in CI (`.gitleaks.toml`;
+  the fixtures' fake token is allowed by value and path, not by commit, so
+  the exception survives a history rewrite).
 
 ## Editor (phase 3) decisions
 
