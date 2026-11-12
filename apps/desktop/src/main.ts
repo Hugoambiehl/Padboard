@@ -7,13 +7,14 @@ import "@fontsource/space-grotesk/latin-500.css";
 import "@fontsource/space-grotesk/latin-600.css";
 import "./style.css";
 import App from "./App.vue";
-import { i18n } from "./i18n";
+import { i18n, useBackendLocale } from "./i18n";
 
 async function main() {
   // Browser preview with a fake backend (development only, see src/dev/mock.ts).
   if (import.meta.env.DEV && new URLSearchParams(location.search).has("mock")) {
     (await import("./dev/mock")).install();
   }
+  await useBackendLocale();
   createApp(App).use(i18n).mount("#app");
 }
 

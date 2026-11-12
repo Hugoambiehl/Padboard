@@ -1,0 +1,581 @@
+{
+  "app": {
+    "name": "Padboard",
+    "loading": "Loading…",
+    "loadError": "Cannot reach the Padboard backend.",
+    "tablets": "No tablet | 1 tablet | {count} tablets",
+    "connectionsHint": "Connections, paired devices and activity",
+    "backToEditor": "Back to the editor"
+  },
+  "server": {
+    "title": "Server",
+    "state": {
+      "off": "Off",
+      "starting": "Starting…",
+      "listening": "Listening",
+      "error": "Error"
+    },
+    "bindError": "Cannot listen on {address}. The port may already be in use, for example by another Padboard instance.",
+    "invalidSetting": "Ignored value: {variable}={value}. The default value is used.",
+    "copy": "Copy",
+    "copied": "Copied"
+  },
+  "usb": {
+    "title": "USB",
+    "hint": "Plug in the tablet (USB debugging on): it is detected and redirected automatically. No pairing needed."
+  },
+  "lan": {
+    "title": "Wi-Fi",
+    "toggle": "Accept Wi-Fi connections",
+    "forcedOn": "Turned on by the PADBOARD_BIND environment variable.",
+    "forcedOff": "Turned off by the PADBOARD_BIND environment variable.",
+    "hint": "Only paired tablets can connect. They find this PC on the network automatically.",
+    "addresses": "Addresses",
+    "none": "No Wi-Fi or Ethernet connection found.",
+    "discovery": "Discovery",
+    "mdns": {
+      "off": "Inactive",
+      "announced": "This PC is visible on the network",
+      "error": "Unavailable (tablets can type the address)"
+    },
+    "disabled": "Off: only USB connections are possible.",
+    "tlsError": "Wi-Fi is unavailable: this PC's encryption key could not be created.",
+    "fingerprint": "This PC's fingerprint:",
+    "fingerprintHint": "The tablet shows the same code when pairing.",
+    "otherInterfaces": "no other interface | 1 other interface (not announced) | {count} other interfaces (not announced)"
+  },
+  "clients": {
+    "title": "Connected tablets",
+    "empty": "No tablet connected.",
+    "since": "Connected at {time}",
+    "kiosk": "Kiosk",
+    "kioskHint": "Padboard is locked on screen and is the home screen on this tablet.",
+    "exitKiosk": "Release the tablet",
+    "confirmExitKiosk": "Confirm: leave kiosk mode",
+    "via": {
+      "usb": "USB",
+      "wifi": "Wi-Fi"
+    }
+  },
+  "activity": {
+    "title": "Activity",
+    "empty": "No press yet.",
+    "unknownButton": "Unknown button ({id})",
+    "unknownDevice": "Disconnected device",
+    "ok": "Done",
+    "errors": {
+      "invalid": "Invalid action",
+      "unsupported": "Action not supported on this system",
+      "unavailable": "System feature unavailable",
+      "failed": "Action failed"
+    }
+  },
+  "pairing": {
+    "open": "Pair a device",
+    "title": "Pair a tablet",
+    "intro": "On the tablet, pick this PC, then type the code below. You only do this once.",
+    "close": "Close",
+    "wifiOff": "Pairing happens over Wi-Fi, which is off. Over USB, no pairing is needed.",
+    "wifiStarting": "Starting Wi-Fi…",
+    "wifiLocked": "Wi-Fi is set by the PADBOARD_BIND environment variable.",
+    "enableWifi": "Turn on Wi-Fi",
+    "codeLabel": "Code to type on the tablet",
+    "expiresIn": "It expires in {time}",
+    "attemptsLeft": "no attempt left | 1 attempt left | {count} attempts left",
+    "checkTitle": "Check that the tablet shows this code",
+    "checkHint": "If it is different, do not type the code and close this window: another device is pretending to be this PC.",
+    "expired": "The code has expired.",
+    "locked": "Too many wrong attempts: this code is no longer valid.",
+    "newCode": "New code",
+    "paired": "{name} is paired. It will reconnect on its own.",
+    "done": "Done"
+  },
+  "paired": {
+    "title": "Paired devices",
+    "empty": "No tablet paired over Wi-Fi.",
+    "pairNow": "Pair a device",
+    "online": "Connected over {via}",
+    "lastSeen": "Last seen {date}",
+    "pairedAt": "Paired {date}",
+    "revoke": "Revoke",
+    "confirmRevoke": "Confirm",
+    "revokeHint": "A revoked tablet is disconnected from Wi-Fi and must be paired again. USB still works."
+  },
+  "usbDevices": {
+    "title": "USB devices",
+    "adb": {
+      "searching": "Looking for adb…",
+      "missing": "adb was not found. Install the Android platform tools (the adb package on Ubuntu) or choose its location.",
+      "chosenMissing": "adb was not found at the chosen location: {path}",
+      "error": "The adb server does not answer. Retrying automatically…"
+    },
+    "choose": "Choose the adb location…",
+    "chooseTitle": "adb location",
+    "automatic": "Automatic search",
+    "none": "No device plugged in.",
+    "noneWithoutAdb": "Plugged-in devices will show here once adb is found.",
+    "state": {
+      "unauthorized": "Allow USB debugging on the tablet (prompt on its screen).",
+      "noPermission": "Access to the device denied: a udev rule for your user is missing.",
+      "offline": "Offline",
+      "checking": "Checking…",
+      "noPadboard": "Padboard is not installed: device ignored.",
+      "ready": "Ready: port {port} redirected.",
+      "failed": "Redirection failed.",
+      "other": "adb state: {state}"
+    },
+    "kiosk": {
+      "enable": "Turn on kiosk mode",
+      "enabling": "Turning on…",
+      "hint": "Padboard becomes the tablet's owner: locked on screen, home screen, no status bar or lock screen. Not possible if the tablet has accounts.",
+      "active": "Kiosk mode on. To leave it: \"Release the tablet\" in Connected tablets, or hold the top-right corner of the tablet for 5 s.",
+      "otherOwner": "Kiosk mode not possible: the app {owner} already manages this tablet.",
+      "error": {
+        "testMode": "Test mode does not use adb.",
+        "noAdb": "adb was not found.",
+        "busy": "Already turning on kiosk mode on this tablet.",
+        "accounts": "The tablet has an account (Settings → Accounts): remove it, then try again.",
+        "users": "The tablet has several users: remove the others, then try again.",
+        "otherOwner": "The app {owner} already manages this tablet: kiosk mode is not possible while it stays the owner.",
+        "failed": "The tablet refused: {detail}"
+      }
+    }
+  },
+  "common": {
+    "cancel": "Cancel",
+    "create": "Create",
+    "rename": "Rename",
+    "delete": "Delete",
+    "close": "Close"
+  },
+  "editor": {
+    "undo": "Undo",
+    "redo": "Redo",
+    "undoShortcut": "Undo (Ctrl+Z)",
+    "redoShortcut": "Redo (Ctrl+Shift+Z)",
+    "hint": "Click a cell to edit it · Drag cells to rearrange them",
+    "keyboardHint": "Arrows: change cell · Alt + arrows: move the button · Delete: remove it",
+    "live": "Synced live",
+    "noTablet": "No tablet connected: changes are saved",
+    "notDisplayed": "This profile is not shown on the tablet: changes are saved"
+  },
+  "profiles": {
+    "label": "Profile:",
+    "nameLabel": "Profile name",
+    "create": {
+      "action": "New profile",
+      "title": "New profile"
+    },
+    "duplicate": {
+      "action": "Duplicate",
+      "title": "Duplicate the profile",
+      "defaultName": "{name} (copy)"
+    },
+    "rename": {
+      "action": "Rename",
+      "title": "Rename the profile"
+    },
+    "delete": {
+      "action": "Delete",
+      "confirm": "Confirm deletion",
+      "confirmDisplayed": "Confirm: the tablet will show \"{name}\""
+    },
+    "displayed": "Shown on the tablet",
+    "display": "Show on the tablet",
+    "displayHint": "The tablet currently shows \"{name}\""
+  },
+  "pages": {
+    "label": "Pages",
+    "menu": "Page options",
+    "add": "Add a page",
+    "rename": "Rename the page",
+    "moveLeft": "Move left",
+    "moveRight": "Move right",
+    "delete": "Delete the page",
+    "confirmDelete": "Confirm deletion",
+    "nameLabel": "Page name",
+    "defaultName": "Page {n}",
+    "deleteFolder": "Delete the folder",
+    "renameFolder": "Rename the folder",
+    "folderNameLabel": "Folder name"
+  },
+  "grid": {
+    "label": "Button grid",
+    "size": "{cols} × {rows} grid",
+    "cols": "Columns",
+    "rows": "Rows",
+    "less": {
+      "cols": "Remove a column",
+      "rows": "Remove a row"
+    },
+    "more": {
+      "cols": "Add a column",
+      "rows": "Add a row"
+    },
+    "wouldCut": "Some buttons would fall outside the grid: move or delete them first.",
+    "emptyCell": "Empty cell, row {row}, column {col}",
+    "dropHere": "Drop here"
+  },
+  "library": {
+    "title": "Action library",
+    "subtitle": "Drag an action onto a cell",
+    "search": "Search for an action",
+    "searchPlaceholder": "Search…",
+    "noResult": "No matching action.",
+    "clickHint": "Drag onto an empty cell, or click to add it to the selected cell",
+    "groups": {
+      "system": "System",
+      "media": "Audio and media",
+      "navigation": "Navigation",
+      "obs": "OBS Studio"
+    },
+    "presets": {
+      "hotkey": {
+        "label": "Keyboard shortcut",
+        "desc": "Simulates a key combination"
+      },
+      "copy": {
+        "label": "Copy",
+        "desc": "Ctrl + C"
+      },
+      "cut": {
+        "label": "Cut",
+        "desc": "Ctrl + X"
+      },
+      "paste": {
+        "label": "Paste",
+        "desc": "Ctrl + V"
+      },
+      "undo": {
+        "label": "Undo",
+        "desc": "Ctrl + Z"
+      },
+      "redo": {
+        "label": "Redo",
+        "desc": "Redoes the last undone action"
+      },
+      "screenshot": {
+        "label": "Screenshot",
+        "desc": "The system's screenshot tool"
+      },
+      "showDesktop": {
+        "label": "Desktop",
+        "desc": "Shows the desktop"
+      },
+      "lock": {
+        "label": "Lock",
+        "desc": "Locks the session"
+      },
+      "taskManager": {
+        "label": "Task Manager",
+        "desc": "Ctrl + Shift + Esc"
+      },
+      "terminal": {
+        "label": "Terminal",
+        "desc": "Ctrl + Alt + T"
+      },
+      "playPause": {
+        "label": "Play / Pause",
+        "desc": "Current player"
+      },
+      "previousTrack": {
+        "label": "Previous track",
+        "desc": "Current player"
+      },
+      "nextTrack": {
+        "label": "Next track",
+        "desc": "Current player"
+      },
+      "stop": {
+        "label": "Stop",
+        "desc": "Stops playback"
+      },
+      "volumeUp": {
+        "label": "Volume +",
+        "desc": "Turns the PC's sound up"
+      },
+      "volumeDown": {
+        "label": "Volume −",
+        "desc": "Turns the PC's sound down"
+      },
+      "mute": {
+        "label": "Mute",
+        "desc": "Mutes or unmutes the sound"
+      },
+      "microphone": {
+        "label": "Microphone",
+        "desc": "Mutes or unmutes the microphone"
+      },
+      "folder": {
+        "label": "Folder",
+        "desc": "A separate group of buttons"
+      },
+      "nextPage": {
+        "label": "Next page",
+        "desc": "Scrolls the tablet"
+      },
+      "previousPage": {
+        "label": "Previous page",
+        "desc": "Scrolls the tablet"
+      },
+      "back": {
+        "label": "Back",
+        "desc": "Closes the open folder"
+      },
+      "multi": {
+        "label": "Multi action",
+        "desc": "Several actions in a row"
+      },
+      "obsScene": {
+        "label": "OBS scene",
+        "desc": "Switches to a scene"
+      },
+      "obsRecord": {
+        "label": "Record",
+        "desc": "Starts or stops recording"
+      },
+      "obsStream": {
+        "label": "Live",
+        "desc": "Starts or stops the stream"
+      },
+      "obsMute": {
+        "label": "OBS source",
+        "desc": "Mutes or unmutes an audio source"
+      }
+    }
+  },
+  "inspector": {
+    "noneTitle": "No cell selected",
+    "noneBody": "Click a cell of the grid to edit it, or drag an action from the library.",
+    "emptyTitle": "Empty cell",
+    "emptyBody": "Drag an action from the library on the left to create a button here.",
+    "addShortcut": "Create a keyboard shortcut here",
+    "position": "Row {row} · Column {col}",
+    "noLabel": "No label",
+    "label": "Label",
+    "subtitle": "Subtitle",
+    "subtitlePlaceholder": "Optional",
+    "icon": "Icon",
+    "noIcon": "No icon (the label's initial)",
+    "moreIcons": "All icons…",
+    "color": "Color",
+    "action": "Action",
+    "hotkey": "Keyboard shortcut",
+    "test": "Test the action",
+    "tested": "Action done",
+    "activeLook": {
+      "title": "When active",
+      "hint": "Microphone muted, recording, scene shown… Leave \"Auto\" for the automatic look.",
+      "label": "Label",
+      "labelPlaceholder": "Auto",
+      "color": "Color",
+      "icon": "Icon",
+      "auto": "Auto",
+      "reset": "Back to the automatic look"
+    }
+  },
+  "hotkey": {
+    "record": "Record",
+    "cancel": "Cancel recording",
+    "listening": "Press the combination, then release…",
+    "empty": "No key: the button will do nothing.",
+    "removeKey": "Remove {key}",
+    "addKey": "Add a key…",
+    "hint": "Keys are physical positions. Some combinations are caught by the system before Padboard (Super + L…): add them key by key."
+  },
+  "icons": {
+    "title": "Choose an icon",
+    "search": "Search for an icon",
+    "searchPlaceholder": "Search (volume, mic, play…)",
+    "more": "… and {count} more: refine the search.",
+    "none": "No matching icon.",
+    "credit": "Lucide icons (ISC license)"
+  },
+  "colors": {
+    "violet": "Violet",
+    "blue": "Blue",
+    "teal": "Teal",
+    "orange": "Orange",
+    "pink": "Pink",
+    "red": "Red",
+    "grey": "Grey"
+  },
+  "editErrors": {
+    "cellTaken": "This cell is already taken.",
+    "outsideGrid": "Some buttons would fall outside the grid.",
+    "lastProfile": "At least one profile must remain.",
+    "lastPage": "A profile keeps at least one page.",
+    "tooManyProfiles": "Maximum number of profiles reached.",
+    "tooManyPages": "Maximum number of pages reached.",
+    "invalidText": "Empty or too long text.",
+    "invalidIcon": "Invalid icon.",
+    "invalidAction": "Invalid shortcut (repeated key or more than 6 keys).",
+    "notFound": "This item no longer exists.",
+    "otherProfile": "A button cannot move to another profile.",
+    "unknown": "Change refused."
+  },
+  "actions": {
+    "kinds": {
+      "hotkey": "Keyboard shortcut",
+      "media": "Media",
+      "volume": "PC sound",
+      "microphone": "Microphone",
+      "open": "Open",
+      "lock": "Lock",
+      "navigate": "Navigation",
+      "multi": "Multi action",
+      "obs": "OBS"
+    },
+    "form": {
+      "kind": "Action type",
+      "command": "Command",
+      "mediaCommands": {
+        "play_pause": "Play / pause",
+        "next": "Next track",
+        "previous": "Previous track",
+        "stop": "Stop"
+      },
+      "volumeCommands": {
+        "up": "Turn up",
+        "down": "Turn down",
+        "set": "Set to a level",
+        "toggle_mute": "Mute / unmute"
+      },
+      "step": "Step (%)",
+      "level": "Level (%)",
+      "micCommands": {
+        "toggle_mute": "Mute / unmute",
+        "mute": "Mute",
+        "unmute": "Unmute"
+      },
+      "target": "Address, file, folder or program",
+      "targetPlaceholder": "https://… or ~/Documents",
+      "pickFile": "File…",
+      "pickFolder": "Folder…",
+      "pickFileTitle": "Choose the file to open",
+      "pickFolderTitle": "Choose the folder to open",
+      "navTo": {
+        "page": "Go to a page",
+        "folder": "Open a folder",
+        "next": "Next page",
+        "previous": "Previous page",
+        "back": "Back (close the folder)"
+      },
+      "page": "Page",
+      "folder": "Folder",
+      "choose": "Choose…",
+      "missing": "{name} (deleted)",
+      "lockHint": "Locks this PC's session.",
+      "obsCommands": {
+        "set_scene": "Switch scene",
+        "toggle_record": "Record (start / stop)",
+        "toggle_stream": "Live (start / stop)",
+        "toggle_input_mute": "Mute / unmute a source"
+      },
+      "scene": "Scene",
+      "input": "Audio source",
+      "obsOffline": "OBS is not connected: type the exact name shown in OBS.",
+      "steps": "Steps",
+      "stepN": "Step {n}",
+      "noStep": "No step yet.",
+      "addStep": "Add a step",
+      "delay": "Pause after (ms)",
+      "moveUp": "Move step {n} up",
+      "moveDown": "Move step {n} down",
+      "removeStep": "Remove step {n}"
+    }
+  },
+  "folders": {
+    "defaultName": "Folder",
+    "tab": "Folder {name}",
+    "open": "Edit the folder",
+    "missing": "This folder was deleted: the button does nothing anymore.",
+    "label": "Folders"
+  },
+  "screensaver": {
+    "title": "Tablet screensaver",
+    "toggle": "Screensaver",
+    "delay": "After",
+    "seconds": "{n} s without a touch",
+    "minutes": "{n} min without a touch",
+    "hint": "A black screen with the clock, the lowest brightness and the important states (microphone muted, REC, LIVE). The first touch only wakes the screen."
+  },
+  "about": {
+    "title": "About",
+    "version": "version {version}",
+    "license": "Free software, released under the GNU GPL version 3 or later.",
+    "warranty": "Provided without any warranty, to the extent permitted by law.",
+    "source": "Source code",
+    "licenses": "Licenses"
+  },
+  "licenses": {
+    "title": "Licenses",
+    "intro": "Padboard and the free components it includes, with their licenses.",
+    "close": "Close",
+    "missing": "The component list is not included in this development build (scripts/licenses.sh).",
+    "search": "Search for a component or a license",
+    "count": "{n} component of {total} | {n} component of {total} | {n} components of {total}",
+    "noText": "This component ships no license text ({license}): see its repository.",
+    "ecosystem": {
+      "rust": "Rust",
+      "npm": "npm"
+    }
+  },
+  "obs": {
+    "title": "OBS Studio",
+    "toggle": "Control OBS",
+    "unavailable": "OBS cannot be controlled in this mode.",
+    "host": "Address",
+    "port": "Port",
+    "password": "WebSocket server password",
+    "passwordSaved": "Saved (leave empty to keep it)",
+    "removePassword": "Remove the password",
+    "save": "Save",
+    "saved": "Saved",
+    "hint": "In OBS: Tools → WebSocket Server Settings → Enable WebSocket server, then copy the port and the password here.",
+    "status": {
+      "disabled": "Off",
+      "connecting": "Connecting…",
+      "connected": "Connected (obs-websocket {version})",
+      "unreachable": "OBS unreachable: it is closed or its WebSocket server is off. Retrying automatically.",
+      "authFailed": "Password refused by OBS."
+    }
+  },
+  "keys": {
+    "ControlLeft": "Ctrl",
+    "ControlRight": "Right Ctrl",
+    "ShiftLeft": "Shift",
+    "ShiftRight": "Right Shift",
+    "AltLeft": "Alt",
+    "AltRight": "AltGr",
+    "MetaLeft": "Super",
+    "MetaRight": "Right Super",
+    "MetaLeftWin": "Win",
+    "MetaRightWin": "Right Win",
+    "Space": "Space",
+    "Enter": "Enter",
+    "Escape": "Esc",
+    "Backspace": "Backspace",
+    "Tab": "Tab",
+    "CapsLock": "Caps Lock",
+    "Delete": "Del",
+    "Insert": "Ins",
+    "Home": "Home",
+    "End": "End",
+    "PageUp": "Page Up",
+    "PageDown": "Page Down",
+    "PrintScreen": "Print Screen",
+    "ScrollLock": "Scroll Lock",
+    "Pause": "Pause",
+    "ContextMenu": "Menu",
+    "NumLock": "Num Lock",
+    "MediaPlayPause": "Play/Pause",
+    "MediaStop": "Stop",
+    "MediaTrackNext": "Next track",
+    "MediaTrackPrevious": "Prev. track",
+    "AudioVolumeUp": "Volume +",
+    "AudioVolumeDown": "Volume −",
+    "AudioVolumeMute": "Mute",
+    "numpad": "Numpad {n}"
+  }
+}

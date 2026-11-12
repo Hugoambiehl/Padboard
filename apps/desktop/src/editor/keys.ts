@@ -1,56 +1,20 @@
-// Human-readable key names (W3C `KeyboardEvent.code` → label shown in the UI).
+// Human-readable key names (W3C `KeyboardEvent.code` → label shown in the
+// UI), in the UI language (`keys` in src/locales).
+import { i18n } from "../i18n";
 
 export const isWindows = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
-
-const named: Record<string, string> = {
-  ControlLeft: "Ctrl",
-  ControlRight: "Ctrl droit",
-  ShiftLeft: "Maj",
-  ShiftRight: "Maj droite",
-  AltLeft: "Alt",
-  AltRight: "Alt Gr",
-  MetaLeft: isWindows ? "Win" : "Super",
-  MetaRight: isWindows ? "Win droite" : "Super droite",
-  Space: "Espace",
-  Enter: "Entrée",
-  Escape: "Échap",
-  Backspace: "Retour arrière",
-  Tab: "Tab",
-  CapsLock: "Verr. maj",
-  Delete: "Suppr",
-  Insert: "Inser",
-  Home: "Début",
-  End: "Fin",
-  PageUp: "Page préc.",
-  PageDown: "Page suiv.",
-  ArrowUp: "↑",
-  ArrowDown: "↓",
-  ArrowLeft: "←",
-  ArrowRight: "→",
-  PrintScreen: "Impr. écran",
-  ScrollLock: "Arrêt défil.",
-  Pause: "Pause",
-  ContextMenu: "Menu",
-  NumLock: "Verr. num",
-  MediaPlayPause: "Lecture/Pause",
-  MediaStop: "Stop",
-  MediaTrackNext: "Piste suiv.",
-  MediaTrackPrevious: "Piste préc.",
-  AudioVolumeUp: "Volume +",
-  AudioVolumeDown: "Volume −",
-  AudioVolumeMute: "Muet",
-};
 
 /**
  * Label of a key. Keys are physical positions named after the US layout
  * (`KeyQ` is the "A" key on AZERTY): letters and digits show their US name.
  */
 export function keyLabel(code: string): string {
-  if (named[code]) return named[code];
+  const { t, te } = i18n.global;
+  const named = isWindows && code.startsWith("Meta") ? `keys.${code}Win` : `keys.${code}`;
+  if (te(named)) return t(named);
   if (/^Key[A-Z]$/.test(code)) return code.slice(3);
   if (/^Digit[0-9]$/.test(code)) return code.slice(5);
-  if (/^Numpad[0-9]$/.test(code)) return `Pavé ${code.slice(6)}`;
-  if (/^F[0-9]{1,2}$/.test(code)) return code;
+  if (/^Numpad[0-9]$/.test(code)) return t("keys.numpad", { n: code.slice(6) });
   return code;
 }
 

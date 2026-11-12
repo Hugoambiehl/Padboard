@@ -126,6 +126,8 @@ export function install() {
           return { enabled: true, delaySeconds: 300 };
         case "test_button":
           return { status: "ok" };
+        case "get_locale":
+          return new URLSearchParams(location.search).get("lang") === "en" ? "en" : "fr";
         case "plugin:app|version":
           return "0.1.0";
         default:

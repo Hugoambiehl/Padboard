@@ -8,7 +8,7 @@ import { useKeys } from "../../composables/useKeys";
 
 const props = defineProps<{ keys: string[] }>();
 const emit = defineEmits<{ change: [keys: string[]] }>();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const validKeys = useKeys();
 
 const recording = ref(false);
@@ -20,7 +20,7 @@ const choices = computed(() =>
   validKeys.value
     .filter((k) => !props.keys.includes(k))
     .map((k) => ({ code: k, label: keyLabel(k) }))
-    .sort((a, b) => a.label.localeCompare(b.label, "fr")),
+    .sort((a, b) => a.label.localeCompare(b.label, locale.value)),
 );
 
 function onKeydown(event: KeyboardEvent) {
