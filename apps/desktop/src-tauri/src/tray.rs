@@ -33,6 +33,8 @@ pub struct Tray<R: Runtime> {
 impl<R: Runtime> Tray<R> {
     /// Creates the icon (`tray.png`: the 32 px variant, without the halo).
     pub fn create(app: &AppHandle<R>, locale: Locale) -> tauri::Result<Self> {
+        #[cfg(windows)]
+        dark_menus();
         let texts = tray_texts(locale);
         let open = MenuItem::with_id(app, OPEN_ID, texts.open, true, None::<&str>)?;
         let status = MenuItem::with_id(app, "status", texts.no_tablet, false, None::<&str>)?;
@@ -52,7 +54,10 @@ impl<R: Runtime> Tray<R> {
                 "../icons/tray.png"
             ))?)
             // No `title`: on Linux it is a text label next to the icon.
-            .tooltip(tooltip(texts, texts.no_tablet))
+            // Windows names the icon in its settings ("Other system tray
+            // icons") after the tooltip it is created with: a fixed one here,
+            // the status is added right after.
+            .tooltip(texts.app)
             .menu(&menu)
             // Windows: a left click opens the window, the right click the menu.
             // (Linux AppIndicator always opens the menu.)
@@ -76,6 +81,7 @@ impl<R: Runtime> Tray<R> {
                 }
             })
             .build(app)?;
+        let _ = icon.set_tooltip(Some(tooltip(texts, texts.no_tablet)));
         Ok(Self {
             icon,
             status,
@@ -93,6 +99,41 @@ impl<R: Runtime> Tray<R> {
             tracing::warn!("cannot update the tray menu: {e}");
         }
         let _ = self.icon.set_tooltip(Some(tooltip(self.texts, &line)));
+    }
+}
+
+/// Draws the app's popup menus (the tray menu) dark, like the rest of the
+/// app, whatever the Windows theme. The tray menu belongs to a hidden window
+/// of `tray-icon` that never asks for dark mode, so tao's `AllowDark` is not
+/// enough. uxtheme's `SetPreferredAppMode` (ordinal 135) and
+/// `FlushMenuThemes` (136) are not documented but stable since Windows 10
+/// 1903 (used by tao itself, Notepad++…); on 1809 ordinal 135 is
+/// `AllowDarkModeForApp(bool)`, which the same call turns on harmlessly.
+#[cfg(windows)]
+fn dark_menus() {
+    use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
+    use windows::core::{PCSTR, w};
+    const FORCE_DARK: i32 = 2;
+    // SAFETY: uxtheme.dll is a system library; the ordinals are looked up
+    // (missing = nothing done) and called with their known signatures.
+    unsafe {
+        let Ok(uxtheme) = LoadLibraryW(w!("uxtheme.dll")) else {
+            return;
+        };
+        let set = GetProcAddress(uxtheme, PCSTR(135 as *const u8));
+        let flush = GetProcAddress(uxtheme, PCSTR(136 as *const u8));
+        if let (Some(set), Some(flush)) = (set, flush) {
+            let set = std::mem::transmute::<
+                unsafe extern "system" fn() -> isize,
+                unsafe extern "system" fn(i32) -> i32,
+            >(set);
+            let flush = std::mem::transmute::<
+                unsafe extern "system" fn() -> isize,
+                unsafe extern "system" fn(),
+            >(flush);
+            set(FORCE_DARK);
+            flush();
+        }
     }
 }
 
