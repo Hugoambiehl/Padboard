@@ -35,7 +35,7 @@ sha2.workspace = true
 subtle = "2.6.1"
 tauri = { version = "~2.11", features = ["tray-icon", "image-png"] }
 # Start with the session (entry written with a quoted path, see autostart.rs).
-auto-launch = "0.5.0"
+auto-launch = "0.6.0"
 tauri-plugin-single-instance = "~2.4"
 tauri-plugin-dialog = "~2.7"
 tokio = { version = "1.54.1", features = ["io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
