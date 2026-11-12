@@ -8,7 +8,8 @@
 // - frontend favicon (apps/desktop/public/favicon.svg);
 // - tablet: adaptive icon (violet background, the tiles as a vector
 //   foreground inside the safe zone) and its monochrome layer (Android 13+
-//   themed icons), as vector drawables.
+//   themed icons), as vector drawables, and the whole icon as a drawable
+//   for the app's own header badge (ic_padboard.xml).
 //
 // At 32 px and below the "pressed" halo is under a pixel wide and only
 // blurs the tile: those sizes use the source without it (SMALL_MAX).
@@ -159,6 +160,24 @@ writeFileSync(
 </shape>
 `,
 );
+// The whole icon (background included), drawn in the app's headers (34 and
+// 52 dp: always above SMALL_MAX on the tablet, so with the halo).
+const [bg] = rects;
+writeFileSync(
+  join(res, "drawable/ic_padboard.xml"),
+  `<?xml version="1.0" encoding="utf-8"?>
+<!-- ${GENERATED} -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="${bg.attrs.width}dp"
+    android:height="${bg.attrs.height}dp"
+    android:viewportWidth="${bg.attrs.width}"
+    android:viewportHeight="${bg.attrs.height}">
+        <path android:pathData="${roundedRect(bg.attrs)}" android:fillColor="${bg.attrs.fill}" />
+${foreground(false)}
+</vector>
+`,
+);
+
 const adaptive = `<?xml version="1.0" encoding="utf-8"?>
 <!-- ${GENERATED} -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">

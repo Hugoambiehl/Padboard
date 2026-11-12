@@ -11,6 +11,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -461,17 +462,7 @@ private fun ProfileChip(name: String, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Box(
-            Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(PadboardColors.Accent),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                painterResource(R.drawable.ic_layout_grid),
-                null,
-                Modifier.size(18.dp),
-                tint = PadboardColors.Background
-            )
-        }
+        Image(painterResource(R.drawable.ic_padboard), null, Modifier.size(34.dp))
         Text(name, style = PadboardType.Profile, color = PadboardColors.Text)
         Icon(painterResource(R.drawable.ic_chevron_down), null, Modifier.size(16.dp), tint = PadboardColors.TextMuted)
     }

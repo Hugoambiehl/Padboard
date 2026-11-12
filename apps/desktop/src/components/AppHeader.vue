@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { LayoutGrid, Redo2, Undo2 } from "lucide-vue-next";
+import { Redo2, Undo2 } from "lucide-vue-next";
 import ProfileMenu from "./ProfileMenu.vue";
 import { useEditor } from "../composables/useEditor";
 import { useStatus } from "../composables/useStatus";
@@ -29,9 +29,8 @@ const pill = computed(() => {
     class="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface px-5 py-3"
   >
     <div class="flex flex-wrap items-center gap-3.5">
-      <span class="flex size-8 items-center justify-center rounded-[10px] bg-accent">
-        <LayoutGrid :size="17" class="text-bg" aria-hidden="true" />
-      </span>
+      <!-- The app icon (assets/icon/padboard.svg, small-size variant). -->
+      <img src="/favicon.svg" alt="" class="size-8" />
       <span class="font-display text-[17px] font-semibold">{{ t("app.name") }}</span>
       <span class="h-[22px] w-px bg-[#2A2D36]" />
       <ProfileMenu />

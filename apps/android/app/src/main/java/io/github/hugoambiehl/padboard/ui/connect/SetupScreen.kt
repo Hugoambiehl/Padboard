@@ -1,10 +1,10 @@
 package io.github.hugoambiehl.padboard.ui.connect
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -151,14 +151,10 @@ fun SetupScreen(
     }
 }
 
+/** The app icon (generated from assets/icon/padboard.svg). */
 @Composable
 internal fun AppBadge() {
-    Box(
-        Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(PadboardColors.Accent),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(painterResource(R.drawable.ic_layout_grid), null, Modifier.size(26.dp), tint = PadboardColors.Background)
-    }
+    Image(painterResource(R.drawable.ic_padboard), null, Modifier.size(52.dp))
 }
 
 @Composable
