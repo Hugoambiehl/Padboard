@@ -30,7 +30,7 @@ mod tls;
 mod tray;
 mod wifi;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, AtomicUsize};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
@@ -510,6 +510,11 @@ pub fn run() {
                 None => app.path().app_config_dir()?,
             };
             let config = ConfigDir::open(config_root)?;
+            // Setup runs only in the running instance (a second launch has
+            // handed over and exited by now): its log may start afresh.
+            if test_mode.is_none() {
+                LOG.open(&config.root().join("padboard.log"));
+            }
             tracing::info!(dir = %config.root().display(), "config directory");
             let identity = Identity::load_or_create(&config);
             let preferences: Preferences = config.load_or_init(Preferences::default);
@@ -806,7 +811,8 @@ pub fn run() {
 
 /// Logs to stderr and to a file: `<test dir>/app.log` in test mode, else
 /// `padboard.log` in the config directory, started afresh at each launch (on
-/// Windows the app has no console, so the file is the only log).
+/// Windows the app has no console, so the file is the only log). The latter
+/// is opened by [`DeferredLog::open`] once single instance is settled.
 fn init_tracing(test_mode: Option<&TestMode>) {
     use tracing_subscriber::layer::SubscriberExt as _;
     use tracing_subscriber::util::SubscriberInitExt as _;
@@ -822,32 +828,79 @@ fn init_tracing(test_mode: Option<&TestMode>) {
                 .open(mode.log_file())
                 .ok()
         }),
-        None => default_config_dir().and_then(|dir| {
-            std::fs::create_dir_all(&dir).ok()?;
-            std::fs::File::create(dir.join("padboard.log")).ok()
-        }),
+        None => None,
     };
     let to_file = file.map(|f| fmt::layer().with_ansi(false).with_writer(Mutex::new(f)));
+    let deferred = test_mode
+        .is_none()
+        .then(|| fmt::layer().with_ansi(false).with_writer(|| &LOG));
     let _ = tracing_subscriber::registry()
         .with(filter)
         .with(fmt::layer().with_writer(std::io::stderr))
         .with(to_file)
+        .with(deferred)
         .try_init();
 }
 
-/// Tauri's app config directory, known before Tauri starts (for the log).
-fn default_config_dir() -> Option<PathBuf> {
-    const IDENTIFIER: &str = "io.github.hugoambiehl.padboard";
-    let base = if cfg!(windows) {
-        std::env::var_os("APPDATA").map(PathBuf::from)
-    } else if cfg!(target_os = "macos") {
-        std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library/Application Support"))
-    } else {
-        std::env::var_os("XDG_CONFIG_HOME")
-            .map(PathBuf::from)
-            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
-    };
-    base.map(|b| b.join(IDENTIFIER))
+/// The normal mode's log file.
+static LOG: DeferredLog = DeferredLog(Mutex::new(LogTarget::Pending(Vec::new())));
+
+/// A log file opened late: a second launch reaches the single instance
+/// check after logging its first lines, and must not truncate the running
+/// instance's log. Lines logged before [`DeferredLog::open`] are kept in
+/// memory (bounded) and written first.
+struct DeferredLog(Mutex<LogTarget>);
+
+enum LogTarget {
+    Pending(Vec<u8>),
+    File(std::fs::File),
+    Off,
+}
+
+/// Lines kept before the file is opened (startup logs only a few).
+const PENDING_LOG_MAX: usize = 64 * 1024;
+
+impl DeferredLog {
+    /// Creates (truncates) the file and writes the lines logged so far.
+    fn open(&self, path: &Path) {
+        let mut target = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        let LogTarget::Pending(pending) = &*target else {
+            return;
+        };
+        *target = match std::fs::File::create(path) {
+            Ok(mut file) => {
+                use std::io::Write as _;
+                let _ = file.write_all(pending);
+                LogTarget::File(file)
+            }
+            Err(e) => {
+                eprintln!("cannot create {}: {e}", path.display());
+                LogTarget::Off
+            }
+        };
+    }
+}
+
+impl std::io::Write for &DeferredLog {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match &mut *self.0.lock().unwrap_or_else(PoisonError::into_inner) {
+            LogTarget::Pending(pending) => {
+                if pending.len() + buf.len() <= PENDING_LOG_MAX {
+                    pending.extend_from_slice(buf);
+                }
+                Ok(buf.len())
+            }
+            LogTarget::File(file) => std::io::Write::write(file, buf),
+            LogTarget::Off => Ok(buf.len()),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match &mut *self.0.lock().unwrap_or_else(PoisonError::into_inner) {
+            LogTarget::File(file) => std::io::Write::flush(file),
+            _ => Ok(()),
+        }
+    }
 }
 
 /// Resolves on SIGTERM, SIGINT or SIGHUP (Ctrl+C / Ctrl+Break on Windows).
