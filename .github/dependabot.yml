@@ -1,0 +1,58 @@
+# Version updates, once a month, minor and patch grouped per ecosystem.
+# Security updates are separate (repository settings) and not limited here.
+# Ignored updates are pinned on purpose (see CLAUDE.md, "Durable decisions").
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      cargo:
+        update-types: [minor, patch]
+    ignore:
+      # The tauri crate follows the @tauri-apps npm packages' minor: bumped
+      # together by hand.
+      - dependency-name: "tauri*"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # zbus 6 needs Rust 1.89.
+      - dependency-name: zbus
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: npm
+    directory: /apps/desktop
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      npm:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "@tauri-apps/*"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+
+  - package-ecosystem: gradle
+    directory: /apps/android
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      gradle:
+        update-types: [minor, patch]
+    ignore:
+      # Kotlin 2.2 for now; kotlinx-serialization 1.10+ needs Kotlin 2.3.
+      - dependency-name: "org.jetbrains.kotlin:*"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "org.jetbrains.kotlin.*"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "org.jetbrains.kotlinx:kotlinx-serialization*"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
