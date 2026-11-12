@@ -1,12 +1,18 @@
 # Padboard on Windows: install and test
 
 How to put the desktop app on a Windows 10/11 PC, connect the tablet over
-USB and Wi-Fi, and check every action. Until phase 6 the installer is
-unsigned and built on demand.
+USB and Wi-Fi, and check every action. The installer is not signed yet.
 
 ## 1. Get the app
 
-### A. Installer built by the CI (no tools on the PC)
+### A. Installer of a release (or release candidate)
+
+Download `Padboard_<version>_x64-setup.exe` from the GitHub release (a draft
+release is visible to the maintainers only), or
+`gh release download v0.1.0-rc.1 -p '*-setup.exe'`, then run it as in step 3
+below. Check it against `SHA256SUMS` (`Get-FileHash <file>` in PowerShell).
+
+### B. Installer built by the CI (no tools on the PC)
 
 1. GitHub → *Actions* → *CI* → *Run workflow* → tick **Also build the Windows
    installer** → *Run workflow* (or `gh workflow run CI -f installer=true` with
@@ -18,7 +24,7 @@ unsigned and built on demand.
    (no admin rights) and adds a Start menu entry. WebView2 is part of
    Windows 11; on Windows 10 the installer fetches it if missing.
 
-### B. Build on the PC
+### C. Build on the PC
 
 Tools: Git, Node.js 24, Rust (`rustup`, default MSVC toolchain), and Visual
 Studio Build Tools 2022 with *Desktop development with C++* (MSVC and the
@@ -90,4 +96,4 @@ a cable unplug/replug, and after the PC wakes from sleep.
 
 - Keys cannot be sent to elevated (administrator) windows.
 - Audio states are read every 300 ms (Windows has no simple change feed).
-- The installer is unsigned until phase 6 (SmartScreen warning).
+- The installer is not signed yet (SmartScreen warning); SignPath once the project is public.
