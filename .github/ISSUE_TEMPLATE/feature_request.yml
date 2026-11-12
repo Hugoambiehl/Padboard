@@ -1,0 +1,23 @@
+name: Feature request
+description: An idea for a new action or an improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What you would like to do
+      description: The need first (what you want to control, in which situation), then your idea of a solution.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: How you do it today
+      description: Workarounds, or other tools that do it.
+  - type: checkboxes
+    id: free
+    attributes:
+      label: Free software
+      description: Padboard only uses free and open-source tools, libraries and APIs.
+      options:
+        - label: The idea does not need a paid service, an account or a proprietary API.
