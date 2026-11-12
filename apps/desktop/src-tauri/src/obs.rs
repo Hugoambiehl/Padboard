@@ -202,6 +202,15 @@ async fn run(
         status.send_replace(ObsStatus::Connecting);
         let outcome = session(&current, &mut settings, &mut requests, &state, &status).await;
         publish(&state, Observed::Unavailable);
+        // Logged once per lost connection, not at each retry while OBS is
+        // closed.
+        let was_connected = matches!(*status.borrow(), ObsStatus::Connected { .. });
+        match &outcome {
+            Ok(()) if was_connected => tracing::info!("OBS settings changed: reconnecting"),
+            Err(e) if was_connected => tracing::warn!("disconnected from OBS: {e}"),
+            Err(ObsError::Auth) => tracing::warn!("OBS refused the password"),
+            _ => {}
+        }
         match outcome {
             Ok(()) => continue, // settings changed: reconnect now
             Err(ObsError::Auth) => {
