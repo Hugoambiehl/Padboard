@@ -20,6 +20,13 @@ const usb = computed(() => props.server.usb);
 const wifi = computed(() => props.server.wifi);
 const physical = computed(() => wifi.value.lanAddresses.filter((a) => a.physical));
 const others = computed(() => wifi.value.lanAddresses.filter((a) => !a.physical));
+const forcedKey = computed(() =>
+  wifi.value.forcedByTestMode
+    ? "lan.forcedByTest"
+    : wifi.value.forced
+      ? "lan.forcedOn"
+      : "lan.forcedOff",
+);
 const toggleLocked = computed(() => wifi.value.forced !== null || wifi.value.tlsError !== null);
 
 const busy = ref(false);
@@ -89,7 +96,7 @@ async function toggleWifi(enabled: boolean) {
       </h3>
 
       <p v-if="wifi.forced !== null" class="text-xs text-muted">
-        {{ t(wifi.forced ? "lan.forcedOn" : "lan.forcedOff") }}
+        {{ t(forcedKey) }}
       </p>
       <p v-if="toggleError" class="text-sm text-cat-red">{{ toggleError }}</p>
       <p

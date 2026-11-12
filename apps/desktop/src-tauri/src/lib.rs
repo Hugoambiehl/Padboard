@@ -448,6 +448,7 @@ pub fn run() {
         // PADBOARD_BIND=lan may turn it on (tests on the real tablet).
         if !mode.system() || settings.wifi_forced.is_none() {
             settings.wifi_forced = Some(false);
+            settings.wifi_forced_by_test = true;
         }
     }
 

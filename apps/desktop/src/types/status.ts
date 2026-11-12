@@ -28,8 +28,10 @@ export interface LanAddress {
 
 export interface WifiStatus {
   enabled: boolean;
-  /** Set when PADBOARD_BIND forces Wi-Fi on (true) or off (false). */
+  /** Set when PADBOARD_BIND or the test mode forces Wi-Fi on (true) or off (false). */
   forced: boolean | null;
+  /** The test mode forces it (off), not PADBOARD_BIND. */
+  forcedByTestMode: boolean;
   listener: ListenerStatus;
   lanAddresses: LanAddress[];
   fingerprint: string | null;

@@ -73,8 +73,11 @@ pub enum ListenerState {
 pub struct WifiStatus {
     /// Effective state: the UI setting, unless `PADBOARD_BIND` forces it.
     pub enabled: bool,
-    /// `Some` when `PADBOARD_BIND` forces Wi-Fi on or off (the toggle is locked).
+    /// `Some` when `PADBOARD_BIND` or the test mode forces Wi-Fi on or off
+    /// (the toggle is locked).
     pub forced: Option<bool>,
+    /// The test mode forces it (off), not `PADBOARD_BIND`.
+    pub forced_by_test_mode: bool,
     pub listener: ListenerStatus,
     /// IPv4 addresses of this PC, physical interfaces (Wi-Fi, Ethernet) first.
     pub lan_addresses: Vec<LanAddress>,
@@ -160,6 +163,7 @@ impl Snapshot {
                 wifi: WifiStatus {
                     enabled: wifi_enabled,
                     forced: settings.wifi_forced,
+                    forced_by_test_mode: settings.wifi_forced_by_test,
                     listener: ListenerStatus {
                         state: if wifi_starting {
                             ListenerState::Starting

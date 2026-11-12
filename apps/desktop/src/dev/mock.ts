@@ -19,6 +19,7 @@ const status: Snapshot = {
     wifi: {
       enabled: true,
       forced: null,
+      forcedByTestMode: false,
       listener: { state: "listening", port: 47322, address: "0.0.0.0:47322", errorDetail: null },
       lanAddresses: [
         { address: "192.168.1.42", interface: "wlan0", physical: true },

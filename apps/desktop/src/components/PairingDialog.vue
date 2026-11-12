@@ -119,7 +119,9 @@ onMounted(() => dialog.value?.showModal());
         >
           {{ t("pairing.enableWifi") }}
         </button>
-        <p v-else-if="!wifi.enabled" class="text-xs text-muted">{{ t("pairing.wifiLocked") }}</p>
+        <p v-else-if="!wifi.enabled" class="text-xs text-muted">
+          {{ t(wifi.forcedByTestMode ? "pairing.wifiLockedTest" : "pairing.wifiLocked") }}
+        </p>
       </div>
 
       <!-- Active PIN -->

@@ -18,6 +18,8 @@ use padboard_protocol::{USB_PORT, WIFI_PORT};
 pub struct Settings {
     /// `Some` when `PADBOARD_BIND` forces Wi-Fi on or off.
     pub wifi_forced: Option<bool>,
+    /// Wi-Fi is forced off by the test mode, not by `PADBOARD_BIND`.
+    pub wifi_forced_by_test: bool,
     pub usb_port: u16,
     pub wifi_port: u16,
     /// Environment values that were ignored, as `(variable, value)`.
@@ -72,6 +74,7 @@ impl Settings {
 
         Self {
             wifi_forced,
+            wifi_forced_by_test: false,
             usb_port,
             wifi_port,
             invalid,
