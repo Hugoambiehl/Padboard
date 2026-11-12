@@ -141,7 +141,7 @@ async function toggleWifi(enabled: boolean) {
           </dd>
         </dl>
       </template>
-      <p v-else class="text-sm text-muted">{{ t("lan.disabled") }}</p>
+      <p v-else-if="!wifi.forcedByTestMode" class="text-sm text-muted">{{ t("lan.disabled") }}</p>
 
       <p
         v-if="wifi.fingerprint"

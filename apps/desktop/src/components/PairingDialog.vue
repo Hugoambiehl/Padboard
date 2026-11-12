@@ -16,6 +16,8 @@ const error = ref<string | null>(null);
 const busy = ref(false);
 
 const wifiReady = computed(() => props.wifi.enabled && props.wifi.listener.state === "listening");
+/** Wi-Fi forced off by the test mode: its message alone, no pairing texts. */
+const testMode = computed(() => props.wifi.forcedByTestMode && !props.wifi.enabled);
 const canEnableWifi = computed(() => props.wifi.forced === null && props.wifi.tlsError === null);
 
 /** Seconds left on the active PIN; 0 once expired (the backend only notices on the next attempt). */
@@ -92,7 +94,7 @@ onMounted(() => dialog.value?.showModal());
           <h2 id="pairing-title" class="font-display text-lg font-semibold">
             {{ t("pairing.title") }}
           </h2>
-          <p class="text-sm text-muted">{{ t("pairing.intro") }}</p>
+          <p v-if="!testMode" class="text-sm text-muted">{{ t("pairing.intro") }}</p>
         </div>
         <button
           type="button"
@@ -106,7 +108,11 @@ onMounted(() => dialog.value?.showModal());
 
       <!-- Wi-Fi off: pairing needs it. -->
       <div v-if="!wifiReady" class="flex flex-col items-start gap-3">
-        <p class="flex gap-2 text-sm text-muted-2">
+        <p v-if="testMode" class="flex gap-2 text-sm text-muted-2">
+          <WifiOff :size="16" class="mt-0.5 shrink-0" aria-hidden="true" />
+          {{ t("pairing.wifiLockedTest") }}
+        </p>
+        <p v-else class="flex gap-2 text-sm text-muted-2">
           <WifiOff :size="16" class="mt-0.5 shrink-0" aria-hidden="true" />
           {{ wifi.enabled ? t("pairing.wifiStarting") : t("pairing.wifiOff") }}
         </p>
@@ -119,8 +125,8 @@ onMounted(() => dialog.value?.showModal());
         >
           {{ t("pairing.enableWifi") }}
         </button>
-        <p v-else-if="!wifi.enabled" class="text-xs text-muted">
-          {{ t(wifi.forcedByTestMode ? "pairing.wifiLockedTest" : "pairing.wifiLocked") }}
+        <p v-else-if="!wifi.enabled && !testMode" class="text-xs text-muted">
+          {{ t("pairing.wifiLocked") }}
         </p>
       </div>
 
