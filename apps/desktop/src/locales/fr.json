@@ -500,6 +500,27 @@
     "minutes": "{n} min sans toucher",
     "hint": "Écran noir avec l’horloge, luminosité au minimum, et les états importants (micro coupé, REC, EN DIRECT). Le premier toucher réveille seulement l’écran."
   },
+  "about": {
+    "title": "À propos",
+    "version": "version {version}",
+    "license": "Logiciel libre, distribué sous licence GNU GPL version 3 ou ultérieure.",
+    "warranty": "Fourni sans aucune garantie, dans les limites permises par la loi.",
+    "source": "Code source",
+    "licenses": "Licences"
+  },
+  "licenses": {
+    "title": "Licences",
+    "intro": "Padboard et les composants libres qu’il intègre, avec leurs licences.",
+    "close": "Fermer",
+    "missing": "La liste des composants n’est pas incluse dans cette version de développement (scripts/licenses.sh).",
+    "search": "Rechercher un composant ou une licence",
+    "count": "{n} composant sur {total} | {n} composant sur {total} | {n} composants sur {total}",
+    "noText": "Ce composant ne fournit pas de texte de licence ({license}) : voir son dépôt.",
+    "ecosystem": {
+      "rust": "Rust",
+      "npm": "npm"
+    }
+  },
   "obs": {
     "title": "OBS Studio",
     "toggle": "Piloter OBS",
