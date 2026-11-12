@@ -57,9 +57,9 @@ sealed interface LinkState {
     data object Unpaired : LinkState
 
     /**
-     * Looking for the PC: the paired one (USB or Wi-Fi), or the one last
-     * reached over USB in this run ([wifi] false: only the cable can bring it
-     * back). The next attempt starts in [retryInMs]; [attempt] counts them so
+     * Looking for the PC: the paired one (USB or Wi-Fi), or the one just
+     * lost when it was another PC reached over USB ([wifi] false: only the
+     * cable can bring it back). The next attempt starts in [retryInMs]; [attempt] counts them so
      * each one is a new state.
      */
     data class Searching(
@@ -186,8 +186,13 @@ class ConnectionManager(
 
     private var deviceId: String = ""
 
-    /** The PC reached over USB in this run, looked for again when the cable goes. */
-    private var lastUsbServer: String? = null
+    /**
+     * The PC of the last session in this run (any transport): the one the
+     * disconnected card names. Over USB it may not be the paired PC.
+     */
+    private var lastServer: LastServer? = null
+
+    private data class LastServer(val id: String, val name: String)
     private var job: Job? = null
     private val wakeUp = Channel<Unit>(Channel.CONFLATED)
     private val pins = Channel<String>(Channel.CONFLATED)
@@ -251,7 +256,7 @@ class ConnectionManager(
         scope.launch {
             restart {
                 pairing.clear()
-                lastUsbServer = null
+                lastServer = null
                 auto(initial = null)
             }
         }
@@ -303,7 +308,7 @@ class ConnectionManager(
                         End.Revoked -> {
                             log.info("pairing revoked by the PC")
                             pairing.clear()
-                            lastUsbServer = null
+                            lastServer = null
                             null
                         }
                         End.Incompatible -> {
@@ -319,17 +324,18 @@ class ConnectionManager(
                 continue
             }
             val paired = pairing.load()
-            val name = paired?.serverName ?: lastUsbServer
+            val last = lastServer
             attempt++
             _state.value =
-                name?.let {
-                    LinkState.Searching(
-                        it,
-                        wifi = paired != null,
-                        retryInMs = retry.inWholeMilliseconds,
-                        attempt = attempt
-                    )
-                } ?: LinkState.Unpaired
+                if (last != null && last.id != paired?.serverId) {
+                    // Lost a PC reached over USB that is not the paired one
+                    // (another PC on the cable): only the cable brings it back.
+                    LinkState.Searching(last.name, wifi = false, retry.inWholeMilliseconds, attempt)
+                } else if (paired != null) {
+                    LinkState.Searching(paired.serverName, wifi = true, retry.inWholeMilliseconds, attempt)
+                } else {
+                    LinkState.Unpaired
+                }
             withTimeoutOrNull(retry) { wakeUp.receive() }
             retry = (retry * 2).coerceAtMost(config.retryMax)
         }
@@ -413,7 +419,7 @@ class ConnectionManager(
     private suspend fun hold(link: Active): End = coroutineScope {
         val paired = pairing.load()?.serverId == link.welcome.serverId
         active = link
-        if (link.transport == Transport.Usb) lastUsbServer = link.welcome.serverName
+        lastServer = LastServer(link.welcome.serverId, link.welcome.serverName)
         _state.value = LinkState.Connected(link.transport, link.welcome.serverName, paired, latencyMs = null)
         log.info("connected to ${link.welcome.serverName} over ${link.transport}")
         link.session.send(Message.TabletStatus(TabletStatusPayload(kiosk)))
