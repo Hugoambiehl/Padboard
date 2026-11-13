@@ -2737,7 +2737,7 @@ name = "padboard-desktop"
 version = "0.1.0"
 dependencies = [
  "auto-launch",
- "base64 0.22.1",
+ "base64 0.23.1",
  "futures-util",
  "gethostname",
  "getrandom 0.4.3",
