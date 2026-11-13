@@ -6,10 +6,14 @@
 //! `auto-launch` writes it as is, and an unquoted path with spaces
 //! (`C:\Program Files\…`) in a `Run` value is the classic unquoted path flaw
 //! (Windows tries `C:\Program.exe` first).
+//!
+//! The entry is always the user's own (`HKCU` on Windows, never `HKLM`, even
+//! when the app runs elevated) and a `.desktop` file on Linux, not a systemd
+//! unit: the modes are set explicitly, not left to the crate's defaults.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use auto_launch::{AutoLaunch, AutoLaunchBuilder};
+use auto_launch::{AutoLaunch, AutoLaunchBuilder, LinuxLaunchMode, WindowsEnableMode};
 
 /// The entry's name (`Run` value, `<name>.desktop`).
 const NAME: &str = "Padboard";
@@ -31,6 +35,8 @@ impl Autostart {
                     .set_app_name(NAME)
                     .set_app_path(&quote(&exe))
                     .set_args(&[crate::tray::HIDDEN_ARG])
+                    .set_windows_enable_mode(WindowsEnableMode::CurrentUser)
+                    .set_linux_launch_mode(LinuxLaunchMode::XdgAutostart)
                     .build()
                     .map_err(|e| e.to_string())
             });
