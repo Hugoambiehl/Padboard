@@ -61,6 +61,12 @@ android {
     buildFeatures {
         compose = true
     }
+    dependenciesInfo {
+        // No dependency metadata blob (encrypted for Google Play) in the
+        // signing block: IzzyOnDroid and F-Droid flag it.
+        includeInApk = false
+        includeInBundle = false
+    }
     testOptions {
         unitTests.all {
             // Protocol fixtures shared with the Rust tests (cross-language contract).
