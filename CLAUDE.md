@@ -2,7 +2,7 @@
 
 DIY Stream Deck: a **desktop app** (Tauri 2) that executes actions on the PC, and
 an **Android app** (Kotlin + Compose) used as a touch control surface on a dedicated
-tablet. Private repo for now, will become open source.
+tablet. Public, open source repo (since v0.1.0).
 
 **Absolute rule: only free and open-source tools, libraries and APIs.** No paid API,
 nothing that requires approval, no Google Play Services / Firebase / ML Kit.
@@ -349,7 +349,8 @@ SM-T580, always measure in release builds.
   checked by `locales.test.ts`) and the texts sent to tablets (button states,
   folder subtitles, the demo profile created at first launch). Tablet:
   Android's language, English in `values/`, French in `values-fr/`.
-- **CI (private repo, Windows minutes count double)**: `.github/workflows/ci.yml`.
+- **CI** (set up while the repo was private, Windows minutes counting
+  double): `.github/workflows/ci.yml`.
   Windows job only on push to `main`, pull requests and manual runs
   (`workflow_dispatch`); cache Cargo, npm and Gradle; `concurrency` with
   `cancel-in-progress`. The frontend is built before any Rust job (the Tauri
@@ -374,7 +375,8 @@ SM-T580, always measure in release builds.
   bottom-right tile being pressed); `node scripts/icons.mjs` generates every
   file from it (desktop PNGs, multi-size `.ico`, tray PNGs, favicon (also the
   editor's header badge), Android adaptive + monochrome vector drawables,
-  `ic_padboard` for the tablet's headers). 32 px and below drop the halo
+  `ic_padboard` for the tablet's headers, the 512 px store listing icon in
+  `fastlane/`). 32 px and below drop the halo
   (blurry under a pixel). Never edit the generated icons by hand.
 - **Releases** (`docs/releasing.md`): one SemVer version for everything,
   `-rc.N` for release candidates. `scripts/release.sh X` writes it everywhere
@@ -405,7 +407,15 @@ SM-T580, always measure in release builds.
   dependency itself).
 - **Secret scanning**: gitleaks on the whole history in CI (`.gitleaks.toml`;
   the fixtures' fake token is allowed by value and path, not by commit, so
-  the exception survives a history rewrite).
+  the exception survives a history rewrite); GitHub secret scanning with
+  push protection, CodeQL default setup (Rust, JS/TS, Actions; Kotlin is
+  not analyzed: its autobuild looks for Gradle at the root), Dependabot
+  (monthly), private vulnerability reporting.
+- **Store listing** (IzzyOnDroid): fastlane metadata in
+  `fastlane/metadata/android/{en-US,fr-FR}` (descriptions, tablet
+  screenshots, a changelog per release versionCode, see
+  `docs/releasing.md`). No dependency info block in APKs
+  (`dependenciesInfo` off).
 
 ## Editor (phase 3) decisions
 

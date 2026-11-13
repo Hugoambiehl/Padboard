@@ -80,6 +80,31 @@ Bug reports, ideas and pull requests are welcome: see
 to build and test from the sources. Changes between versions:
 [CHANGELOG.md](CHANGELOG.md).
 
+## Code signing policy
+
+Every release file is built from this repository by the
+[release workflow](.github/workflows/release.yml) on GitHub Actions, from a
+tagged commit, and checksums are published with it (`SHA256SUMS`).
+
+- **Tablet app**: the APK built by the workflow is signed on the
+  maintainer's PC with the project's release key, which never leaves it
+  (certificate SHA-256 in [docs/android-release.md](docs/android-release.md)).
+- **Windows installer**: not signed yet. A free certificate for open
+  source projects has been requested; until then, Windows SmartScreen asks
+  for confirmation on first launch.
+
+Team roles:
+
+- Authors and committers: [Hugo Ambiehl](https://github.com/Hugoambiehl)
+- Reviewers (changes from contributors): [Hugo Ambiehl](https://github.com/Hugoambiehl)
+- Approvers (each signed release): [Hugo Ambiehl](https://github.com/Hugoambiehl)
+
+**Privacy**: this program will not transfer any information to other
+networked systems unless specifically requested by the user. The desktop
+app only talks to your own tablets (over USB, or over Wi-Fi once you turn
+it on and pair them) and, if you configure it, to OBS Studio; the tablet
+app only talks to the PC it is paired with.
+
 ## License
 
 Padboard is free software: you can redistribute it and/or modify it under
