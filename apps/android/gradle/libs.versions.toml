@@ -1,7 +1,7 @@
 [versions]
 agp = "9.5.1"
-kotlin = "2.2.10"
-composeBom = "2026.02.01"
+kotlin = "2.2.21"
+composeBom = "2026.09.00"
 # All libraries below support minSdk 26 (checked in their AAR manifests: 21–24).
 coreKtx = "1.19.1"
 lifecycle = "2.11.0"
@@ -10,7 +10,7 @@ datastore = "1.3.0"
 okhttp = "5.5.1"
 # 1.9.x is the last line built with Kotlin 2.2 (1.10+ needs Kotlin 2.3).
 kotlinxSerialization = "1.9.0"
-kotlinxCoroutines = "1.10.2"
+kotlinxCoroutines = "1.11.0"
 ktlintGradle = "14.2.0"
 # Third-party license check and in-app list (1.14.x: last line supporting Gradle 8, works with 9).
 licensee = "1.14.1"
