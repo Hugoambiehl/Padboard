@@ -1,0 +1,1 @@
+Initial release: button grid with pages and folders, USB and Wi-Fi (TLS, PIN pairing), automatic reconnection, kiosk mode, screensaver.

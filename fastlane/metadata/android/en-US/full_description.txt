@@ -1,0 +1,24 @@
+<p>Padboard turns an Android tablet into a touch control surface for your PC: a grid of buttons that run keyboard shortcuts, control the media and the sound, open apps and websites, or drive OBS Studio. Like a stream deck, with a tablet you may already have.</p>
+
+<p><b>This app needs the Padboard desktop app</b> (free, for Windows 10/11 and Linux), where you design the buttons and which runs the actions: <a href="https://github.com/Hugoambiehl/Padboard">github.com/Hugoambiehl/Padboard</a>.</p>
+
+<p><b>What the buttons can do</b></p>
+<ul>
+<li>Keyboard shortcuts, media controls (play/pause, next, previous)</li>
+<li>Volume, sound output and microphone mute</li>
+<li>Open a website, a file, a folder or a program; lock the session</li>
+<li>Pages, folders and multi actions</li>
+<li>OBS Studio: scenes, recording, streaming, audio inputs</li>
+</ul>
+<p>Buttons show the PC's state live: microphone muted, media playing, active OBS scene, REC and LIVE.</p>
+
+<p><b>Connection</b></p>
+<ul>
+<li>USB cable: no setup, the cable is the proof of trust (USB debugging must be enabled).</li>
+<li>Wi-Fi: encrypted (TLS), paired once with a 6-digit code; the tablet pins the PC's key.</li>
+</ul>
+<p>No account, no cloud, no ads, no tracking: the PC and the tablet only talk to each other.</p>
+
+<p><b>For a dedicated tablet</b>: an optional kiosk mode locks the tablet on Padboard (it becomes the home app, set from the PC over USB and released from the PC or by holding a corner), with a screensaver showing the time.</p>
+
+<p>Built for low-end tablets (tested on a Galaxy Tab A 10.1 from 2016), Android 8 and later, no Google services. In English and French. Free software under the GPL-3.0-or-later.</p>

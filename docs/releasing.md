@@ -77,3 +77,10 @@ release `-rc.N+1`.
   release candidate needs `sudo apt install --allow-downgrades ./Padboard_0.1.0_amd64.deb`.
 - A manual run of the workflow (`gh workflow run Release --ref main`) builds
   the same files as artifacts (7 days), without a release.
+- The tablet's store listing (IzzyOnDroid, F-Droid clients) is read from
+  `fastlane/metadata/android/<locale>/`: descriptions, screenshots
+  (`images/tenInchScreenshots/`, taken on the tablet with a neutral PC
+  name: the top bar shows the PC's hostname) and one changelog per
+  release, `changelogs/<versionCode>.txt` in English and French, under 500
+  characters. Write it before step 1 (no file for release candidates).
+  The icon comes from `scripts/icons.mjs`.

@@ -1,0 +1,1 @@
+Première version : grille de boutons avec pages et dossiers, USB et Wi-Fi (TLS, appairage par code), reconnexion automatique, mode kiosque, écran de veille.

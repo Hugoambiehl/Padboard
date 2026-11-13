@@ -1,0 +1,24 @@
+<p>Padboard transforme une tablette Android en surface de contrôle tactile pour votre PC : une grille de boutons qui lancent des raccourcis clavier, pilotent les médias et le son, ouvrent des applications et des sites, ou contrôlent OBS Studio. Comme un stream deck, avec une tablette que vous avez peut-être déjà.</p>
+
+<p><b>Cette application a besoin de l'application Padboard pour PC</b> (gratuite, pour Windows 10/11 et Linux), où l'on crée les boutons et qui exécute les actions : <a href="https://github.com/Hugoambiehl/Padboard">github.com/Hugoambiehl/Padboard</a>.</p>
+
+<p><b>Ce que font les boutons</b></p>
+<ul>
+<li>Raccourcis clavier, commandes médias (lecture/pause, suivant, précédent)</li>
+<li>Volume, coupure du son et du micro</li>
+<li>Ouvrir un site, un fichier, un dossier ou un programme ; verrouiller la session</li>
+<li>Pages, dossiers et actions multiples</li>
+<li>OBS Studio : scènes, enregistrement, diffusion, sources audio</li>
+</ul>
+<p>Les boutons montrent l'état du PC en direct : micro coupé, média en lecture, scène OBS active, REC et EN DIRECT.</p>
+
+<p><b>Connexion</b></p>
+<ul>
+<li>Câble USB : rien à configurer, le câble fait office de preuve de confiance (le débogage USB doit être activé).</li>
+<li>Wi-Fi : chiffré (TLS), appairé une fois avec un code à 6 chiffres ; la tablette épingle la clé du PC.</li>
+</ul>
+<p>Pas de compte, pas de cloud, pas de publicité, pas de pistage : le PC et la tablette ne parlent qu'entre eux.</p>
+
+<p><b>Pour une tablette dédiée</b> : un mode kiosque facultatif verrouille la tablette sur Padboard (elle devient l'écran d'accueil ; activé depuis le PC en USB, libéré depuis le PC ou en maintenant un coin), avec un écran de veille qui affiche l'heure.</p>
+
+<p>Pensée pour les tablettes modestes (testée sur une Galaxy Tab A 10.1 de 2016), Android 8 et plus, sans services Google. En anglais et en français. Logiciel libre sous licence GPL-3.0-or-later.</p>
