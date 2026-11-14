@@ -30,6 +30,8 @@ const status: Snapshot = {
       mdns: { state: "announced" },
     },
     invalidSettings: [],
+    appVersion: "0.2.0",
+    appVersionCode: 20099,
   },
   clients: [
     {
@@ -52,7 +54,10 @@ const status: Snapshot = {
   ],
   pairing: { state: "idle" },
   pairedDevices: [],
-  outdatedTablets: [],
+  outdatedTablets:
+    new URLSearchParams(location.search).get("outdated") === "1"
+      ? [{ deviceId: "old", deviceName: "Galaxy Tab S2", atMs: Date.now() }]
+      : [],
   usb: {
     adb: { state: "ready", path: "/usr/bin/adb", version: "1.0.41" },
     devices: [
@@ -61,6 +66,7 @@ const status: Snapshot = {
         model: "SM-T580",
         state: { state: "ready" },
         kiosk: { state: "off" },
+        app: { name: "0.1.0", code: 10099 },
       },
     ],
   },
@@ -160,6 +166,8 @@ export function install() {
           return "0.1.0";
         case "get_updates":
           return updates();
+        case "update_usb_tablet":
+          return new Promise((resolve) => setTimeout(() => resolve("0.2.0"), 1500));
         default:
           return null;
       }

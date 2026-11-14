@@ -27,6 +27,8 @@ use tokio::time::{sleep, timeout};
 const PACKAGE: &str = "io.github.hugoambiehl.padboard";
 const DEFAULT_SERVER_PORT: u16 = 5037;
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(10);
+/// `adb install` copies and installs the APK: longer.
+const INSTALL_TIMEOUT: Duration = Duration::from_secs(180);
 const RECHECK_EVERY: Duration = Duration::from_secs(5);
 const RETRY_MIN: Duration = Duration::from_secs(1);
 const RETRY_MAX: Duration = Duration::from_secs(10);
@@ -81,6 +83,48 @@ pub struct UsbDevice {
     pub state: DeviceState,
     /// Kiosk mode, read with `dpm list-owners` once Padboard is found.
     pub kiosk: KioskState,
+    /// The installed Padboard's version, read with `dumpsys package`.
+    pub app: Option<AppVersion>,
+}
+
+/// An installed app's version.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppVersion {
+    pub name: Option<String>,
+    pub code: u32,
+}
+
+/// Why the tablet could not be updated over USB. Codes, translated by the UI.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, thiserror::Error)]
+#[serde(tag = "code", rename_all = "camelCase")]
+pub enum UsbUpdateError {
+    #[error("adb is not used in test mode")]
+    TestMode,
+    #[error("adb not found")]
+    NoAdb,
+    #[error("this tablet is already being updated")]
+    Busy,
+    /// The APK of this PC's version is not available.
+    #[error("{error}")]
+    Apk {
+        error: crate::updates::tablet::ApkError,
+    },
+    /// Padboard is not installed (the tablet is set up by hand the first time).
+    #[error("Padboard is not installed on the tablet")]
+    NoPadboard,
+    /// The installed version is this one or newer: nothing to do (and never
+    /// a downgrade).
+    #[error("the tablet already has this version or a newer one")]
+    NotNewer,
+    /// The installed app is signed with another key (a debug build): it must
+    /// be uninstalled by hand first (its data is lost).
+    #[error("the installed app is signed with another key")]
+    SignatureMismatch,
+    #[error("not enough space on the tablet")]
+    Storage,
+    #[error("{detail}")]
+    Failed { detail: String },
 }
 
 /// Who owns the device (kiosk mode is Padboard being the device owner).
@@ -201,7 +245,12 @@ impl Runner for Process {
         // No console window flashing for each command on Windows.
         #[cfg(windows)]
         command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-        let output = match timeout(COMMAND_TIMEOUT, command.output()).await {
+        let limit = if args.iter().any(|a| a == "install") {
+            INSTALL_TIMEOUT
+        } else {
+            COMMAND_TIMEOUT
+        };
+        let output = match timeout(limit, command.output()).await {
             Ok(Ok(output)) => output,
             Ok(Err(e)) => return Err(e.to_string()),
             Err(_) => return Err(format!("adb {} timed out", args.join(" "))),
@@ -344,6 +393,96 @@ fn refusal(output: &str) -> KioskError {
     }
 }
 
+/// The installed Padboard's version (`None`: not installed or unreadable).
+pub async fn app_version<R: Runner>(runner: &R, adb: &Path, serial: &str) -> Option<AppVersion> {
+    let out = runner
+        .run(
+            adb,
+            shell_args(serial, &format!("dumpsys package {PACKAGE}")),
+        )
+        .await
+        .ok()?;
+    parse_app_version(&out)
+}
+
+/// `versionCode=10099 minSdk=26 targetSdk=36` and `versionName=0.1.0`
+/// lines of `dumpsys package` (the first package section).
+fn parse_app_version(out: &str) -> Option<AppVersion> {
+    let field = |key: &str| {
+        out.split_whitespace()
+            .find_map(|word| word.strip_prefix(key))
+            .map(str::to_owned)
+    };
+    let code = field("versionCode=")?.parse().ok()?;
+    Some(AppVersion {
+        name: field("versionName="),
+        code,
+    })
+}
+
+/// Installs `apk` (version `code`) over the Padboard of the tablet `serial`,
+/// keeping its data (`adb install -r`, never `-d`: Android refuses a lower
+/// version, and an APK signed with another key). In kiosk mode the app
+/// comes back in front by itself (`KioskUpdated`).
+///
+/// # Errors
+/// Why it was not installed.
+pub async fn install_update<R: Runner>(
+    runner: &R,
+    adb: &Path,
+    serial: &str,
+    apk: &Path,
+    code: u32,
+) -> Result<(), UsbUpdateError> {
+    let installed = app_version(runner, adb, serial)
+        .await
+        .ok_or(UsbUpdateError::NoPadboard)?;
+    if installed.code >= code {
+        return Err(UsbUpdateError::NotNewer);
+    }
+    let args = vec![
+        "-s".to_owned(),
+        serial.to_owned(),
+        "install".to_owned(),
+        "-r".to_owned(),
+        apk.display().to_string(),
+    ];
+    match runner.run(adb, args).await {
+        Ok(out) if !out.contains("Failure") => {
+            tracing::info!(
+                serial,
+                from = installed.code,
+                to = code,
+                "tablet updated over USB"
+            );
+            Ok(())
+        }
+        Ok(out) | Err(out) => {
+            tracing::warn!(serial, output = out.trim(), "adb install failed");
+            Err(install_refusal(&out))
+        }
+    }
+}
+
+/// `Failure [INSTALL_FAILED_…: details]` → a code.
+fn install_refusal(output: &str) -> UsbUpdateError {
+    if output.contains("INSTALL_FAILED_UPDATE_INCOMPATIBLE") {
+        UsbUpdateError::SignatureMismatch
+    } else if output.contains("INSTALL_FAILED_VERSION_DOWNGRADE") {
+        UsbUpdateError::NotNewer
+    } else if output.contains("INSTALL_FAILED_INSUFFICIENT_STORAGE") {
+        UsbUpdateError::Storage
+    } else {
+        let detail = output
+            .lines()
+            .find(|l| l.contains("Failure") || l.contains("failed"))
+            .unwrap_or_else(|| output.lines().next().unwrap_or_default())
+            .trim()
+            .to_owned();
+        UsbUpdateError::Failed { detail }
+    }
+}
+
 // ─── adb server protocol ─────────────────────────────────────────────────
 
 #[derive(Debug, thiserror::Error)]
@@ -440,6 +579,7 @@ struct Setup {
     model: Option<String>,
     state: DeviceState,
     kiosk: KioskState,
+    app: Option<AppVersion>,
 }
 
 /// Runs forever: finds `adb`, tracks devices, sets them up. Restarts when the
@@ -574,12 +714,12 @@ async fn session<R: Runner + Clone>(
                         spawn_setup(&adb, runner, config.usb_port, &serial, &setups_tx);
                     }
                     let model = devices.get(&serial).and_then(|d| d.model.clone());
-                    devices.insert(serial.clone(), UsbDevice { serial, model, state, kiosk: KioskState::Unknown });
+                    devices.insert(serial.clone(), UsbDevice { serial, model, state, kiosk: KioskState::Unknown, app: None });
                 }
             }
             Some(setup) = setups.recv() => {
                 let Some(device) = devices.get_mut(&setup.serial) else { continue };
-                if device.state == setup.state && device.model == setup.model && device.kiosk == setup.kiosk {
+                if device.state == setup.state && device.model == setup.model && device.kiosk == setup.kiosk && device.app == setup.app {
                     continue;
                 }
                 match &setup.state {
@@ -590,6 +730,7 @@ async fn session<R: Runner + Clone>(
                 device.state = setup.state;
                 device.model = setup.model.or(device.model.take());
                 device.kiosk = setup.kiosk;
+                device.app = setup.app;
             }
             Some(()) = refresh.recv() => {
                 for device in devices.values().filter(|d| d.state == DeviceState::Ready) {
@@ -635,11 +776,17 @@ fn spawn_setup<R: Runner + Clone>(
     let results = results.clone();
     tokio::spawn(async move {
         let (model, state, kiosk) = setup(&adb, &runner, usb_port, &serial).await;
+        let app = if matches!(state, DeviceState::Ready | DeviceState::Failed { .. }) {
+            app_version(&runner, &adb, &serial).await
+        } else {
+            None
+        };
         let _ = results.send(Setup {
             serial,
             model,
             state,
             kiosk,
+            app,
         });
     });
 }
@@ -763,6 +910,10 @@ java.lang.IllegalStateException: Trying to set the device owner, but device owne
         /// `list-owners` calls answered "no owners" whatever the truth
         /// (the owner was set in the meantime).
         stale_lists: Arc<Mutex<u32>>,
+        /// The installed Padboard's `versionCode`.
+        version_code: Arc<Mutex<u32>>,
+        /// What `adb install` prints.
+        install_answer: Arc<Mutex<String>>,
     }
 
     impl FakeRunner {
@@ -825,6 +976,25 @@ java.lang.IllegalStateException: Trying to set the device owner, but device owne
                     }
                     ["shell", "am", "start", "-n", _] => Ok(String::new()),
                     ["shell", "content", "insert", ..] => Ok(String::new()),
+                    ["shell", "dumpsys", "package", _] => {
+                        if self.installed.lock().unwrap().contains(serial) {
+                            let code = *self.version_code.lock().unwrap();
+                            Ok(format!(
+                                "Packages:\n  Package [io.github.hugoambiehl.padboard] (1a2b):\n    versionCode={code} minSdk=26 targetSdk=36\n    versionName=0.1.0\n"
+                            ))
+                        } else {
+                            Ok("Unable to find package".into())
+                        }
+                    }
+                    ["install", "-r", _] => {
+                        let answer = self.install_answer.lock().unwrap().clone();
+                        if answer.contains("Success") {
+                            *self.version_code.lock().unwrap() = 30_099;
+                            Ok(answer)
+                        } else {
+                            Err(answer)
+                        }
+                    }
                     _ => Err(format!("unexpected {line}")),
                 },
                 _ => Ok("Android Debug Bridge version 1.0.41\n".into()),
@@ -833,6 +1003,84 @@ java.lang.IllegalStateException: Trying to set the device owner, but device owne
     }
 
     const OWNER: &str = "io.github.hugoambiehl.padboard/.kiosk.KioskAdmin";
+
+    #[test]
+    fn reads_the_installed_version() {
+        let out = "Packages:\n  Package [io.github.hugoambiehl.padboard] (1a2b):\n    userId=10123\n    versionCode=10099 minSdk=26 targetSdk=36\n    versionName=0.1.0\n";
+        assert_eq!(
+            parse_app_version(out),
+            Some(AppVersion {
+                name: Some("0.1.0".into()),
+                code: 10_099
+            })
+        );
+        assert_eq!(parse_app_version("Unable to find package"), None);
+    }
+
+    fn update_runner(code: u32, answer: &str) -> FakeRunner {
+        let runner = FakeRunner::default();
+        runner.installed.lock().unwrap().push("tab".into());
+        *runner.version_code.lock().unwrap() = code;
+        *runner.install_answer.lock().unwrap() = answer.into();
+        runner
+    }
+
+    #[tokio::test]
+    async fn an_older_tablet_is_updated_with_adb_install() {
+        let runner = update_runner(10_099, "Performing Streamed Install\nSuccess\n");
+        let apk = Path::new("/cache dir/padboard-0.3.0.apk");
+        install_update(&runner, Path::new("adb"), "tab", apk, 30_099)
+            .await
+            .unwrap();
+        assert_eq!(
+            runner.calls_matching("-s tab install -r /cache dir/padboard-0.3.0.apk"),
+            1
+        );
+        assert_eq!(runner.calls_matching(" -d"), 0, "never a downgrade");
+    }
+
+    #[tokio::test]
+    async fn usb_updates_are_refused_when_they_must_be() {
+        let adb = Path::new("adb");
+        let apk = Path::new("padboard.apk");
+        // Same or newer version: nothing run.
+        let runner = update_runner(30_099, "Success");
+        assert_eq!(
+            install_update(&runner, adb, "tab", apk, 30_099).await,
+            Err(UsbUpdateError::NotNewer)
+        );
+        assert_eq!(runner.calls_matching("install"), 0);
+        // Not installed.
+        let runner = FakeRunner::default();
+        assert_eq!(
+            install_update(&runner, adb, "tab", apk, 30_099).await,
+            Err(UsbUpdateError::NoPadboard)
+        );
+        // Android's refusals.
+        for (answer, error) in [
+            (
+                "adb: failed to install padboard.apk: Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Package io.github.hugoambiehl.padboard signatures do not match previously installed version; ignoring!]",
+                UsbUpdateError::SignatureMismatch,
+            ),
+            (
+                "adb: failed to install padboard.apk: Failure [INSTALL_FAILED_VERSION_DOWNGRADE]",
+                UsbUpdateError::NotNewer,
+            ),
+            (
+                "adb: failed to install padboard.apk: Failure [INSTALL_FAILED_INSUFFICIENT_STORAGE]",
+                UsbUpdateError::Storage,
+            ),
+            (
+                "adb: failed to install padboard.apk: Failure [INSTALL_PARSE_FAILED_NO_CERTIFICATES]",
+                UsbUpdateError::Failed {
+                    detail: "adb: failed to install padboard.apk: Failure [INSTALL_PARSE_FAILED_NO_CERTIFICATES]".into(),
+                },
+            ),
+        ] {
+            let runner = update_runner(10_099, answer);
+            assert_eq!(install_update(&runner, adb, "tab", apk, 30_099).await, Err(error));
+        }
+    }
 
     #[test]
     fn reads_the_device_owner() {

@@ -427,6 +427,19 @@ SM-T580, always measure in release builds.
   `types/updates.ts` mirrors `UpdatesView` by hand. The plugin's Windows
   path cannot be cross-checked from Linux (ring needs MSVC's `lib.exe`):
   CI's Windows job builds it.
+- **Tablet updates from the PC**: always to the PC's own version (the
+  APK of the same release; a development version, outside the
+  `versionCode` scheme, offers nothing). `updates/tablet.rs` downloads
+  `SHA256SUMS`, its `.sig` and the APK into `<config>/updates/`, checks
+  the signature (bound to the version) and the hash every time it is used,
+  keeps only the current version. USB (any tablet with Padboard, kiosk or
+  not, any protocol): the version is read with `dumpsys package`
+  (`UsbDevice.app`), then `adb install -r` (never `-d`), 180 s timeout,
+  Android's refusals mapped to codes (`UsbUpdateError`). Wi-Fi: kiosk
+  tablets only, over the connection (protocol 5 core). The device owner
+  installs without `REQUEST_INSTALL_PACKAGES` (AOSP
+  `computeUserActionRequirement` waives it, 8.0 and 12L checked): the
+  permission is not declared.
 - **Tray and startup** (`tray.rs`): the icon's menu opens the window,
   shows the connected tablets, quits. Closing the window hides it there
   (explained once by a dialog, `closeHintShown` in `preferences.json`);

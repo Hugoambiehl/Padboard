@@ -88,6 +88,10 @@ struct Backend {
     /// (tests never touch the real autostart).
     autostart: autostart::Autostart,
     updates: updates::Updates,
+    /// The tablet APK of this PC's version (downloaded and checked once).
+    apks: Arc<updates::tablet::Apks>,
+    /// USB tablets being updated (one install at a time per device).
+    usb_updating: Mutex<std::collections::HashSet<String>>,
 }
 
 impl Backend {
@@ -302,6 +306,48 @@ async fn enable_kiosk(
         .unwrap_or_else(PoisonError::into_inner)
         .remove(&serial);
     // The device row shows the kiosk state read again, whatever happened.
+    let _ = backend.adb_refresh.send(());
+    outcome
+}
+
+/// Updates the USB tablet `serial` to this PC's version: the APK of the
+/// same release, checked against the signed `SHA256SUMS`, then
+/// `adb install -r`. Returns the version installed.
+#[tauri::command]
+async fn update_usb_tablet(
+    backend: tauri::State<'_, Backend>,
+    serial: String,
+) -> Result<String, adb::UsbUpdateError> {
+    if !backend.adb_allowed {
+        return Err(adb::UsbUpdateError::TestMode);
+    }
+    let chosen = backend.adb_path.borrow().clone();
+    let adb = adb::locate(chosen.as_deref()).ok_or(adb::UsbUpdateError::NoAdb)?;
+    let fresh = backend
+        .usb_updating
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .insert(serial.clone());
+    if !fresh {
+        return Err(adb::UsbUpdateError::Busy);
+    }
+    tracing::info!(%serial, version = backend.apks.version(), "updating a USB tablet");
+    let outcome = async {
+        let apk = backend
+            .apks
+            .get()
+            .await
+            .map_err(|error| adb::UsbUpdateError::Apk { error })?;
+        adb::install_update(&adb::Process, &adb, &serial, &apk.path, apk.version_code).await?;
+        Ok(apk.version)
+    }
+    .await;
+    backend
+        .usb_updating
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .remove(&serial);
+    // The device row shows the version read again.
     let _ = backend.adb_refresh.send(());
     outcome
 }
@@ -535,6 +581,7 @@ pub fn run() {
             set_wifi_enabled,
             set_adb_path,
             enable_kiosk,
+            update_usb_tablet,
             exit_kiosk,
             get_screensaver,
             set_screensaver,
@@ -783,6 +830,7 @@ pub fn run() {
             );
             tauri::async_runtime::spawn(updates.clone().run());
 
+            let apks = Arc::new(updates::tablet::Apks::new(config.root().join("updates")));
             autostart.refresh();
             app.manage(Backend {
                 config,
@@ -799,6 +847,8 @@ pub fn run() {
                 kiosk_busy: Mutex::default(),
                 autostart,
                 updates,
+                apks,
+                usb_updating: Mutex::default(),
             });
 
             // Quitting from a signal (session logout, Ctrl+C in a terminal)

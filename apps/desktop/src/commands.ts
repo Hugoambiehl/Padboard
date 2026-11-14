@@ -10,6 +10,8 @@ export const revokeDevice = (deviceId: string) => invoke<boolean>("revoke_device
 export const setWifiEnabled = (enabled: boolean) => invoke<void>("set_wifi_enabled", { enabled });
 export const setAdbPath = (path: string | null) => invoke<void>("set_adb_path", { path });
 export const enableKiosk = (serial: string) => invoke<void>("enable_kiosk", { serial });
+/** Installs this PC's version on the USB tablet (`adb install -r`); the version installed. */
+export const updateUsbTablet = (serial: string) => invoke<string>("update_usb_tablet", { serial });
 export const exitKiosk = (clientId: number) => invoke<boolean>("exit_kiosk", { clientId });
 
 /** Screensaver of the tablets (`preferences.rs`). */

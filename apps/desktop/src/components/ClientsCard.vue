@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { Lock, Tablet } from "lucide-vue-next";
+import { Lock, Tablet, TriangleAlert } from "lucide-vue-next";
 import BaseCard from "./BaseCard.vue";
 import { exitKiosk } from "../commands";
-import type { ClientInfo } from "../types/status";
+import type { ClientInfo, OutdatedTablet } from "../types/status";
 
-defineProps<{ clients: ClientInfo[] }>();
+defineProps<{
+  clients: ClientInfo[];
+  /** Paired tablets turned away: too old to be updated over Wi-Fi. */
+  outdated: OutdatedTablet[];
+  /** This PC's tablet versionCode. */
+  appVersionCode: number | null;
+}>();
 const { t, d } = useI18n();
 
 /** Tablet whose release from kiosk mode waits for a second click. */
@@ -43,6 +49,9 @@ async function release(id: number) {
             <span class="truncate text-sm font-medium">{{ c.deviceName }}</span>
             <span class="text-xs text-muted">
               {{ t("clients.since", { time: d(new Date(c.connectedAtMs), "time") }) }}
+              <template v-if="c.tablet.appVersion">
+                · {{ t("tabletUpdate.version", { version: c.tablet.appVersion }) }}
+              </template>
             </span>
           </div>
           <span
@@ -56,8 +65,17 @@ async function release(id: number) {
             {{ t(`clients.via.${c.transport}`) }}
           </span>
         </div>
+        <p v-if="c.tablet.updateOnly" class="text-xs text-cat-orange" :data-update-only="c.id">
+          {{
+            appVersionCode != null &&
+            c.tablet.appVersionCode != null &&
+            c.tablet.appVersionCode > appVersionCode
+              ? t("tabletUpdate.pcOutdated")
+              : t("tabletUpdate.updateOnly")
+          }}
+        </p>
         <button
-          v-if="c.kiosk"
+          v-if="c.kiosk && !c.tablet.updateOnly"
           type="button"
           class="self-end rounded-lg border px-2.5 py-1.5 text-xs transition-colors"
           :class="
@@ -72,6 +90,15 @@ async function release(id: number) {
         </button>
       </li>
     </ul>
+    <p
+      v-for="o in outdated"
+      :key="o.deviceId"
+      class="flex items-start gap-2 rounded-xl border border-cat-orange/40 bg-cat-orange/10 p-3 text-xs text-[#F3D2BA]"
+      data-outdated
+    >
+      <TriangleAlert :size="14" class="mt-0.5 shrink-0" aria-hidden="true" />
+      {{ t("tabletUpdate.outdated", { name: o.deviceName }) }}
+    </p>
     <p v-if="error" class="text-sm text-cat-red">{{ error }}</p>
   </BaseCard>
 </template>

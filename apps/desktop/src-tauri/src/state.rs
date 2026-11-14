@@ -50,6 +50,11 @@ pub struct ServerStatus {
     pub wifi: WifiStatus,
     /// Environment values that were ignored.
     pub invalid_settings: Vec<InvalidSetting>,
+    /// This PC's version: tablets with an older app are offered it.
+    pub app_version: String,
+    /// Its tablet `versionCode` (`None` for a development version: no
+    /// update offered).
+    pub app_version_code: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -169,6 +174,8 @@ impl Snapshot {
         let wifi_starting = wifi_enabled && tls_error.is_none();
         Self {
             server: ServerStatus {
+                app_version: env!("CARGO_PKG_VERSION").to_owned(),
+                app_version_code: crate::updates::assets::version_code(env!("CARGO_PKG_VERSION")),
                 name: server_name,
                 usb: ListenerStatus {
                     state: ListenerState::Starting,

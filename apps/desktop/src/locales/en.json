@@ -143,6 +143,33 @@
       }
     }
   },
+  "tabletUpdate": {
+    "version": "Padboard {version}",
+    "update": "Update to {version}",
+    "updating": "Updating…",
+    "updated": "Version {version} installed.",
+    "hint": "Installs this PC’s version on the tablet, checked before it is sent. Settings and pairing are kept.",
+    "usb": {
+      "testMode": "Test mode does not use adb.",
+      "noAdb": "adb was not found.",
+      "busy": "This tablet is already being updated.",
+      "noPadboard": "Padboard is not installed on the tablet.",
+      "notNewer": "The tablet already has this version or a newer one.",
+      "signatureMismatch": "The version on the tablet is signed with another key (a development build): uninstall it first (the Wi-Fi pairing will be lost).",
+      "storage": "Not enough space on the tablet.",
+      "failed": "The tablet refused: {detail}"
+    },
+    "apk": {
+      "noKey": "This build of Padboard cannot check updates.",
+      "notPublished": "Version {version} is not published (or not signed yet): nothing to install.",
+      "network": "Cannot download the update: {detail}",
+      "signature": "The download is not signed for this version: refused ({detail}).",
+      "storage": "Cannot store the update: {detail}"
+    },
+    "outdated": "{name} has a version of Padboard too old to be updated over Wi-Fi: plug it in over USB to update it.",
+    "updateOnly": "Not the same version as this PC: it can only be updated.",
+    "pcOutdated": "The tablet is newer than this PC: update Padboard on this PC."
+  },
   "common": {
     "cancel": "Cancel",
     "create": "Create",

@@ -46,6 +46,10 @@ export interface ServerStatus {
   usb: ListenerStatus;
   wifi: WifiStatus;
   invalidSettings: InvalidSetting[];
+  /** This PC's version: tablets with an older app are offered it. */
+  appVersion: string;
+  /** Its tablet versionCode (null for a development version). */
+  appVersionCode: number | null;
 }
 
 export interface ClientInfo {
@@ -130,10 +134,33 @@ export type KioskError =
   | { code: "otherOwner"; owner: string }
   | { code: "failed"; detail: string };
 
+/** Why a USB tablet could not be updated (adb.rs `UsbUpdateError`). */
+export type UsbUpdateError =
+  | {
+      code:
+        "testMode" | "noAdb" | "busy" | "noPadboard" | "notNewer" | "signatureMismatch" | "storage";
+    }
+  | { code: "apk"; error: ApkError }
+  | { code: "failed"; detail: string };
+
+/** Why the tablet APK is not available (updates/tablet.rs `ApkError`). */
+export type ApkError =
+  | { code: "noKey" }
+  | { code: "notPublished"; version: string }
+  | { code: "network" | "signature" | "storage"; detail: string };
+
+/** An installed app's version (adb.rs `AppVersion`). */
+export interface AppVersion {
+  name: string | null;
+  code: number;
+}
+
 export interface UsbDevice {
   serial: string;
   model: string | null;
   state: DeviceState;
+  /** The installed Padboard's version. */
+  app: AppVersion | null;
   kiosk: KioskState;
 }
 

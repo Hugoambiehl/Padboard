@@ -29,13 +29,22 @@ const { t } = useI18n();
     </button>
     <div class="grid gap-5 md:grid-cols-2">
       <ServerCard :server="snapshot.server" />
-      <ClientsCard :clients="snapshot.clients" />
+      <ClientsCard
+        :clients="snapshot.clients"
+        :outdated="snapshot.outdatedTablets"
+        :app-version-code="snapshot.server.appVersionCode"
+      />
       <PairedDevicesCard
         :devices="snapshot.pairedDevices"
         :clients="snapshot.clients"
         @pair="$emit('pair')"
       />
-      <UsbCard :usb="snapshot.usb" :port="snapshot.server.usb.port" />
+      <UsbCard
+        :usb="snapshot.usb"
+        :port="snapshot.server.usb.port"
+        :app-version="snapshot.server.appVersion"
+        :app-version-code="snapshot.server.appVersionCode"
+      />
       <ObsCard />
       <ScreensaverCard />
       <StartupCard />

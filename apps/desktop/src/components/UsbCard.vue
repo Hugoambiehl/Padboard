@@ -2,13 +2,20 @@
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Cable, FolderOpen, Lock, RotateCcw } from "lucide-vue-next";
+import { Cable, Download, FolderOpen, Lock, RotateCcw } from "lucide-vue-next";
 import BaseCard from "./BaseCard.vue";
-import { enableKiosk, setAdbPath } from "../commands";
+import { enableKiosk, setAdbPath, updateUsbTablet } from "../commands";
 import type { DeviceState, UsbStatus } from "../types/status";
 import { kioskErrorMessage } from "../usb/kiosk";
+import { needsUpdate, usbUpdateErrorMessage } from "../usb/update";
 
-const props = defineProps<{ usb: UsbStatus; port: number }>();
+const props = defineProps<{
+  usb: UsbStatus;
+  port: number;
+  /** This PC's version, offered to older tablets. */
+  appVersion: string;
+  appVersionCode: number | null;
+}>();
 const { t } = useI18n();
 const error = ref<string | null>(null);
 
@@ -33,6 +40,33 @@ async function kiosk(serial: string) {
     kioskError.value = { ...kioskError.value, [serial]: t(key, params) };
   } finally {
     enabling.value = null;
+  }
+}
+
+/**
+ * USB updates: the device being updated (one at a time, like kiosk mode),
+ * and the last outcome per device (installed version, or why not).
+ */
+const updating = ref<string | null>(null);
+const updateOutcome = ref<Record<string, { ok: boolean; text: string }>>({});
+
+async function update(serial: string) {
+  if (updating.value) return;
+  updating.value = serial;
+  updateOutcome.value = Object.fromEntries(
+    Object.entries(updateOutcome.value).filter(([key]) => key !== serial),
+  );
+  try {
+    const version = await updateUsbTablet(serial);
+    updateOutcome.value = {
+      ...updateOutcome.value,
+      [serial]: { ok: true, text: t("tabletUpdate.updated", { version }) },
+    };
+  } catch (e) {
+    const { key, params } = usbUpdateErrorMessage(e);
+    updateOutcome.value = { ...updateOutcome.value, [serial]: { ok: false, text: t(key, params) } };
+  } finally {
+    updating.value = null;
   }
 }
 
@@ -150,6 +184,37 @@ async function automatic() {
                 {{ t(`usbDevices.state.${device.state.state}`, { port }) }}
               </template>
             </span>
+            <span v-if="device.app?.name" class="text-xs text-muted-2" data-app-version>
+              {{ t("tabletUpdate.version", { version: device.app.name }) }}
+            </span>
+            <button
+              v-if="
+                (device.state.state === 'ready' || device.state.state === 'failed') &&
+                needsUpdate(device.app?.code, appVersionCode)
+              "
+              type="button"
+              class="mt-1.5 flex items-center gap-1.5 self-start rounded-lg bg-accent px-2.5 py-1.5 text-xs font-medium text-[#0E0F12] transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50"
+              :disabled="updating !== null || enabling !== null"
+              :aria-busy="updating === device.serial"
+              :title="t('tabletUpdate.hint')"
+              data-usb-update
+              @click="update(device.serial)"
+            >
+              <Download :size="13" aria-hidden="true" />
+              {{
+                updating === device.serial
+                  ? t("tabletUpdate.updating")
+                  : t("tabletUpdate.update", { version: appVersion })
+              }}
+            </button>
+            <span
+              v-if="updateOutcome[device.serial]"
+              class="text-xs"
+              :class="updateOutcome[device.serial]!.ok ? 'text-cat-teal' : 'text-cat-red'"
+              data-usb-update-outcome
+            >
+              {{ updateOutcome[device.serial]!.text }}
+            </span>
             <template v-if="device.state.state === 'ready'">
               <span
                 v-if="device.kiosk.state === 'on'"
@@ -170,7 +235,7 @@ async function automatic() {
                 v-else
                 type="button"
                 class="mt-1.5 self-start rounded-lg border border-line-2 bg-surface px-2.5 py-1.5 text-xs text-muted-2 transition-colors hover:bg-surface-active hover:text-fg disabled:cursor-wait disabled:opacity-50"
-                :disabled="enabling !== null"
+                :disabled="enabling !== null || updating !== null"
                 :aria-busy="enabling === device.serial"
                 :title="t('usbDevices.kiosk.hint')"
                 @click="kiosk(device.serial)"

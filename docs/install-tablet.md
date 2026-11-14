@@ -16,8 +16,19 @@ Download `padboard-<version>.apk` from the
 - **On the tablet**: open the APK from the browser or a file manager and
   allow that app to *install unknown apps* when Android asks.
 
-Updates install the same way, over the existing app (`adb install -r …`):
-your pairing is kept. Every release is signed with the same key; its
+### Updates
+
+**From the Padboard app on the PC** (from version 0.2 on): when the tablet
+has an older version than the PC, plug it in over USB and click **Update
+to X** next to it in the connections view, **USB devices** card. The PC
+downloads the tablet app of its own release from GitHub, checks it
+against the release's `SHA256SUMS`, which is signed for that exact version
+(see [releasing.md](releasing.md)), then installs it over the existing
+app: your pairing and settings are kept, and Android itself refuses an
+APK signed with another key or an older version.
+
+By hand, updates install like the first time, over the existing app
+(`adb install -r …`): your pairing is kept. Every release is signed with the same key; its
 certificate's SHA-256 is
 `63:7B:B3:C0:7A:1B:C2:A0:C1:0D:92:F4:15:2E:F9:C9:2F:BF:00:C9:D5:10:B3:E7:2F:63:F7:C2:E3:DC:FA:46`
 (`apksigner verify --print-certs padboard-<version>.apk`).

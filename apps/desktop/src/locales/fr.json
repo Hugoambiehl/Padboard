@@ -143,6 +143,33 @@
       }
     }
   },
+  "tabletUpdate": {
+    "version": "Padboard {version}",
+    "update": "Mettre à jour vers {version}",
+    "updating": "Mise à jour…",
+    "updated": "Version {version} installée.",
+    "hint": "Installe sur la tablette la version de ce PC, vérifiée avant l’envoi. Les réglages et l’association sont conservés.",
+    "usb": {
+      "testMode": "Le mode test n’utilise pas adb.",
+      "noAdb": "adb est introuvable.",
+      "busy": "Mise à jour déjà en cours sur cette tablette.",
+      "noPadboard": "Padboard n’est pas installé sur la tablette.",
+      "notNewer": "La tablette a déjà cette version ou une plus récente.",
+      "signatureMismatch": "La version installée sur la tablette est signée avec une autre clé (version de développement) : désinstalle-la d’abord (l’association Wi-Fi sera perdue).",
+      "storage": "Pas assez de place sur la tablette.",
+      "failed": "La tablette a refusé : {detail}"
+    },
+    "apk": {
+      "noKey": "Cette version de Padboard ne peut pas vérifier les mises à jour.",
+      "notPublished": "La version {version} n’est pas publiée (ou pas encore signée) : rien à installer.",
+      "network": "Impossible de télécharger la mise à jour : {detail}",
+      "signature": "Le fichier téléchargé n’est pas signé pour cette version : refusé ({detail}).",
+      "storage": "Impossible d’enregistrer la mise à jour : {detail}"
+    },
+    "outdated": "{name} a une version de Padboard trop ancienne pour être mise à jour en Wi-Fi : branche-la en USB pour la mettre à jour.",
+    "updateOnly": "Version différente de ce PC : seule la mise à jour est possible.",
+    "pcOutdated": "La tablette est plus récente que ce PC : mets à jour Padboard sur ce PC."
+  },
   "common": {
     "cancel": "Annuler",
     "create": "Créer",
@@ -536,7 +563,7 @@
     "checking": "Recherche d’une nouvelle version…",
     "upToDate": "Padboard est à jour (vérifié le {time}).",
     "available": "La version {version} est disponible.",
-    "manual": "Téléchargez-la depuis la page de la version (sous Linux, le paquet .deb s’installe à la main).",
+    "manual": "Télécharge-la depuis la page de la version (sous Linux, le paquet .deb s’installe à la main).",
     "downloading": "Téléchargement de la version {version}…",
     "downloadingPercent": "Téléchargement de la version {version}… {percent} %",
     "installing": "Installation de la version {version} : Padboard va redémarrer.",

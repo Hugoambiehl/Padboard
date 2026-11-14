@@ -11,6 +11,7 @@
 pub mod assets;
 pub mod release;
 pub mod signing;
+pub mod tablet;
 
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
@@ -461,14 +462,15 @@ mod windows {
 
 /// The HTTP client of update checks and downloads (`None` if TLS cannot be
 /// set up, which leaves updates failed).
-fn client() -> Option<reqwest::Client> {
+pub(crate) fn client() -> Option<reqwest::Client> {
     // reqwest is built without a crypto provider: use ring, like the rest of
     // the app (no-op if already installed).
     let _ = rustls::crypto::ring::default_provider().install_default();
     reqwest::Client::builder()
         .user_agent(concat!("Padboard/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(Duration::from_secs(15))
-        .timeout(Duration::from_secs(30))
+        // Whole requests: an APK takes longer than a list of releases.
+        .timeout(Duration::from_secs(300))
         .build()
         .inspect_err(|e| tracing::error!("cannot create the HTTP client: {e}"))
         .ok()
