@@ -35,10 +35,15 @@ for `apksigner`; the GitHub CLI (`gh`).
    It sets the version in `Cargo.toml` (+ `Cargo.lock`), `tauri.conf.json`,
    `package.json` (+ lock) and `app/build.gradle.kts` (versionName and a
    growing versionCode), regenerates `CHANGELOG.md`, commits
-   `chore(release): v0.1.0-rc.1` and creates the annotated tag. Nothing is
-   pushed: check the commit and the changelog first.
+   `chore(release): v0.1.0-rc.1` and creates the annotated tag. Then a
+   second commit, `chore: start X.Y.Z-dev`, moves `main` to the next
+   development version (the same X.Y.Z after a release candidate,
+   X.(Y+1).0 after a release): a build of `main` is never taken for a
+   published version (CI: `scripts/check-version.sh`). Nothing is pushed:
+   check the commits and the changelog first.
 
-2. **Publish the tag**: `git push origin main v0.1.0-rc.1`. The **Release**
+2. **Publish the tag**: `git push origin main v0.1.0-rc.1` (both commits;
+   the workflow builds the tag). The **Release**
    workflow checks that the tag matches the version, builds everything and
    creates a **draft** release (`gh run watch` to follow it).
 

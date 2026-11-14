@@ -28,8 +28,8 @@ android {
         applicationId = "io.github.hugoambiehl.padboard"
         minSdk = 26
         targetSdk = 37
-        versionCode = 10099
-        versionName = "0.1.0"
+        versionCode = 20000
+        versionName = "0.2.0-dev"
         // Tests of updates only (docs/development.md): another version for
         // a test APK, e.g. -Ppadboard.testVersionCode=20002
         // -Ppadboard.testVersionName=0.2.0-rc.2. Never used for a release.

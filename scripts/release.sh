@@ -9,28 +9,24 @@
 #   git push origin main v0.1.0      # then: docs/releasing.md
 #
 # Versions: MAJOR.MINOR.PATCH, or MAJOR.MINOR.PATCH-rc.N for a release
-# candidate. Android's versionCode must always grow:
-# MAJOR*1000000 + MINOR*10000 + PATCH*100 + (N for rc.N, 99 for the release).
+# candidate (versionCode: scripts/lib/set-version.sh). Right after the
+# tagged release commit, a second commit moves main to the next
+# development version (X.Y.Z-dev): `git push origin main vX` pushes both,
+# the release workflow builds the tag.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# shellcheck source=lib/set-version.sh
+source "$ROOT/scripts/lib/set-version.sh"
+
 version="${1:-}"
-if [[ ! "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-rc\.([0-9]+))?$ ]]; then
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
   echo "usage: $0 MAJOR.MINOR.PATCH[-rc.N]" >&2
   exit 2
 fi
-major="${BASH_REMATCH[1]}" minor="${BASH_REMATCH[2]}" patch="${BASH_REMATCH[3]}" rc="${BASH_REMATCH[5]:-}"
-if [[ -n "$rc" ]] && ((rc < 1 || rc > 98)); then
-  echo "error: release candidates go from rc.1 to rc.98" >&2
-  exit 2
-fi
-if ((minor > 99 || patch > 99)); then
-  echo "error: minor and patch must stay below 100 (Android versionCode)" >&2
-  exit 2
-fi
-version_code=$((major * 1000000 + minor * 10000 + patch * 100 + ${rc:-99}))
+parse_version "$version" || exit 2
 tag="v$version"
 
 command -v git-cliff >/dev/null || {
@@ -49,38 +45,23 @@ if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
   exit 1
 fi
 
-# Workspace crates (Cargo.toml [workspace.package]) and Cargo.lock.
-sed -i -E '/^\[workspace\.package\]/,/^\[/ s/^version = ".*"/version = "'"$version"'"/' Cargo.toml
-cargo update -q --workspace
-# Desktop app: Tauri (installer and window) and the frontend package.
-node -e '
-  const fs = require("fs");
-  const [version] = process.argv.slice(1);
-  for (const f of ["apps/desktop/src-tauri/tauri.conf.json", "apps/desktop/package.json"]) {
-    const json = JSON.parse(fs.readFileSync(f, "utf8"));
-    json.version = version;
-    fs.writeFileSync(f, JSON.stringify(json, null, 2) + "\n");
-  }
-  const lockFile = "apps/desktop/package-lock.json";
-  const lock = JSON.parse(fs.readFileSync(lockFile, "utf8"));
-  lock.version = version;
-  lock.packages[""].version = version;
-  fs.writeFileSync(lockFile, JSON.stringify(lock, null, 2) + "\n");
-' "$version"
-# Tablet app.
-sed -i -E \
-  -e 's/^(\s*versionCode = ).*/\1'"$version_code"'/' \
-  -e 's/^(\s*versionName = ).*/\1"'"$version"'"/' \
-  apps/android/app/build.gradle.kts
+write_version "$version"
 
 git-cliff --config cliff.toml --tag "$tag" --output CHANGELOG.md
 
-git add Cargo.toml Cargo.lock CHANGELOG.md \
-  apps/desktop/src-tauri/tauri.conf.json apps/desktop/package.json apps/desktop/package-lock.json \
-  apps/android/app/build.gradle.kts
+git add "${VERSION_FILES[@]}" CHANGELOG.md
 git commit -q -m "chore(release): $tag"
 git tag -a "$tag" -m "Padboard $version"
+release_code="$version_code"
 
-echo "Release $tag prepared (Android versionCode $version_code)."
+# main carries a development version again at once, so a build of main is
+# never taken for the release (CI checks it, docs/releasing.md).
+dev="$(next_dev_version "$version")"
+parse_version "$dev"
+write_version "$dev"
+git add "${VERSION_FILES[@]}"
+git commit -q -m "chore: start $dev"
+
+echo "Release $tag prepared (Android versionCode $release_code), then main moved to $dev."
 echo "Check the commit and CHANGELOG.md, then start the release workflow with:"
 echo "  git push origin main $tag"

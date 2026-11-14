@@ -188,6 +188,11 @@ jobs:
       - name: Check generated TS and Kotlin types are up to date
         run: scripts/gen-types.sh --check
 
+      # main always carries a development version (X.Y.Z-dev), the same in
+      # every file; only a release tag carries a released one.
+      - name: Version
+        run: scripts/check-version.sh
+
   android:
     name: Android
     runs-on: ubuntu-24.04
