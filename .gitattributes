@@ -1,0 +1,2 @@
+# Signed test files: byte for byte, never converted (CRLF on Windows breaks the signatures).
+apps/desktop/src-tauri/src/updates/fixtures/** -text
