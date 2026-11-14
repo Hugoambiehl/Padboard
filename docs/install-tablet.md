@@ -74,6 +74,31 @@ to USB when you plug the cable in (and back to Wi-Fi when you unplug it).
 A tablet is paired with one PC; tap the pill at the top right for *Pair
 another PC*.
 
+### If the tablet sees the PC but cannot connect
+
+Over Wi-Fi, the PC and the tablet must **reach each other directly**, not
+only the Internet. Some networks prevent it while both devices work
+normally otherwise:
+
+- **guest networks** and networks with *client isolation* (or *AP
+  isolation*);
+- **repeaters**, and some **mesh** networks when the PC and the tablet are
+  on different nodes (seen with a Starlink mesh: the PC on a mesh node,
+  the tablet on the main router).
+
+The tablet then lists the PC (it is announced on the network) but the
+connection fails or keeps dropping. To check from the PC:
+`ping <tablet address>` (the tablet's address is in Android's Wi-Fi
+settings, *Network details*): it must answer without losses.
+
+Fixes, from the simplest:
+
+- use the **USB cable** (no network needed at all);
+- connect the PC with an **Ethernet cable** to the main router;
+- put both on the **same access point** (for a mesh: the same node), and
+  not on a guest network;
+- turn *client isolation* off in the router's settings.
+
 ## Using it
 
 - **Swipe** to change page; folders open over the grid and close with the

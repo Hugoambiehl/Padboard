@@ -44,6 +44,14 @@ the installer is checked first against a signature made by the
 maintainer for that exact version. On Linux, the app shows the new
 version and its page: install the `.deb` by hand.
 
+### If Wi-Fi does not connect
+
+Over Wi-Fi, the PC and the tablet must be able to reach each other
+directly: guest networks, repeaters and some mesh networks (PC and tablet
+on different nodes) prevent it. Use the USB cable, connect the PC with an
+Ethernet cable, or put both on the same access point. Details:
+[tablet guide](docs/install-tablet.md#if-the-tablet-sees-the-pc-but-cannot-connect).
+
 ## What the buttons can do
 
 | Action | Details |
