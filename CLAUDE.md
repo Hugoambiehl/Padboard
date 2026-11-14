@@ -411,6 +411,11 @@ SM-T580, always measure in release builds.
   push protection, CodeQL default setup (Rust, JS/TS, Actions; Kotlin is
   not analyzed: its autobuild looks for Gradle at the root), Dependabot
   (monthly), private vulnerability reporting.
+- **Secrets never printed**: types holding a secret (token, PIN, OBS
+  password) implement `Debug` / `toString()` by hand with
+  `padboard_protocol::REDACTED`, tested; a new secret field gets the same.
+  The private TLS key is already elided by rcgen / rustls. The generated
+  Kotlin protocol classes still print theirs: never log a message whole.
 - **Store listing** (IzzyOnDroid): fastlane metadata in
   `fastlane/metadata/android/{en-US,fr-FR}` (descriptions, tablet
   screenshots, a changelog per release versionCode, see

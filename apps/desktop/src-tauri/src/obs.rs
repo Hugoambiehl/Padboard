@@ -15,6 +15,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use futures_util::{SinkExt, StreamExt};
 use padboard_actions::{ObsAction, ObsCommand};
+use padboard_protocol::REDACTED;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -31,8 +32,9 @@ const TIMEOUT: Duration = Duration::from_secs(3);
 /// Scenes, inputs and outputs events.
 const EVENT_SUBSCRIPTIONS: u32 = 4 | 8 | 64;
 
-/// `obs.json` (owner-only: it holds the obs-websocket password).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// `obs.json` (owner-only: it holds the obs-websocket password). `Debug`
+/// redacts the password.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObsSettings {
     pub enabled: bool,
@@ -40,6 +42,17 @@ pub struct ObsSettings {
     pub port: u16,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
+}
+
+impl std::fmt::Debug for ObsSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ObsSettings")
+            .field("enabled", &self.enabled)
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .field("password", &self.password.as_ref().map(|_| REDACTED))
+            .finish()
+    }
 }
 
 impl Default for ObsSettings {
@@ -539,6 +552,21 @@ mod tests {
             ),
             "1Ct943GAT+6YQUUX47Ia/ncufilbe6+oD6lY+5kaCu4="
         );
+    }
+
+    #[test]
+    fn debug_redacts_the_password() {
+        let settings = ObsSettings {
+            password: Some("obs-SECRET".into()),
+            ..ObsSettings::default()
+        };
+        for text in [format!("{settings:?}"), format!("{settings:#?}")] {
+            assert!(!text.contains("SECRET"), "{text}");
+            assert!(
+                text.contains(REDACTED) && text.contains("127.0.0.1"),
+                "{text}"
+            );
+        }
     }
 
     #[test]

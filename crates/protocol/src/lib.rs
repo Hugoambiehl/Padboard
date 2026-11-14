@@ -37,6 +37,8 @@
 //! - `pair:success` authenticates the current connection and carries the
 //!   token to present in the next `hello`s.
 
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
 use typeshare::typeshare;
 
@@ -121,7 +123,8 @@ pub enum Message {
 }
 
 #[typeshare]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+// Debug by hand: the secret is redacted.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HelloPayload {
     pub protocol_version: u32,
@@ -162,7 +165,8 @@ pub enum AuthStatus {
 }
 
 #[typeshare]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+// Debug by hand: the secret is redacted.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PairRequestPayload {
     /// The 6 digits shown on the desktop.
@@ -170,11 +174,43 @@ pub struct PairRequestPayload {
 }
 
 #[typeshare]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+// Debug by hand: the secret is redacted.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PairSuccessPayload {
     /// Secret to present in the next `hello`s (base64url, 32 random bytes).
     pub token: String,
+}
+
+/// Printed in place of a secret (token, PIN, password) by the `Debug`
+/// implementations, so `{:?}` in a log never reveals one.
+pub const REDACTED: &str = "<redacted>";
+
+impl fmt::Debug for HelloPayload {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("HelloPayload")
+            .field("protocol_version", &self.protocol_version)
+            .field("device_name", &self.device_name)
+            .field("device_id", &self.device_id)
+            .field("token", &self.token.as_ref().map(|_| REDACTED))
+            .finish()
+    }
+}
+
+impl fmt::Debug for PairRequestPayload {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PairRequestPayload")
+            .field("pin", &REDACTED)
+            .finish()
+    }
+}
+
+impl fmt::Debug for PairSuccessPayload {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PairSuccessPayload")
+            .field("token", &REDACTED)
+            .finish()
+    }
 }
 
 #[typeshare]

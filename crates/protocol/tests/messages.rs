@@ -2,8 +2,8 @@ use padboard_protocol::{
     AuthStatus, ButtonEvent, ButtonView, Category, ErrorCode, ErrorPayload, Folder, GridSize,
     Heartbeat, HelloPayload, Layout, Message, NavigatePayload, NavigateTarget, PROTOCOL_VERSION,
     Page, PairFailurePayload, PairFailureReason, PairRequestPayload, PairSuccessPayload,
-    ProfileInfo, SystemStatusPayload, TabletCommandPayload, TabletOrder, TabletSettingsPayload,
-    TabletStatusPayload, WelcomePayload, is_compatible, short_fingerprint,
+    ProfileInfo, REDACTED, SystemStatusPayload, TabletCommandPayload, TabletOrder,
+    TabletSettingsPayload, TabletStatusPayload, WelcomePayload, is_compatible, short_fingerprint,
 };
 use serde_json::json;
 
@@ -286,5 +286,43 @@ fn folders_share_the_id_and_cell_rules() {
             .validate()
             .unwrap_err()
             .contains("duplicate page or folder id")
+    );
+}
+
+#[test]
+fn debug_output_never_shows_a_secret() {
+    let messages = [
+        Message::Hello(HelloPayload {
+            protocol_version: PROTOCOL_VERSION,
+            device_name: "Tab".into(),
+            device_id: "dev-1".into(),
+            token: Some("tok-SECRET-1".into()),
+        }),
+        Message::PairRequest(PairRequestPayload {
+            pin: "SECRET-PIN".into(),
+        }),
+        Message::PairSuccess(PairSuccessPayload {
+            token: "tok-SECRET-2".into(),
+        }),
+    ];
+    for message in messages {
+        for text in [format!("{message:?}"), format!("{message:#?}")] {
+            assert!(!text.contains("SECRET"), "{text}");
+            assert!(text.contains(REDACTED), "{text}");
+        }
+    }
+    // The other fields are still shown.
+    let hello = format!(
+        "{:?}",
+        HelloPayload {
+            protocol_version: 1,
+            device_name: "Tab".into(),
+            device_id: "dev-1".into(),
+            token: None,
+        }
+    );
+    assert!(
+        hello.contains("dev-1") && hello.contains("token: None"),
+        "{hello}"
     );
 }

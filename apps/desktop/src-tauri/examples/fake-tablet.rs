@@ -42,7 +42,7 @@ fn input() -> Input {
     BufReader::new(tokio::io::stdin()).lines()
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 struct Pairing {
     device_id: String,
     server_id: Option<String>,

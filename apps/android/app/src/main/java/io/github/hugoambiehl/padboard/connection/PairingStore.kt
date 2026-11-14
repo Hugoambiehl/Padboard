@@ -21,6 +21,10 @@ data class PairedPc(
     val lastEndpoint: Endpoint?
 ) {
     val pin: ByteArray get() = Base64.getDecoder().decode(spkiSha256)
+
+    /** Without the token, so a log line can never reveal it. */
+    override fun toString(): String = "PairedPc(serverId=$serverId, serverName=$serverName, " +
+        "token=<redacted>, spkiSha256=$spkiSha256, lastEndpoint=$lastEndpoint)"
 }
 
 /** Storage of the [PairedPc]. Abstracted for the tests. */

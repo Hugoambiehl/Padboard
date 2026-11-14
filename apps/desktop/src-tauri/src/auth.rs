@@ -8,12 +8,13 @@
 //! (`paired.rs`). USB connections never go through here: the cable is the proof.
 
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use padboard_protocol::{AuthStatus, ErrorCode, PairFailurePayload, PairFailureReason};
+use padboard_protocol::{AuthStatus, ErrorCode, PairFailurePayload, PairFailureReason, REDACTED};
 use serde::Serialize;
 use subtle::ConstantTimeEq;
 use tokio::sync::oneshot;
@@ -82,7 +83,8 @@ fn random_token() -> Result<String, RandomError> {
 
 // ─── PIN state machine (pure, time injected for tests) ───────────────────
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// `Debug` by hand: the PIN is redacted.
+#[derive(Clone, PartialEq, Eq)]
 enum PinState {
     Idle,
     Active {
@@ -163,7 +165,8 @@ impl Pin {
 // ─── Views sent to the UI ───────────────────────────────────────────────
 
 /// Pairing dialog state, mirrored in `src/types/status.ts`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// `Debug` by hand: the PIN is redacted (it is serialized for the UI).
+#[derive(Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "state", rename_all = "camelCase")]
 pub enum PairingView {
     Idle,
@@ -179,6 +182,56 @@ pub enum PairingView {
     Paired {
         device_name: String,
     },
+}
+
+impl fmt::Debug for PinState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Idle => f.write_str("Idle"),
+            Self::Active {
+                pin: _,
+                expires_at,
+                expires_at_ms,
+                attempts_left,
+            } => f
+                .debug_struct("Active")
+                .field("pin", &REDACTED)
+                .field("expires_at", expires_at)
+                .field("expires_at_ms", expires_at_ms)
+                .field("attempts_left", attempts_left)
+                .finish(),
+            Self::Expired => f.write_str("Expired"),
+            Self::Locked => f.write_str("Locked"),
+            Self::Paired { device_name } => f
+                .debug_struct("Paired")
+                .field("device_name", device_name)
+                .finish(),
+        }
+    }
+}
+
+impl fmt::Debug for PairingView {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Idle => f.write_str("Idle"),
+            Self::Active {
+                pin: _,
+                expires_at_ms,
+                attempts_left,
+            } => f
+                .debug_struct("Active")
+                .field("pin", &REDACTED)
+                .field("expires_at_ms", expires_at_ms)
+                .field("attempts_left", attempts_left)
+                .finish(),
+            Self::Expired => f.write_str("Expired"),
+            Self::Locked => f.write_str("Locked"),
+            Self::Paired { device_name } => f
+                .debug_struct("Paired")
+                .field("device_name", device_name)
+                .finish(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -484,6 +537,25 @@ mod tests {
         };
         pin.start(code.into(), now, 0);
         pin
+    }
+
+    #[test]
+    fn debug_redacts_the_pin() {
+        let pin = pin_with("SECRET", Instant::now());
+        let view = pin_view(&pin);
+        assert!(matches!(&view, PairingView::Active { pin, .. } if pin == "SECRET"));
+        for text in [
+            format!("{pin:?}"),
+            format!("{pin:#?}"),
+            format!("{view:?}"),
+            format!("{view:#?}"),
+        ] {
+            assert!(!text.contains("SECRET"), "{text}");
+            assert!(
+                text.contains(REDACTED) && text.contains("attempts_left"),
+                "{text}"
+            );
+        }
     }
 
     fn reason(r: Result<(), PairFailurePayload>) -> (PairFailureReason, u32) {
