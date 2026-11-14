@@ -226,11 +226,13 @@ pub enum ServerEvent {
         transport: Transport,
         tablet: TabletInfo,
     },
-    /// A paired tablet whose app predates the frozen core (protocol 4 and
-    /// before) was turned away: only USB can update it.
+    /// A tablet whose app predates the frozen core (protocol 4 and before)
+    /// was turned away (over USB, or paired over Wi-Fi): only USB can update
+    /// it, and only a published PC version.
     OutdatedTablet {
         device_id: String,
         device_name: String,
+        transport: Transport,
     },
     /// An update sent over a connection progressed or ended.
     TabletUpdate {
@@ -491,19 +493,25 @@ where
     let compatible = is_compatible(protocol_version);
     if !compatible && !speaks_core(protocol_version) {
         // An app from before the frozen core cannot be updated over the
-        // connection. If it is a paired one, the user learns that USB will.
-        if transport == Transport::Wifi
-            && ctx
-                .auth
-                .authenticate(&device_id, &device_name, token.as_deref())
-                == AuthStatus::Authenticated
-        {
-            tracing::info!(%peer, device = %device_name, protocol_version, "paired tablet with an old app");
+        // connection. If it is one of ours (USB, or paired over Wi-Fi), the
+        // user learns what to do (USB update, or the installed version
+        // for a development PC).
+        let ours = match transport {
+            Transport::Usb => true,
+            Transport::Wifi => {
+                ctx.auth
+                    .authenticate(&device_id, &device_name, token.as_deref())
+                    == AuthStatus::Authenticated
+            }
+        };
+        if ours {
+            tracing::info!(%peer, device = %device_name, protocol_version, "tablet with an old app");
             emit(
                 ctx,
                 ServerEvent::OutdatedTablet {
                     device_id: device_id.clone(),
                     device_name: device_name.clone(),
+                    transport,
                 },
             );
         }
@@ -1620,8 +1628,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_protocol_without_the_core_is_rejected() {
-        let h = start(Transport::Usb, false).await;
+    async fn a_protocol_without_the_core_is_rejected_and_reported() {
+        let mut h = start(Transport::Usb, false).await;
         let (mut client, _) = connect_async(&h.url).await.unwrap();
         send_msg(&mut client, &hello(FIRST_UPDATABLE_VERSION - 1)).await;
         let Message::Error(e) = recv_msg(&mut client).await else {
@@ -1629,6 +1637,19 @@ mod tests {
         };
         assert_eq!(e.code, ErrorCode::UnsupportedVersion);
         assert_closed(&mut client).await;
+        // Over USB (trusted), the user is told what to do.
+        loop {
+            if let ServerEvent::OutdatedTablet {
+                device_id,
+                transport,
+                ..
+            } = next_event(&mut h).await
+            {
+                assert_eq!(device_id, "test-device");
+                assert_eq!(transport, Transport::Usb);
+                break;
+            }
+        }
     }
 
     #[tokio::test]

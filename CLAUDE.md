@@ -451,6 +451,16 @@ SM-T580, always measure in release builds.
   installs without `REQUEST_INSTALL_PACKAGES` (AOSP
   `computeUserActionRequirement` waives it, 8.0 and 12L checked): the
   permission is not declared.
+- **Development version**: `main` always carries `X.Y.Z-dev` between
+  releases (versionCode `…·100 + 0`, below rc.1); `release.sh` adds a
+  `chore: start X.Y.Z-dev` commit after the tagged release commit;
+  `scripts/check-version.sh` (CI) refuses a released version or files
+  that disagree; `scripts/dev-version.sh` sets it by hand
+  (`scripts/lib/set-version.sh` writes every file). A development PC
+  offers no tablet update (`version_code` is `None`); the USB card and the
+  connected tablets card explain instead (`ServerStatus.development`,
+  `OutdatedTablet` now also for USB). `desktop-dev.sh` warns when it runs
+  on the real configuration.
 - **Tray and startup** (`tray.rs`): the icon's menu opens the window,
   shows the connected tablets, quits. Closing the window hides it there
   (explained once by a dialog, `closeHintShown` in `preferences.json`);

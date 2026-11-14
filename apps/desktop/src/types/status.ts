@@ -50,6 +50,10 @@ export interface ServerStatus {
   appVersion: string;
   /** Its tablet versionCode (null for a development version). */
   appVersionCode: number | null;
+  /** A development version (X.Y.Z-dev): no published APK. */
+  development: boolean;
+  /** For a development version, the versionCode of its own tablet builds. */
+  developmentCode: number | null;
 }
 
 export interface ClientInfo {
@@ -88,6 +92,7 @@ export type TabletUpdate =
 export interface OutdatedTablet {
   deviceId: string;
   deviceName: string;
+  transport: Transport;
   atMs: number;
 }
 

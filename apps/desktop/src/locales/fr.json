@@ -187,7 +187,10 @@
       "transfer_failed": "Échec : l’envoi s’est interrompu.",
       "install_failed": "Échec : Android a refusé de l’installer.",
       "busy": "Une autre mise à jour est déjà en cours sur la tablette."
-    }
+    },
+    "outdatedUsb": "{name} a une version de Padboard trop ancienne pour ce PC : mets-la à jour avec « Mettre à jour » dans Appareils USB.",
+    "outdatedDev": "{name} a une version de Padboard incompatible avec cette version de développement : lance la version installée de Padboard, ou installe la version de développement sur la tablette (docs/development.md).",
+    "devMismatch": "Version de développement ({pc}) incompatible avec Padboard {tablet} sur la tablette, et sans mise à jour publiée : lance la version installée de Padboard, ou installe la version de développement sur la tablette (docs/development.md)."
   },
   "common": {
     "cancel": "Annuler",

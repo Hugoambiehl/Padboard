@@ -1,20 +1,35 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { Download, Lock, Tablet, TriangleAlert } from "lucide-vue-next";
 import BaseCard from "./BaseCard.vue";
 import { exitKiosk, updateWifiTablet } from "../commands";
 import type { ClientInfo, OutdatedTablet, TabletUpdate } from "../types/status";
 import { needsUpdate, wifiUpdateErrorMessage } from "../usb/update";
+import { useNow } from "../composables/useNow";
 
-defineProps<{
+const props = defineProps<{
   clients: ClientInfo[];
-  /** Paired tablets turned away: too old to be updated over Wi-Fi. */
+  /** Tablets turned away: their app is too old for this PC's protocol. */
   outdated: OutdatedTablet[];
   /** This PC's version, offered to older tablets, and its tablet versionCode. */
   appVersion: string;
   appVersionCode: number | null;
+  /** This PC is a development version (no published APK). */
+  development: boolean;
 }>();
+
+/** A tablet retries every few seconds: one turned away a minute ago is gone. */
+const now = useNow(5000);
+const recentOutdated = computed(() => props.outdated.filter((o) => now.value - o.atMs < 60_000));
+
+/** What a turned-away tablet's user should do. */
+function outdatedText(o: OutdatedTablet): string {
+  if (props.development) return t("tabletUpdate.outdatedDev", { name: o.deviceName });
+  return o.transport === "usb"
+    ? t("tabletUpdate.outdatedUsb", { name: o.deviceName })
+    : t("tabletUpdate.outdated", { name: o.deviceName });
+}
 const { t, d } = useI18n();
 
 /** Tablet whose release from kiosk mode waits for a second click. */
@@ -165,13 +180,13 @@ async function release(id: number) {
       </li>
     </ul>
     <p
-      v-for="o in outdated"
+      v-for="o in recentOutdated"
       :key="o.deviceId"
       class="flex items-start gap-2 rounded-xl border border-cat-orange/40 bg-cat-orange/10 p-3 text-xs text-[#F3D2BA]"
       data-outdated
     >
       <TriangleAlert :size="14" class="mt-0.5 shrink-0" aria-hidden="true" />
-      {{ t("tabletUpdate.outdated", { name: o.deviceName }) }}
+      {{ outdatedText(o) }}
     </p>
     <p v-if="error" class="text-sm text-cat-red">{{ error }}</p>
   </BaseCard>

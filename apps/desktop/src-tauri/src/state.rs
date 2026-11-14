@@ -55,6 +55,12 @@ pub struct ServerStatus {
     /// Its tablet `versionCode` (`None` for a development version: no
     /// update offered).
     pub app_version_code: Option<u32>,
+    /// A development version (`X.Y.Z-dev`, a build of main): it has no
+    /// published APK, and published tablets may speak another protocol.
+    pub development: bool,
+    /// For a development version, the `versionCode` of its own tablet
+    /// builds (`X.Y.Z-dev`): older tablet apps are told how to proceed.
+    pub development_code: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -138,6 +144,7 @@ pub struct ClientInfo {
 pub struct OutdatedTablet {
     pub device_id: String,
     pub device_name: String,
+    pub transport: Transport,
     pub at_ms: u64,
 }
 
@@ -175,8 +182,10 @@ impl Snapshot {
         let wifi_starting = wifi_enabled && tls_error.is_none();
         Self {
             server: ServerStatus {
-                app_version: version.clone(),
                 app_version_code: crate::updates::assets::version_code(&version),
+                development: crate::updates::assets::development_code(&version).is_some(),
+                development_code: crate::updates::assets::development_code(&version),
+                app_version: version.clone(),
                 name: server_name,
                 usb: ListenerStatus {
                     state: ListenerState::Starting,
@@ -301,6 +310,7 @@ impl Snapshot {
             ServerEvent::OutdatedTablet {
                 device_id,
                 device_name,
+                transport,
             } => {
                 self.outdated_tablets.retain(|t| t.device_id != device_id);
                 self.outdated_tablets.insert(
@@ -308,6 +318,7 @@ impl Snapshot {
                     OutdatedTablet {
                         device_id,
                         device_name,
+                        transport,
                         at_ms: now_ms(),
                     },
                 );

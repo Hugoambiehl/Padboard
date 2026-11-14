@@ -187,7 +187,10 @@
       "transfer_failed": "Failed: the transfer stopped.",
       "install_failed": "Failed: Android refused to install it.",
       "busy": "Another update is already in progress on the tablet."
-    }
+    },
+    "outdatedUsb": "{name} has a version of Padboard too old for this PC: update it with “Update” in USB devices.",
+    "outdatedDev": "{name} has a version of Padboard that does not work with this development version: start the installed Padboard, or install the development version on the tablet (docs/development.md).",
+    "devMismatch": "Development version ({pc}), not compatible with Padboard {tablet} on the tablet, and with no published update: start the installed Padboard, or install the development version on the tablet (docs/development.md)."
   },
   "common": {
     "cancel": "Cancel",

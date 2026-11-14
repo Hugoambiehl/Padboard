@@ -7,7 +7,7 @@ import BaseCard from "./BaseCard.vue";
 import { enableKiosk, setAdbPath, updateUsbTablet } from "../commands";
 import type { DeviceState, UsbStatus } from "../types/status";
 import { kioskErrorMessage } from "../usb/kiosk";
-import { needsUpdate, usbUpdateErrorMessage } from "../usb/update";
+import { devMismatch, needsUpdate, usbUpdateErrorMessage } from "../usb/update";
 
 const props = defineProps<{
   usb: UsbStatus;
@@ -15,6 +15,9 @@ const props = defineProps<{
   /** This PC's version, offered to older tablets. */
   appVersion: string;
   appVersionCode: number | null;
+  /** A development version, and the versionCode of its own tablet builds. */
+  development: boolean;
+  developmentCode: number | null;
 }>();
 const { t } = useI18n();
 const error = ref<string | null>(null);
@@ -207,6 +210,15 @@ async function automatic() {
                   : t("tabletUpdate.update", { version: appVersion })
               }}
             </button>
+            <span
+              v-if="devMismatch(device.app?.code, development, developmentCode)"
+              class="mt-1 text-xs text-cat-orange"
+              data-usb-dev-mismatch
+            >
+              {{
+                t("tabletUpdate.devMismatch", { pc: appVersion, tablet: device.app?.name ?? "?" })
+              }}
+            </span>
             <span
               v-if="updateOutcome[device.serial]"
               class="text-xs"

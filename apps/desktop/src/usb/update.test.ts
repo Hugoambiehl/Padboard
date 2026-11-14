@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fr from "../locales/fr.json";
-import { needsUpdate, usbUpdateErrorMessage, wifiUpdateErrorMessage } from "./update";
+import { devMismatch, needsUpdate, usbUpdateErrorMessage, wifiUpdateErrorMessage } from "./update";
 
 function text(key: string): unknown {
   return key
@@ -43,6 +43,16 @@ describe("usbUpdateErrorMessage", () => {
       detail: "device offline",
     });
     expect(usbUpdateErrorMessage("boom").params).toEqual({ detail: "boom" });
+  });
+});
+
+describe("devMismatch", () => {
+  it("only for a development PC and an older tablet app", () => {
+    expect(devMismatch(10099, true, 20000)).toBe(true);
+    // A development tablet build of the same version: nothing to say.
+    expect(devMismatch(20000, true, 20000)).toBe(false);
+    expect(devMismatch(10099, false, null)).toBe(false);
+    expect(devMismatch(null, true, 20000)).toBe(false);
   });
 });
 

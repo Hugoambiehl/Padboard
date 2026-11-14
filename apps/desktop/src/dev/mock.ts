@@ -30,8 +30,10 @@ const status: Snapshot = {
       mdns: { state: "announced" },
     },
     invalidSettings: [],
-    appVersion: "0.2.0",
-    appVersionCode: 20099,
+    // `&dev=1`: a development build (no published APK).
+    ...(new URLSearchParams(location.search).get("dev") === "1"
+      ? { appVersion: "0.2.0-dev", appVersionCode: null, development: true, developmentCode: 20000 }
+      : { appVersion: "0.2.0", appVersionCode: 20099, development: false, developmentCode: null }),
   },
   clients: [
     {
@@ -83,7 +85,14 @@ const status: Snapshot = {
   pairedDevices: [],
   outdatedTablets:
     new URLSearchParams(location.search).get("outdated") === "1"
-      ? [{ deviceId: "old", deviceName: "Galaxy Tab S2", atMs: Date.now() }]
+      ? [
+          {
+            deviceId: "old",
+            deviceName: "Galaxy Tab S2",
+            transport: "usb" as const,
+            atMs: Date.now(),
+          },
+        ]
       : [],
   usb: {
     adb: { state: "ready", path: "/usr/bin/adb", version: "1.0.41" },

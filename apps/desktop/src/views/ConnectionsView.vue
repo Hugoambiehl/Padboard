@@ -34,6 +34,7 @@ const { t } = useI18n();
         :outdated="snapshot.outdatedTablets"
         :app-version="snapshot.server.appVersion"
         :app-version-code="snapshot.server.appVersionCode"
+        :development="snapshot.server.development"
       />
       <PairedDevicesCard
         :devices="snapshot.pairedDevices"
@@ -45,6 +46,8 @@ const { t } = useI18n();
         :port="snapshot.server.usb.port"
         :app-version="snapshot.server.appVersion"
         :app-version-code="snapshot.server.appVersionCode"
+        :development="snapshot.server.development"
+        :development-code="snapshot.server.developmentCode"
       />
       <ObsCard />
       <ScreensaverCard />

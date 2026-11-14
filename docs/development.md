@@ -211,6 +211,26 @@ list until you run it once).
   `PADBOARD_LUCIDE_JSON=/tmp/lucide.json cargo test -p padboard-desktop -- --ignored lucide`
   so every icon still passes the validator.
 
+## Development version and the tablet
+
+Between two releases, `main` carries a **development version**
+(`X.Y.Z-dev`, Android versionCode `MAJOR·10⁶ + MINOR·10⁴ + PATCH·100`,
+between the previous release and the first release candidate). `release.sh`
+moves `main` to the next one right after tagging a release, and the CI
+(`scripts/check-version.sh`) refuses `main` with a released version, or
+files that disagree; `scripts/dev-version.sh X.Y.Z-dev` sets it by hand.
+
+A development build has no published APK: it never offers an update to a
+tablet. After a protocol change, a tablet running the published app cannot
+connect to it: the USB card and the *Connected tablets* card say so. Then
+either start the **installed** Padboard (quit the development one first:
+same ports), or run the development build in test mode
+(`PADBOARD_TEST_DIR`, see below) with a development APK on the tablet. A
+development APK is signed with the debug key: installing it over the
+published app needs `adb uninstall` first (leave kiosk mode first; the
+Wi-Fi pairing is lost), and going back to the published app as well.
+`scripts/desktop-dev.sh` warns when it runs on the real configuration.
+
 ## Testing updates without publishing
 
 A real update (desktop or tablet) is tested against **local releases**,

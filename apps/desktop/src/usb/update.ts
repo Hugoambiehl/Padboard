@@ -45,6 +45,19 @@ export function usbUpdateErrorMessage(error: unknown): Text {
   }
 }
 
+/**
+ * A development PC and a tablet app older than its own tablet builds: no
+ * update can be offered (the development version is not published), the
+ * user is told to run the installed version or install a development APK.
+ */
+export function devMismatch(
+  appCode: number | null | undefined,
+  development: boolean,
+  developmentCode: number | null,
+): boolean {
+  return development && appCode != null && developmentCode != null && appCode < developmentCode;
+}
+
 /** The tablet's app is older than this PC's version (an update is offered). */
 export function needsUpdate(appCode: number | null | undefined, pcCode: number | null): boolean {
   return appCode != null && pcCode != null && appCode < pcCode;

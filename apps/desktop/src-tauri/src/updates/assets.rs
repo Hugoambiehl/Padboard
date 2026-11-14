@@ -78,6 +78,16 @@ pub fn version_code(version: &str) -> Option<u32> {
         .checked_add(minor * 10_000 + patch * 100 + rc)
 }
 
+/// The tablet's `versionCode` of the development version `X.Y.Z-dev`
+/// (MAJOR·10⁶ + MINOR·10⁴ + PATCH·100, below every release candidate of
+/// X.Y.Z); `None` for any other version.
+#[must_use]
+pub fn development_code(version: &str) -> Option<u32> {
+    let base = version.strip_suffix("-dev")?;
+    let code = version_code(&format!("{base}-rc.1"))?;
+    Some(code - 1)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,5 +116,12 @@ mod tests {
         assert_eq!(version_code("0.2.0-beta.1"), None);
         assert_eq!(version_code("0.100.0"), None);
         assert_eq!(version_code("nonsense"), None);
+        // A development version is never offered to a tablet...
+        assert_eq!(version_code("0.2.0-dev"), None);
+        // ...but its own tablet builds have a code between the releases.
+        assert_eq!(development_code("0.2.0-dev"), Some(20_000));
+        assert!(development_code("0.2.0-dev").unwrap() > version_code("0.1.0").unwrap());
+        assert!(development_code("0.2.0-dev").unwrap() < version_code("0.2.0-rc.1").unwrap());
+        assert_eq!(development_code("0.2.0"), None);
     }
 }
