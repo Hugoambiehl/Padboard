@@ -30,6 +30,11 @@ android {
         targetSdk = 37
         versionCode = 10099
         versionName = "0.1.0"
+        // Tests of updates only (docs/development.md): another version for
+        // a test APK, e.g. -Ppadboard.testVersionCode=20002
+        // -Ppadboard.testVersionName=0.2.0-rc.2. Never used for a release.
+        providers.gradleProperty("padboard.testVersionCode").orNull?.let { versionCode = it.toInt() }
+        providers.gradleProperty("padboard.testVersionName").orNull?.let { versionName = it }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

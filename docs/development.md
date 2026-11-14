@@ -211,6 +211,32 @@ list until you run it once).
   `PADBOARD_LUCIDE_JSON=/tmp/lucide.json cargo test -p padboard-desktop -- --ignored lucide`
   so every icon still passes the validator.
 
+## Testing updates without publishing
+
+A real update (desktop or tablet) is tested against **local releases**,
+never a published one:
+
+```sh
+# Test APKs with other versions (debug key; release builds keep their version)
+(cd apps/android && ./gradlew assembleDebug -Ppadboard.testVersionCode=20002 -Ppadboard.testVersionName=0.2.0-rc.2)
+# A local release, signed with a test key created in target/test-releases
+scripts/test-releases.sh add 0.2.0-rc.2 --apk apps/android/app/build/outputs/apk/debug/app-debug.apk
+scripts/test-releases.sh serve       # http://127.0.0.1:8765
+scripts/test-releases.sh env         # the variables below
+# A desktop build that reads them (test mode, real adb and Wi-Fi)
+cargo build -p padboard-desktop --features test-updates
+PADBOARD_TEST_DIR=… PADBOARD_TEST_SYSTEM=1 PADBOARD_BIND=lan \
+  PADBOARD_TEST_RELEASES=http://127.0.0.1:8765 \
+  PADBOARD_TEST_UPDATE_KEY=target/test-releases/test-update.key.pub \
+  PADBOARD_TEST_APP_VERSION=0.2.0-rc.2 target/debug/padboard-desktop
+```
+
+Only builds with the `test-updates` feature read these variables
+(`updates/source.rs`); a test proves shipped builds ignore them and the
+release workflow refuses a binary containing them. On Windows, the
+installer update over `http://` also needs
+`npx tauri build --features test-updates --config src-tauri/tauri.test-updates.conf.json`.
+
 ## Releases
 
 See [releasing.md](releasing.md).

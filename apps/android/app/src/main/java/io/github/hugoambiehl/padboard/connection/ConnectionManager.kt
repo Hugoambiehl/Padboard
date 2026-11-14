@@ -488,8 +488,8 @@ class ConnectionManager(
         // An install that failed after the app handed it over.
         val installFailures = launch {
             updater.failures.collect { outcome ->
-                link.session.send(Message.UpdateResult(UpdateResultPayload(outcome)))
                 _update.value = UpdateProgress.Failed(_update.value?.version.orEmpty(), outcome)
+                link.session.send(Message.UpdateResult(UpdateResultPayload(outcome)))
             }
         }
 
@@ -720,8 +720,8 @@ class ConnectionManager(
         val refused = withContext(Dispatchers.IO) { updater.check(d.file, d.offer) }
         if (refused != null) return finishFailed(link, d, refused)
         log.info("update ${d.offer.version} checked: installing")
-        link.session.send(Message.UpdateResult(UpdateResultPayload(UpdateOutcome.Installing)))
         _update.value = UpdateProgress.Installing(d.offer.version)
+        link.session.send(Message.UpdateResult(UpdateResultPayload(UpdateOutcome.Installing)))
         withContext(Dispatchers.IO) { updater.install(d.file) }
     }
 
@@ -735,8 +735,9 @@ class ConnectionManager(
     private fun finishFailed(link: Active, d: Download, outcome: UpdateOutcome) {
         log.warning("update ${d.offer.version} failed: $outcome")
         d.file.delete()
-        link.session.send(Message.UpdateResult(UpdateResultPayload(outcome)))
+        // The tablet's state first: the PC may act on the result at once.
         _update.value = UpdateProgress.Failed(d.offer.version, outcome)
+        link.session.send(Message.UpdateResult(UpdateResultPayload(outcome)))
     }
 
     /** The session ended during a transfer: nothing is kept. */
