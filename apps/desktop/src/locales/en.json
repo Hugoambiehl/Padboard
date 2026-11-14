@@ -155,7 +155,7 @@
       "busy": "This tablet is already being updated.",
       "noPadboard": "Padboard is not installed on the tablet.",
       "notNewer": "The tablet already has this version or a newer one.",
-      "signatureMismatch": "The version on the tablet is signed with another key (a development build): uninstall it first (the Wi-Fi pairing will be lost).",
+      "signatureMismatch": "The update and the installed version are not signed with the same key (the installed one is probably a development build): uninstall it first (the Wi-Fi pairing will be lost).",
       "storage": "Not enough space on the tablet.",
       "failed": "The tablet refused: {detail}"
     },

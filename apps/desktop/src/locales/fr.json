@@ -155,7 +155,7 @@
       "busy": "Mise à jour déjà en cours sur cette tablette.",
       "noPadboard": "Padboard n’est pas installé sur la tablette.",
       "notNewer": "La tablette a déjà cette version ou une plus récente.",
-      "signatureMismatch": "La version installée sur la tablette est signée avec une autre clé (version de développement) : désinstalle-la d’abord (l’association Wi-Fi sera perdue).",
+      "signatureMismatch": "La mise à jour et la version installée ne sont pas signées avec la même clé (la version installée est sans doute une version de développement) : désinstalle-la d’abord (l’association Wi-Fi sera perdue).",
       "storage": "Pas assez de place sur la tablette.",
       "failed": "La tablette a refusé : {detail}"
     },
