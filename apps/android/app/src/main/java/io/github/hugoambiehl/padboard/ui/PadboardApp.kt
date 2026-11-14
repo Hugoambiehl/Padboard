@@ -34,11 +34,12 @@ fun PadboardApp(viewModel: PadboardViewModel) {
     val systemStatus by viewModel.systemStatus.collectAsStateWithLifecycle()
     val update by viewModel.update.collectAsStateWithLifecycle()
     KioskExitCorner(enabled = kiosk, onExit = viewModel::exitKiosk) {
-        ScreensaverHost(settings = settings, status = systemStatus) {
-            Box {
+        Box {
+            ScreensaverHost(settings = settings, status = systemStatus) {
                 Screens(viewModel, link, layout, pcs)
-                update?.let { UpdateOverlay(it, onDismiss = viewModel::dismissUpdate) }
             }
+            // Above the screensaver: an update shows even while it sleeps.
+            update?.let { UpdateOverlay(it, onDismiss = viewModel::dismissUpdate) }
         }
     }
 }
