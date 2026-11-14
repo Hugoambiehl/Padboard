@@ -436,7 +436,18 @@ SM-T580, always measure in release builds.
   not, any protocol): the version is read with `dumpsys package`
   (`UsbDevice.app`), then `adb install -r` (never `-d`), 180 s timeout,
   Android's refusals mapped to codes (`UsbUpdateError`). Wi-Fi: kiosk
-  tablets only, over the connection (protocol 5 core). The device owner
+  tablets only, over the connection (protocol 5 core): the tablet
+  (`ConnectionManager`, JVM-tested against the fake PC) refuses outside
+  device-owner mode or for a version not above its own, pulls the pieces
+  one at a time (30 s stall limit, file deleted on any failure), checks
+  the SHA-256, then `AppUpdater.check` (`ApkChecks`: same package, higher
+  `versionCode`, exactly its own signing certificates, and in a release
+  build — not debuggable — the release certificate only), reports
+  `installing`, then commits a silent `PackageInstaller` session
+  (`update/AndroidUpdater.kt`; status in `InstallStatusReceiver`: a
+  confirmation request is never shown, it means the app is no longer the
+  device owner). An update-only session sends no `tablet:status` and no
+  presses, and shows `UpdateOnlyScreen` (which side to update). The device owner
   installs without `REQUEST_INSTALL_PACKAGES` (AOSP
   `computeUserActionRequirement` waives it, 8.0 and 12L checked): the
   permission is not declared.

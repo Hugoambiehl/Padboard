@@ -168,7 +168,26 @@
     },
     "outdated": "{name} has a version of Padboard too old to be updated over Wi-Fi: plug it in over USB to update it.",
     "updateOnly": "Not the same version as this PC: it can only be updated.",
-    "pcOutdated": "The tablet is newer than this PC: update Padboard on this PC."
+    "pcOutdated": "The tablet is newer than this PC: update Padboard on this PC.",
+    "offer": {
+      "gone": "The tablet disconnected.",
+      "notSilent": "The tablet is not in kiosk mode: plug it in over USB to update it.",
+      "notNewer": "The tablet already has this version or a newer one.",
+      "tooLarge": "The update is too large to be sent."
+    },
+    "sending": "Sending version {version}… {percent}%",
+    "useUsb": "Older than this PC’s version: plug it in over USB to update it (over Wi-Fi, only in kiosk mode).",
+    "outcome": {
+      "installing": "Installing version {version}: the tablet restarts Padboard.",
+      "not_device_owner": "Refused: the tablet is no longer in kiosk mode (use USB).",
+      "not_newer": "Refused: the tablet already has this version or a newer one.",
+      "wrong_package": "Refused: the file is not Padboard.",
+      "bad_certificate": "Refused: the file is not signed with Padboard’s key.",
+      "bad_hash": "Failed: the file was damaged while being sent.",
+      "transfer_failed": "Failed: the transfer stopped.",
+      "install_failed": "Failed: Android refused to install it.",
+      "busy": "Another update is already in progress on the tablet."
+    }
   },
   "common": {
     "cancel": "Cancel",

@@ -14,12 +14,16 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import okio.ByteString
 
 /** What happens on a [Session], in order. [Closed] is always the last event. */
 sealed interface SessionEvent {
     data object Opened : SessionEvent
 
     data class Received(val message: Message) : SessionEvent
+
+    /** A binary frame (the pieces of an update). */
+    class Bytes(val bytes: ByteArray) : SessionEvent
 
     data class Closed(val failure: Throwable?) : SessionEvent
 }
@@ -74,6 +78,10 @@ class Session private constructor() {
                     return
                 }
             channel.trySend(SessionEvent.Received(message))
+        }
+
+        override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+            channel.trySend(SessionEvent.Bytes(bytes.toByteArray()))
         }
 
         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {

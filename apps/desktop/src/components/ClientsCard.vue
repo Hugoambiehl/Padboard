@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { Lock, Tablet, TriangleAlert } from "lucide-vue-next";
+import { Download, Lock, Tablet, TriangleAlert } from "lucide-vue-next";
 import BaseCard from "./BaseCard.vue";
-import { exitKiosk } from "../commands";
-import type { ClientInfo, OutdatedTablet } from "../types/status";
+import { exitKiosk, updateWifiTablet } from "../commands";
+import type { ClientInfo, OutdatedTablet, TabletUpdate } from "../types/status";
+import { needsUpdate, wifiUpdateErrorMessage } from "../usb/update";
 
 defineProps<{
   clients: ClientInfo[];
   /** Paired tablets turned away: too old to be updated over Wi-Fi. */
   outdated: OutdatedTablet[];
-  /** This PC's tablet versionCode. */
+  /** This PC's version, offered to older tablets, and its tablet versionCode. */
+  appVersion: string;
   appVersionCode: number | null;
 }>();
 const { t, d } = useI18n();
@@ -18,6 +20,48 @@ const { t, d } = useI18n();
 /** Tablet whose release from kiosk mode waits for a second click. */
 const confirming = ref<number | null>(null);
 const error = ref<string | null>(null);
+
+/** Updates over Wi-Fi: the request being sent, and why it was refused. */
+const requesting = ref<number | null>(null);
+const updateError = ref<Record<number, string>>({});
+
+async function update(id: number) {
+  if (requesting.value !== null) return;
+  requesting.value = id;
+  updateError.value = Object.fromEntries(
+    Object.entries(updateError.value).filter(([key]) => Number(key) !== id),
+  );
+  try {
+    await updateWifiTablet(id);
+  } catch (e) {
+    const { key, params } = wifiUpdateErrorMessage(e);
+    updateError.value = { ...updateError.value, [id]: t(key, params) };
+  } finally {
+    requesting.value = null;
+  }
+}
+
+/** What the tablet's update looks like now. */
+function progress(u: TabletUpdate): { text: string; tone: string } {
+  switch (u.state) {
+    case "sending":
+      return {
+        text: t("tabletUpdate.sending", {
+          version: u.version,
+          percent: u.total > 0 ? Math.floor((u.sent / u.total) * 100) : 0,
+        }),
+        tone: "text-muted-2",
+      };
+    case "installing":
+      return {
+        text: t("tabletUpdate.outcome.installing", { version: u.version }),
+        tone: "text-cat-teal",
+      };
+    case "failed":
+      return { text: t(`tabletUpdate.outcome.${u.outcome}`), tone: "text-cat-red" };
+  }
+  return { text: "", tone: "" };
+}
 
 async function release(id: number) {
   if (confirming.value !== id) {
@@ -74,6 +118,36 @@ async function release(id: number) {
               : t("tabletUpdate.updateOnly")
           }}
         </p>
+        <template
+          v-if="c.transport === 'wifi' && needsUpdate(c.tablet.appVersionCode, appVersionCode)"
+        >
+          <button
+            v-if="c.tablet.silentInstall"
+            type="button"
+            class="flex items-center gap-1.5 self-start rounded-lg bg-accent px-2.5 py-1.5 text-xs font-medium text-[#0E0F12] transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50"
+            :disabled="
+              requesting !== null ||
+              c.update?.state === 'sending' ||
+              c.update?.state === 'installing'
+            "
+            :title="t('tabletUpdate.hint')"
+            :data-wifi-update="c.id"
+            @click="update(c.id)"
+          >
+            <Download :size="13" aria-hidden="true" />
+            {{ t("tabletUpdate.update", { version: appVersion }) }}
+          </button>
+          <p v-else class="text-xs text-muted-2">{{ t("tabletUpdate.useUsb") }}</p>
+        </template>
+        <p
+          v-if="c.update"
+          class="text-xs"
+          :class="progress(c.update).tone"
+          data-wifi-update-progress
+        >
+          {{ progress(c.update).text }}
+        </p>
+        <p v-if="updateError[c.id]" class="text-xs text-cat-red">{{ updateError[c.id] }}</p>
         <button
           v-if="c.kiosk && !c.tablet.updateOnly"
           type="button"

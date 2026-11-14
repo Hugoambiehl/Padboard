@@ -14,4 +14,4 @@ targetRules = ["generic-api-key"]
 condition = "AND"
 regexTarget = "secret"
 regexes = ['''^q8T1yZ0vKc3m5WjR7aLbN2xHf4pGsD9eUoVtEiMnQwA$''']
-paths = ['''^crates/protocol/fixtures/[^/]+\.json$''']
+paths = ['''^crates/protocol/fixtures/(core/)?[^/]+\.json$''']

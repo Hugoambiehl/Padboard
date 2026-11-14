@@ -31,10 +31,6 @@ impl std::fmt::Debug for UpdatePackage {
 
 impl UpdatePackage {
     /// `None` when the APK is empty or larger than the protocol allows.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "built from the downloaded APK in the next step")
-    )]
     #[must_use]
     pub fn new(version: String, version_code: u32, bytes: Vec<u8>) -> Option<Self> {
         let size = u32::try_from(bytes.len()).ok()?;
@@ -103,10 +99,6 @@ pub enum TabletUpdate {
 }
 
 /// Why an update could not be offered to a connected tablet.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "offered from the UI in the next step")
-)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, thiserror::Error)]
 #[serde(rename_all = "camelCase")]
 pub enum OfferError {
@@ -118,6 +110,21 @@ pub enum OfferError {
     /// Its version is unknown (protocol 4) or already this one or newer.
     #[error("the tablet does not need this version")]
     NotNewer,
+}
+
+/// Why an update could not be sent over Wi-Fi. Codes, translated by the UI.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, thiserror::Error)]
+#[serde(tag = "code", rename_all = "camelCase")]
+pub enum WifiUpdateError {
+    /// The APK of this PC's version is not available.
+    #[error("{error}")]
+    Apk {
+        error: crate::updates::tablet::ApkError,
+    },
+    #[error("{reason}")]
+    Offer { reason: OfferError },
+    #[error("the APK is too large")]
+    TooLarge,
 }
 
 /// The update in progress on one connection.

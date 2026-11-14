@@ -1,5 +1,6 @@
 package io.github.hugoambiehl.padboard.ui
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -16,9 +17,11 @@ import io.github.hugoambiehl.padboard.ui.connect.IncompatibleScreen
 import io.github.hugoambiehl.padboard.ui.connect.PinScreen
 import io.github.hugoambiehl.padboard.ui.connect.SearchingScreen
 import io.github.hugoambiehl.padboard.ui.connect.SetupScreen
+import io.github.hugoambiehl.padboard.ui.connect.UpdateOnlyScreen
 import io.github.hugoambiehl.padboard.ui.grid.GridScreen
 import io.github.hugoambiehl.padboard.ui.grid.GridStatus
 import io.github.hugoambiehl.padboard.ui.screensaver.ScreensaverHost
+import io.github.hugoambiehl.padboard.ui.update.UpdateOverlay
 
 /** Root: picks the screen from the connection state. */
 @Composable
@@ -29,9 +32,13 @@ fun PadboardApp(viewModel: PadboardViewModel) {
     val kiosk by viewModel.kiosk.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val systemStatus by viewModel.systemStatus.collectAsStateWithLifecycle()
+    val update by viewModel.update.collectAsStateWithLifecycle()
     KioskExitCorner(enabled = kiosk, onExit = viewModel::exitKiosk) {
         ScreensaverHost(settings = settings, status = systemStatus) {
-            Screens(viewModel, link, layout, pcs)
+            Box {
+                Screens(viewModel, link, layout, pcs)
+                update?.let { UpdateOverlay(it, onDismiss = viewModel::dismissUpdate) }
+            }
         }
     }
 }
@@ -62,6 +69,7 @@ private fun Screens(viewModel: PadboardViewModel, link: LinkState, layout: Layou
         LinkState.Starting -> SearchingScreen(serverName = null, onForget = null)
         LinkState.Unpaired -> setup(null)
         LinkState.Incompatible -> IncompatibleScreen(onRetry = viewModel::retry)
+        is LinkState.UpdateOnly -> UpdateOnlyScreen(state.serverName, state.pcIsNewer)
         is LinkState.Pairing ->
             PinScreen(state = state, onSubmit = viewModel::submitPin, onCancel = viewModel::cancelPairing)
         is LinkState.Connected, is LinkState.Searching -> {

@@ -27,6 +27,16 @@ against the release's `SHA256SUMS`, which is signed for that exact version
 app: your pairing and settings are kept, and Android itself refuses an
 APK signed with another key or an older version.
 
+**Over Wi-Fi, in kiosk mode only**: a tablet in kiosk mode connected over
+Wi-Fi gets the same button in the **Connected tablets** card. The PC
+sends the checked APK over the encrypted connection; the tablet checks it
+again (same package, newer version, signed with the same key as the
+installed app, the release key for release builds) and installs it
+without asking, as the device owner. It shows the progress and restarts
+Padboard by itself. A tablet that is not in kiosk mode is updated over
+USB only. This works whatever the versions, as long as the tablet runs
+Padboard 0.2 or later; older ones are updated over USB once.
+
 By hand, updates install like the first time, over the existing app
 (`adb install -r …`): your pairing is kept. Every release is signed with the same key; its
 certificate's SHA-256 is

@@ -5,6 +5,12 @@ import kotlinx.serialization.json.Json
 /** Version of the wire protocol, checked by the desktop during the handshake. Mirrors `PROTOCOL_VERSION`. */
 const val PROTOCOL_VERSION: UInt = 5u
 
+/** Size of the APK pieces of an update. Mirrors `UPDATE_CHUNK_SIZE`. */
+const val UPDATE_CHUNK_SIZE: Long = 64L * 1024
+
+/** Largest APK accepted. Mirrors `MAX_UPDATE_SIZE`. */
+const val MAX_UPDATE_SIZE: Long = 256L * 1024 * 1024
+
 /**
  * JSON configuration matching the Rust side (`crates/protocol`):
  * - `{ "type": "...", "payload": {...} }` envelope: the sealed [Message] uses `type` as discriminator

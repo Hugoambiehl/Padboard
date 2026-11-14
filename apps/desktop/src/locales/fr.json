@@ -168,7 +168,26 @@
     },
     "outdated": "{name} a une version de Padboard trop ancienne pour être mise à jour en Wi-Fi : branche-la en USB pour la mettre à jour.",
     "updateOnly": "Version différente de ce PC : seule la mise à jour est possible.",
-    "pcOutdated": "La tablette est plus récente que ce PC : mets à jour Padboard sur ce PC."
+    "pcOutdated": "La tablette est plus récente que ce PC : mets à jour Padboard sur ce PC.",
+    "offer": {
+      "gone": "La tablette s’est déconnectée.",
+      "notSilent": "La tablette n’est pas en mode kiosque : branche-la en USB pour la mettre à jour.",
+      "notNewer": "La tablette a déjà cette version ou une plus récente.",
+      "tooLarge": "La mise à jour est trop grosse pour être envoyée."
+    },
+    "sending": "Envoi de la version {version}… {percent} %",
+    "useUsb": "Version plus ancienne que ce PC : branche-la en USB pour la mettre à jour (en Wi-Fi, seulement en mode kiosque).",
+    "outcome": {
+      "installing": "Installation de la version {version} : la tablette redémarre Padboard.",
+      "not_device_owner": "Refusée : la tablette n’est plus en mode kiosque (passe par l’USB).",
+      "not_newer": "Refusée : la tablette a déjà cette version ou une plus récente.",
+      "wrong_package": "Refusée : le fichier n’est pas Padboard.",
+      "bad_certificate": "Refusée : le fichier n’est pas signé avec la clé de Padboard.",
+      "bad_hash": "Échec : le fichier a été abîmé pendant l’envoi.",
+      "transfer_failed": "Échec : l’envoi s’est interrompu.",
+      "install_failed": "Échec : Android a refusé de l’installer.",
+      "busy": "Une autre mise à jour est déjà en cours sur la tablette."
+    }
   },
   "common": {
     "cancel": "Annuler",

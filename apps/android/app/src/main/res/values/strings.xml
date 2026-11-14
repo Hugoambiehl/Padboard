@@ -41,7 +41,7 @@
     <string name="starting">Starting…</string>
     <string name="searching_title">Looking for %1$s…</string>
     <string name="searching_body">Plug the tablet in over USB, or check that Padboard runs on the PC with Wi-Fi on and that both devices are on the same network.</string>
-    <string name="failure_incompatible">The Padboard versions on the PC and on the tablet are incompatible. Update both.</string>
+    <string name="failure_incompatible">The Padboard version on the PC does not match this tablet’s. Update Padboard on the PC: it then updates the tablet.</string>
     <string name="retry">Try again</string>
     <string name="cancel">Cancel</string>
 
@@ -88,4 +88,20 @@
     <string name="about_section_assets">FONTS AND ICONS</string>
     <string name="about_section_libraries">LIBRARIES</string>
     <string name="about_no_text">License text not included: see the component’s repository.</string>
+    <!-- Updates sent by the PC -->
+    <string name="update_only_tablet_older">The Padboard version on this tablet does not match the one on %1$s. Update the tablet from the PC: connections view, “Update” button (over USB, or over Wi-Fi in kiosk mode).</string>
+    <string name="update_only_pc_older">This tablet has a newer version of Padboard than %1$s. Update Padboard on the PC.</string>
+    <string name="update_title">Updating Padboard</string>
+    <string name="update_receiving">Receiving version %1$s… %2$d%%</string>
+    <string name="update_installing">Installing version %1$s: Padboard restarts by itself.</string>
+    <string name="update_failed">Version %1$s was not installed: %2$s</string>
+    <string name="update_reason_not_device_owner">the tablet is no longer in kiosk mode (update it over USB).</string>
+    <string name="update_reason_not_newer">this version or a newer one is already installed.</string>
+    <string name="update_reason_wrong_package">the file is not Padboard.</string>
+    <string name="update_reason_bad_certificate">it is not signed with Padboard’s key.</string>
+    <string name="update_reason_bad_hash">the file was damaged on the way.</string>
+    <string name="update_reason_transfer_failed">the transfer stopped.</string>
+    <string name="update_reason_install_failed">Android refused to install it.</string>
+    <string name="update_reason_busy">another update is in progress.</string>
+    <string name="update_ok">OK</string>
 </resources>

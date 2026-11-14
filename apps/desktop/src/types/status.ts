@@ -143,6 +143,12 @@ export type UsbUpdateError =
   | { code: "apk"; error: ApkError }
   | { code: "failed"; detail: string };
 
+/** Why an update could not be sent over Wi-Fi (tablet_update.rs `WifiUpdateError`). */
+export type WifiUpdateError =
+  | { code: "apk"; error: ApkError }
+  | { code: "offer"; reason: "gone" | "notSilent" | "notNewer" }
+  | { code: "tooLarge" };
+
 /** Why the tablet APK is not available (updates/tablet.rs `ApkError`). */
 export type ApkError =
   | { code: "noKey" }

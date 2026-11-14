@@ -1,6 +1,6 @@
 // Tablet updates from the PC: what a failure says (codes from adb.rs and
 // updates/tablet.rs).
-import type { ApkError, UsbUpdateError } from "../types/status";
+import type { ApkError, UsbUpdateError, WifiUpdateError } from "../types/status";
 
 export interface Text {
   key: string;
@@ -48,4 +48,19 @@ export function usbUpdateErrorMessage(error: unknown): Text {
 /** The tablet's app is older than this PC's version (an update is offered). */
 export function needsUpdate(appCode: number | null | undefined, pcCode: number | null): boolean {
   return appCode != null && pcCode != null && appCode < pcCode;
+}
+
+/** i18n key and parameters for a refusal of `update_wifi_tablet`. */
+export function wifiUpdateErrorMessage(error: unknown): Text {
+  const e = error as Partial<WifiUpdateError> | null;
+  switch (e?.code) {
+    case "apk":
+      return apkErrorMessage((e as { error: ApkError }).error);
+    case "offer":
+      return { key: `tabletUpdate.offer.${(e as { reason: string }).reason}`, params: {} };
+    case "tooLarge":
+      return { key: "tabletUpdate.offer.tooLarge", params: {} };
+    default:
+      return { key: "tabletUpdate.usb.failed", params: { detail: String(error) } };
+  }
 }

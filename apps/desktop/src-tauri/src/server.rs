@@ -136,10 +136,6 @@ pub struct ServerContext {
 }
 
 /// What the UI can reach of one session.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "updates are offered from the UI in the next step")
-)]
 #[derive(Debug)]
 pub struct SessionHandle {
     /// Orders and messages; `None` for an update-only session.
@@ -174,10 +170,6 @@ impl ServerContext {
     ///
     /// # Errors
     /// Why it cannot be offered.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "offered from the UI in the next step")
-    )]
     pub fn offer_update(
         &self,
         client_id: u64,
@@ -937,28 +929,30 @@ where
     Ok(())
 }
 
-/// The tablet's `update:result`.
+/// The tablet's `update:result`. After `installing`, the transfer is kept:
+/// the installer may still refuse it (`install_failed` follows).
 fn finish_update(
     id: u64,
     ctx: &ServerContext,
     transfer: &mut Option<Transfer>,
     outcome: padboard_protocol::UpdateOutcome,
 ) {
-    let Some(done) = transfer.take() else {
+    let Some(current) = transfer.as_ref() else {
         tracing::debug!(client = id, ?outcome, "update result without an offer");
         return;
     };
-    let version = done.package.version.clone();
+    let version = current.package.version.clone();
     tracing::info!(client = id, %version, ?outcome, "tablet update result");
     let update = if outcome == padboard_protocol::UpdateOutcome::Installing {
         TabletUpdate::Installing { version }
     } else {
+        *transfer = None;
         TabletUpdate::Failed { version, outcome }
     };
     emit(ctx, ServerEvent::TabletUpdate { id, update });
 }
 
-/// A session's outbox in [`ServerContext::sessions`], for as long as it lives.
+/// A session's handle in [`ServerContext::sessions`], for as long as it lives.
 struct Registered<'a> {
     ctx: &'a ServerContext,
     id: u64,
@@ -1840,6 +1834,22 @@ mod tests {
                     })
             {
                 assert_eq!(at, id);
+                break;
+            }
+        }
+        // The installer can still refuse it afterwards.
+        send_msg(
+            &mut client,
+            &Message::UpdateResult(UpdateResultPayload {
+                outcome: padboard_protocol::UpdateOutcome::InstallFailed,
+            }),
+        )
+        .await;
+        loop {
+            if let ServerEvent::TabletUpdate { update, .. } = next_event(&mut h).await
+                && let TabletUpdate::Failed { outcome, .. } = update
+            {
+                assert_eq!(outcome, padboard_protocol::UpdateOutcome::InstallFailed);
                 break;
             }
         }

@@ -7,17 +7,27 @@ import io.github.hugoambiehl.padboard.protocol.Fingerprint
 import io.github.hugoambiehl.padboard.protocol.Heartbeat
 import io.github.hugoambiehl.padboard.protocol.HelloPayload
 import io.github.hugoambiehl.padboard.protocol.Layout
+import io.github.hugoambiehl.padboard.protocol.MAX_UPDATE_SIZE
 import io.github.hugoambiehl.padboard.protocol.Message
 import io.github.hugoambiehl.padboard.protocol.NavigatePayload
 import io.github.hugoambiehl.padboard.protocol.PROTOCOL_VERSION
 import io.github.hugoambiehl.padboard.protocol.PairFailureReason
 import io.github.hugoambiehl.padboard.protocol.PairRequestPayload
+import io.github.hugoambiehl.padboard.protocol.SessionMode
 import io.github.hugoambiehl.padboard.protocol.SystemStatusPayload
 import io.github.hugoambiehl.padboard.protocol.TabletOrder
 import io.github.hugoambiehl.padboard.protocol.TabletSettingsPayload
 import io.github.hugoambiehl.padboard.protocol.TabletStatusPayload
+import io.github.hugoambiehl.padboard.protocol.UpdateOfferPayload
+import io.github.hugoambiehl.padboard.protocol.UpdateOutcome
+import io.github.hugoambiehl.padboard.protocol.UpdateRequestPayload
+import io.github.hugoambiehl.padboard.protocol.UpdateResultPayload
 import io.github.hugoambiehl.padboard.protocol.WelcomePayload
 import io.github.hugoambiehl.padboard.protocol.withButton
+import java.io.File
+import java.io.IOException
+import java.io.OutputStream
+import java.security.MessageDigest
 import java.util.Base64
 import java.util.logging.Logger
 import kotlin.time.Duration
@@ -43,6 +53,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 
@@ -87,7 +98,14 @@ sealed interface LinkState {
         val submitting: Boolean = false
     ) : LinkState
 
-    /** The PC speaks another protocol version: both apps must be updated. */
+    /**
+     * Connected, but the PC speaks another protocol version: the session
+     * only serves updates. [pcIsNewer]: the tablet is the one to update
+     * (from the PC); otherwise Padboard on the PC is.
+     */
+    data class UpdateOnly(val transport: Transport, val serverName: String, val pcIsNewer: Boolean) : LinkState
+
+    /** The PC speaks another protocol version and cannot update the tablet: update the PC. */
     data object Incompatible : LinkState
 }
 
@@ -121,7 +139,8 @@ class ConnectionManager(
     private val pairing: PairingRepository,
     private val directory: PcDirectory,
     private val deviceName: String,
-    private val config: Config = Config()
+    private val config: Config = Config(),
+    private val updater: AppUpdater = AppUpdater.None
 ) {
     data class Config(
         val usbEndpoint: Endpoint = Endpoint(Endpoint.LOOPBACK, Endpoint.USB_PORT),
@@ -132,7 +151,9 @@ class ConnectionManager(
         /** No message for this long: the link is dead. */
         val deadAfter: Duration = 15.seconds,
         val retryMin: Duration = 500.milliseconds,
-        val retryMax: Duration = 5.seconds
+        val retryMax: Duration = 5.seconds,
+        /** An update whose next piece does not come for this long is abandoned. */
+        val updateStall: Duration = 30.seconds
     )
 
     private val dispatcher = Dispatchers.Default.limitedParallelism(1)
@@ -177,6 +198,20 @@ class ConnectionManager(
 
     /** PC states for the screensaver; null while disconnected (they would be stale). */
     val systemStatus: StateFlow<SystemStatusPayload?> = _systemStatus.asStateFlow()
+
+    private val _update = MutableStateFlow<UpdateProgress?>(null)
+
+    /** An update sent by the PC over the connection (kiosk mode only). */
+    val update: StateFlow<UpdateProgress?> = _update.asStateFlow()
+
+    /** The update being received (connection thread only). */
+    private var download: Download? = null
+
+    private class Download(val offer: UpdateOfferPayload, val file: File, val out: OutputStream) {
+        val digest: MessageDigest = MessageDigest.getInstance("SHA-256")
+        var received = 0L
+        var lastPiece = TimeSource.Monotonic.markNow()
+    }
 
     /** Kiosk mode, reported to the PC (`tablet:status`). */
     private var kiosk = false
@@ -341,7 +376,22 @@ class ConnectionManager(
         }
     }
 
-    private fun hello(token: String?) = Message.Hello(HelloPayload(PROTOCOL_VERSION, deviceName, deviceId, token))
+    private fun hello(token: String?) = Message.Hello(
+        HelloPayload(
+            PROTOCOL_VERSION,
+            deviceName,
+            deviceId,
+            token,
+            appVersion = updater.versionName,
+            appVersionCode = updater.versionCode?.takeIf { it in 0..UInt.MAX_VALUE.toLong() }?.toUInt(),
+            silentInstall = updater.canInstallSilently()
+        )
+    )
+
+    /** Dismisses a finished (failed) update shown by the UI. */
+    fun dismissUpdate() {
+        scope.launch { if (_update.value is UpdateProgress.Failed) _update.value = null }
+    }
 
     /** Opens a session, sends `hello` and waits for `welcome`. */
     private suspend fun handshake(session: Session, token: String?): WelcomePayload? {
@@ -359,6 +409,8 @@ class ConnectionManager(
                             return@withTimeoutOrNull null
                         }
                         is SessionEvent.Closed -> return@withTimeoutOrNull null
+                        // Nothing binary is expected before `welcome`.
+                        is SessionEvent.Bytes -> return@withTimeoutOrNull null
                     }
                 }
                 null
@@ -418,11 +470,28 @@ class ConnectionManager(
     /** Runs an authenticated session until it ends. */
     private suspend fun hold(link: Active): End = coroutineScope {
         val paired = pairing.load()?.serverId == link.welcome.serverId
-        active = link
+        // Another protocol: only the frozen core (pings, updates), nothing else is sent.
+        val full = link.welcome.mode != SessionMode.UpdateOnly
         lastServer = LastServer(link.welcome.serverId, link.welcome.serverName)
-        _state.value = LinkState.Connected(link.transport, link.welcome.serverName, paired, latencyMs = null)
-        log.info("connected to ${link.welcome.serverName} over ${link.transport}")
-        link.session.send(Message.TabletStatus(TabletStatusPayload(kiosk)))
+        if (full) {
+            active = link
+            _state.value = LinkState.Connected(link.transport, link.welcome.serverName, paired, latencyMs = null)
+            log.info("connected to ${link.welcome.serverName} over ${link.transport}")
+            link.session.send(Message.TabletStatus(TabletStatusPayload(kiosk)))
+        } else {
+            val pcIsNewer = link.welcome.protocolVersion > PROTOCOL_VERSION
+            _state.value = LinkState.UpdateOnly(link.transport, link.welcome.serverName, pcIsNewer)
+            log.info(
+                "connected to ${link.welcome.serverName} for updates only (its protocol: ${link.welcome.protocolVersion})"
+            )
+        }
+        // An install that failed after the app handed it over.
+        val installFailures = launch {
+            updater.failures.collect { outcome ->
+                link.session.send(Message.UpdateResult(UpdateResultPayload(outcome)))
+                _update.value = UpdateProgress.Failed(_update.value?.version.orEmpty(), outcome)
+            }
+        }
 
         var lastHeard = TimeSource.Monotonic.markNow()
         val pingsSent = mutableMapOf<UInt, TimeSource.Monotonic.ValueTimeMark>()
@@ -461,11 +530,22 @@ class ConnectionManager(
                                 SessionEvent.Opened -> null
                                 is SessionEvent.Received -> {
                                     lastHeard = TimeSource.Monotonic.markNow()
-                                    handle(link, event.message, pingsSent, paired)
+                                    handle(link, event.message, pingsSent, paired, full)
+                                }
+                                is SessionEvent.Bytes -> {
+                                    lastHeard = TimeSource.Monotonic.markNow()
+                                    piece(link, event.bytes)
+                                    null
                                 }
                             }
                         }
                         ticker.onReceive {
+                            download?.let { d ->
+                                if (d.lastPiece.elapsedNow() > config.updateStall) {
+                                    log.warning("update stalled: abandoned")
+                                    failUpdate(link, UpdateOutcome.TransferFailed)
+                                }
+                            }
                             if (lastHeard.elapsedNow() > config.deadAfter) {
                                 log.info("no answer for ${config.deadAfter}: link dead")
                                 End.Lost
@@ -494,6 +574,8 @@ class ConnectionManager(
         } finally {
             heartbeat.cancel()
             usbProbe?.cancel()
+            installFailures.cancel()
+            abandonDownload()
             if (active === link) {
                 active = null
                 _systemStatus.value = null
@@ -506,12 +588,22 @@ class ConnectionManager(
     }
 
     /** Handles a message of an authenticated session; returns non-null to end it. */
-    private fun handle(
+    private suspend fun handle(
         link: Active,
         message: Message,
         pingsSent: MutableMap<UInt, TimeSource.Monotonic.ValueTimeMark>,
-        paired: Boolean
+        paired: Boolean,
+        full: Boolean
     ): End? {
+        if (!full &&
+            message !is Message.Ping &&
+            message !is Message.Pong &&
+            message !is Message.Error &&
+            message !is Message.UpdateOffer
+        ) {
+            log.warning("ignoring ${message::class.simpleName} in an update-only session")
+            return null
+        }
         when (message) {
             is Message.LayoutSync -> _layout.value = message.payload
             is Message.ButtonUpdate -> _layout.value?.let { _layout.value = it.withButton(message.payload) }
@@ -523,7 +615,10 @@ class ConnectionManager(
             is Message.Pong ->
                 pingsSent.remove(message.payload.seq)?.let { sent ->
                     val latency = sent.elapsedNow().inWholeMilliseconds.toInt()
-                    _state.value = LinkState.Connected(link.transport, link.welcome.serverName, paired, latency)
+                    if (full) {
+                        _state.value =
+                            LinkState.Connected(link.transport, link.welcome.serverName, paired, latency)
+                    }
                 }
             is Message.Error -> {
                 val error = message.payload
@@ -550,10 +645,107 @@ class ConnectionManager(
             is Message.TabletStatus,
             is Message.UpdateRequest,
             is Message.UpdateResult -> Unit
-            // Updates over the connection: handled in a later step.
-            is Message.UpdateOffer -> Unit
+            is Message.UpdateOffer -> offered(link, message.payload)
         }
         return null
+    }
+
+    // ─── Updates from the PC ────────────────────────────────────────────
+
+    /**
+     * `update:offer`: accepted only in kiosk mode (silent install), for a
+     * higher version; the APK is then pulled piece by piece.
+     */
+    private fun offered(link: Active, offer: UpdateOfferPayload) {
+        fun refuse(outcome: UpdateOutcome) {
+            log.info("update ${offer.version} refused: $outcome")
+            link.session.send(Message.UpdateResult(UpdateResultPayload(outcome)))
+        }
+        if (download != null) return refuse(UpdateOutcome.Busy)
+        if (!updater.canInstallSilently()) return refuse(UpdateOutcome.NotDeviceOwner)
+        val own = updater.versionCode
+        if (own == null || offer.versionCode.toLong() <= own) return refuse(UpdateOutcome.NotNewer)
+        val size = offer.size.toLong()
+        if (size == 0L || size > MAX_UPDATE_SIZE) return refuse(UpdateOutcome.TransferFailed)
+        val file =
+            try {
+                updater.newApkFile()
+            } catch (e: IOException) {
+                log.warning("cannot create the update file: $e")
+                return refuse(UpdateOutcome.TransferFailed)
+            }
+        log.info("receiving update ${offer.version} ($size bytes)")
+        download = Download(offer, file, file.outputStream().buffered())
+        _update.value = UpdateProgress.Receiving(offer.version, 0, size)
+        link.session.send(Message.UpdateRequest(UpdateRequestPayload(0u)))
+    }
+
+    /** A binary frame: the next piece of the APK (4-byte big-endian offset, then bytes). */
+    private suspend fun piece(link: Active, frame: ByteArray) {
+        val d = download ?: return
+        val size = d.offer.size.toLong()
+        if (frame.size <= 4) return failUpdate(link, UpdateOutcome.TransferFailed)
+        val offset = ((frame[0].toLong() and 0xff) shl 24) or ((frame[1].toLong() and 0xff) shl 16) or
+            ((frame[2].toLong() and 0xff) shl 8) or (frame[3].toLong() and 0xff)
+        val length = frame.size - 4
+        if (offset != d.received || d.received + length > size) return failUpdate(link, UpdateOutcome.TransferFailed)
+        try {
+            d.out.write(frame, 4, length)
+        } catch (e: IOException) {
+            log.warning("cannot write the update: $e")
+            return failUpdate(link, UpdateOutcome.TransferFailed)
+        }
+        d.digest.update(frame, 4, length)
+        d.received += length
+        d.lastPiece = TimeSource.Monotonic.markNow()
+        _update.value = UpdateProgress.Receiving(d.offer.version, d.received, size)
+        if (d.received < size) {
+            link.session.send(Message.UpdateRequest(UpdateRequestPayload(d.received.toUInt())))
+        } else {
+            received(link, d)
+        }
+    }
+
+    /** All pieces in: same bytes as announced, then the app's checks, then the installer. */
+    private suspend fun received(link: Active, d: Download) {
+        download = null
+        try {
+            d.out.close()
+        } catch (e: IOException) {
+            log.warning("cannot write the update: $e")
+            return finishFailed(link, d, UpdateOutcome.TransferFailed)
+        }
+        val hash = d.digest.digest().joinToString("") { "%02x".format(it) }
+        if (hash != d.offer.sha256.lowercase()) return finishFailed(link, d, UpdateOutcome.BadHash)
+        val refused = withContext(Dispatchers.IO) { updater.check(d.file, d.offer) }
+        if (refused != null) return finishFailed(link, d, refused)
+        log.info("update ${d.offer.version} checked: installing")
+        link.session.send(Message.UpdateResult(UpdateResultPayload(UpdateOutcome.Installing)))
+        _update.value = UpdateProgress.Installing(d.offer.version)
+        withContext(Dispatchers.IO) { updater.install(d.file) }
+    }
+
+    private fun failUpdate(link: Active, outcome: UpdateOutcome) {
+        val d = download ?: return
+        download = null
+        runCatching { d.out.close() }
+        finishFailed(link, d, outcome)
+    }
+
+    private fun finishFailed(link: Active, d: Download, outcome: UpdateOutcome) {
+        log.warning("update ${d.offer.version} failed: $outcome")
+        d.file.delete()
+        link.session.send(Message.UpdateResult(UpdateResultPayload(outcome)))
+        _update.value = UpdateProgress.Failed(d.offer.version, outcome)
+    }
+
+    /** The session ended during a transfer: nothing is kept. */
+    private fun abandonDownload() {
+        val d = download ?: return
+        download = null
+        runCatching { d.out.close() }
+        d.file.delete()
+        _update.value = null
     }
 
     // ─── Pairing ────────────────────────────────────────────────────────
@@ -607,7 +799,7 @@ class ConnectionManager(
                     is PairingStep.Event ->
                         when (val event = step.event) {
                             null, is SessionEvent.Closed -> return null
-                            SessionEvent.Opened -> Unit
+                            SessionEvent.Opened, is SessionEvent.Bytes -> Unit
                             is SessionEvent.Received ->
                                 when (val message = event.message) {
                                     is Message.PairSuccess -> {

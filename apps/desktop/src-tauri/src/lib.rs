@@ -352,6 +352,37 @@ async fn update_usb_tablet(
     outcome
 }
 
+/// Sends this PC's version to the connected tablet `client_id` over its
+/// connection: kiosk tablets only (they install it silently), checked the
+/// same way as for USB. Progress comes with the status (`ClientInfo.update`).
+#[tauri::command]
+async fn update_wifi_tablet(
+    backend: tauri::State<'_, Backend>,
+    client_id: u64,
+) -> Result<String, tablet_update::WifiUpdateError> {
+    use tablet_update::WifiUpdateError;
+    let apk = backend
+        .apks
+        .get()
+        .await
+        .map_err(|error| WifiUpdateError::Apk { error })?;
+    let bytes = tokio::fs::read(&apk.path)
+        .await
+        .map_err(|e| WifiUpdateError::Apk {
+            error: updates::tablet::ApkError::Storage {
+                detail: e.to_string(),
+            },
+        })?;
+    let package = tablet_update::UpdatePackage::new(apk.version.clone(), apk.version_code, bytes)
+        .ok_or(WifiUpdateError::TooLarge)?;
+    tracing::info!(client = client_id, version = %apk.version, "updating a tablet over its connection");
+    backend
+        .server
+        .offer_update(client_id, Arc::new(package))
+        .map_err(|reason| WifiUpdateError::Offer { reason })?;
+    Ok(apk.version)
+}
+
 /// Takes a connected tablet out of kiosk mode for good (`tablet:command`).
 #[tauri::command]
 fn exit_kiosk(backend: tauri::State<'_, Backend>, client_id: u64) -> bool {
@@ -582,6 +613,7 @@ pub fn run() {
             set_adb_path,
             enable_kiosk,
             update_usb_tablet,
+            update_wifi_tablet,
             exit_kiosk,
             get_screensaver,
             set_screensaver,

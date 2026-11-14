@@ -51,6 +51,33 @@ const status: Snapshot = {
       },
       update: null,
     },
+    // `&wifiUpdate=1`: a kiosk tablet on Wi-Fi receiving an update.
+    ...(new URLSearchParams(location.search).get("wifiUpdate") === "1"
+      ? [
+          {
+            id: 2,
+            deviceId: "tab-2",
+            deviceName: "Galaxy Tab S6",
+            transport: "wifi" as const,
+            peer: "192.168.1.30:51000",
+            connectedAtMs: Date.now(),
+            kiosk: true,
+            tablet: {
+              protocolVersion: 5,
+              updateOnly: false,
+              appVersion: "0.1.9",
+              appVersionCode: 10999,
+              silentInstall: true,
+            },
+            update: {
+              state: "sending" as const,
+              version: "0.2.0",
+              sent: 4_000_000,
+              total: 9_000_000,
+            },
+          },
+        ]
+      : []),
   ],
   pairing: { state: "idle" },
   pairedDevices: [],

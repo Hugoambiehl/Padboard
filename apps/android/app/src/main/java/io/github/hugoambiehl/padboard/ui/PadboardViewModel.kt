@@ -15,6 +15,7 @@ import io.github.hugoambiehl.padboard.connection.PairingStore
 import io.github.hugoambiehl.padboard.kiosk.Kiosk
 import io.github.hugoambiehl.padboard.protocol.TabletOrder
 import io.github.hugoambiehl.padboard.ui.grid.PageMemory
+import io.github.hugoambiehl.padboard.update.AndroidUpdater
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
@@ -32,7 +33,8 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
             http = okHttp,
             pairing = PairingStore(application),
             directory = directory,
-            deviceName = deviceName(application)
+            deviceName = deviceName(application),
+            updater = AndroidUpdater(application)
         )
 
     val link = manager.state
@@ -43,6 +45,9 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
     val settings = manager.settings
     val systemStatus = manager.systemStatus
     val kiosk = Kiosk.active
+
+    /** An update sent by the PC (kiosk mode). */
+    val update = manager.update
 
     /** The page the user is on, kept across reconnections (not app restarts). */
     val pageMemory = PageMemory()
@@ -90,6 +95,9 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
 
     /** "Réessayer maintenant" while the PC is out of reach. */
     fun retryNow() = manager.nudge()
+
+    /** Hides a failed update. */
+    fun dismissUpdate() = manager.dismissUpdate()
 
     override fun onCleared() {
         directory.stop()

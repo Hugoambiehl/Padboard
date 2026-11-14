@@ -40,7 +40,7 @@
     <string name="starting">Démarrage…</string>
     <string name="searching_title">Recherche de %1$s…</string>
     <string name="searching_body">Branche la tablette en USB, ou vérifie que Padboard est lancé sur le PC avec le Wi-Fi activé et que les deux appareils sont sur le même réseau.</string>
-    <string name="failure_incompatible">Les versions de Padboard sur le PC et sur la tablette sont incompatibles. Mets les deux à jour.</string>
+    <string name="failure_incompatible">La version de Padboard sur le PC ne correspond pas à celle de la tablette. Mets à jour Padboard sur le PC : il mettra ensuite la tablette à jour.</string>
     <string name="retry">Réessayer</string>
     <string name="cancel">Annuler</string>
 
@@ -87,4 +87,20 @@
     <string name="about_section_assets">POLICES ET ICÔNES</string>
     <string name="about_section_libraries">BIBLIOTHÈQUES</string>
     <string name="about_no_text">Texte de licence non inclus : voir le dépôt du composant.</string>
+    <!-- Updates sent by the PC -->
+    <string name="update_only_tablet_older">La version de Padboard de cette tablette ne correspond pas à celle de %1$s. Mets la tablette à jour depuis le PC : vue Connexions, bouton « Mettre à jour » (en USB, ou en Wi-Fi en mode kiosque).</string>
+    <string name="update_only_pc_older">Cette tablette a une version de Padboard plus récente que %1$s. Mets à jour Padboard sur le PC.</string>
+    <string name="update_title">Mise à jour de Padboard</string>
+    <string name="update_receiving">Réception de la version %1$s… %2$d %%</string>
+    <string name="update_installing">Installation de la version %1$s : Padboard redémarre tout seul.</string>
+    <string name="update_failed">La version %1$s n’a pas été installée : %2$s</string>
+    <string name="update_reason_not_device_owner">la tablette n’est plus en mode kiosque (mets-la à jour en USB).</string>
+    <string name="update_reason_not_newer">cette version ou une plus récente est déjà installée.</string>
+    <string name="update_reason_wrong_package">le fichier n’est pas Padboard.</string>
+    <string name="update_reason_bad_certificate">elle n’est pas signée avec la clé de Padboard.</string>
+    <string name="update_reason_bad_hash">le fichier a été abîmé en route.</string>
+    <string name="update_reason_transfer_failed">le transfert s’est interrompu.</string>
+    <string name="update_reason_install_failed">Android a refusé de l’installer.</string>
+    <string name="update_reason_busy">une autre mise à jour est en cours.</string>
+    <string name="update_ok">OK</string>
 </resources>

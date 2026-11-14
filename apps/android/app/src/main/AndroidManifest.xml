@@ -65,6 +65,10 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+        <!-- Updates sent by the PC (kiosk mode): the installer's answer (update/AndroidUpdater.kt). -->
+        <receiver
+            android:name=".update.InstallStatusReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

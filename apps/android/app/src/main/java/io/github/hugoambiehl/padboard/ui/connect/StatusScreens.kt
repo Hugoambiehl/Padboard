@@ -112,6 +112,27 @@ fun IncompatibleScreen(onRetry: () -> Unit) {
     }
 }
 
+/**
+ * Connected to a PC speaking another protocol version: only updates go
+ * through. Tells which side to update.
+ */
+@Composable
+fun UpdateOnlyScreen(serverName: String, pcIsNewer: Boolean) {
+    CenteredColumn {
+        AppBadge()
+        Text(
+            if (pcIsNewer) {
+                stringResource(R.string.update_only_tablet_older, serverName)
+            } else {
+                stringResource(R.string.update_only_pc_older, serverName)
+            },
+            style = PadboardType.Body,
+            color = PadboardColors.Text,
+            modifier = Modifier.widthIn(max = 560.dp)
+        )
+    }
+}
+
 /** Confirmation before forgetting the paired PC (its token and pinned key). */
 @Composable
 fun ForgetDialog(serverName: String, onConfirm: () -> Unit, onDismiss: () -> Unit, onAbout: (() -> Unit)? = null) {

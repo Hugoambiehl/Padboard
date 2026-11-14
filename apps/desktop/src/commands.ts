@@ -12,6 +12,9 @@ export const setAdbPath = (path: string | null) => invoke<void>("set_adb_path", 
 export const enableKiosk = (serial: string) => invoke<void>("enable_kiosk", { serial });
 /** Installs this PC's version on the USB tablet (`adb install -r`); the version installed. */
 export const updateUsbTablet = (serial: string) => invoke<string>("update_usb_tablet", { serial });
+/** Sends this PC's version to a connected kiosk tablet; progress comes with the status. */
+export const updateWifiTablet = (clientId: number) =>
+  invoke<string>("update_wifi_tablet", { clientId });
 export const exitKiosk = (clientId: number) => invoke<boolean>("exit_kiosk", { clientId });
 
 /** Screensaver of the tablets (`preferences.rs`). */

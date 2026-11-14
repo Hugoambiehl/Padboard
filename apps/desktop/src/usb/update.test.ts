@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fr from "../locales/fr.json";
-import { needsUpdate, usbUpdateErrorMessage } from "./update";
+import { needsUpdate, usbUpdateErrorMessage, wifiUpdateErrorMessage } from "./update";
 
 function text(key: string): unknown {
   return key
@@ -53,5 +53,35 @@ describe("needsUpdate", () => {
     expect(needsUpdate(30099, 20099)).toBe(false);
     expect(needsUpdate(null, 20099)).toBe(false);
     expect(needsUpdate(10099, null)).toBe(false);
+  });
+});
+
+describe("wifiUpdateErrorMessage", () => {
+  it("has a text for every refusal", () => {
+    for (const reason of ["gone", "notSilent", "notNewer"] as const) {
+      const { key } = wifiUpdateErrorMessage({ code: "offer", reason });
+      expect(text(key), key).toBeTypeOf("string");
+    }
+    expect(text(wifiUpdateErrorMessage({ code: "tooLarge" }).key)).toBeTypeOf("string");
+    expect(
+      wifiUpdateErrorMessage({ code: "apk", error: { code: "notPublished", version: "1.0.0" } })
+        .params,
+    ).toEqual({ version: "1.0.0" });
+  });
+
+  it("has a text for every outcome on the tablet", () => {
+    for (const outcome of [
+      "installing",
+      "not_device_owner",
+      "not_newer",
+      "wrong_package",
+      "bad_certificate",
+      "bad_hash",
+      "transfer_failed",
+      "install_failed",
+      "busy",
+    ]) {
+      expect(text(`tabletUpdate.outcome.${outcome}`), outcome).toBeTypeOf("string");
+    }
   });
 });
