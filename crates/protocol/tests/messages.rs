@@ -2,8 +2,10 @@ use padboard_protocol::{
     AuthStatus, ButtonEvent, ButtonView, Category, ErrorCode, ErrorPayload, Folder, GridSize,
     Heartbeat, HelloPayload, Layout, Message, NavigatePayload, NavigateTarget, PROTOCOL_VERSION,
     Page, PairFailurePayload, PairFailureReason, PairRequestPayload, PairSuccessPayload,
-    ProfileInfo, REDACTED, SystemStatusPayload, TabletCommandPayload, TabletOrder,
-    TabletSettingsPayload, TabletStatusPayload, WelcomePayload, is_compatible, short_fingerprint,
+    ProfileInfo, REDACTED, SessionMode, SystemStatusPayload, TabletCommandPayload, TabletOrder,
+    TabletSettingsPayload, TabletStatusPayload, UPDATE_CHUNK_SIZE, UpdateOfferPayload,
+    UpdateOutcome, UpdateRequestPayload, UpdateResultPayload, WelcomePayload, is_compatible,
+    parse_update_chunk, short_fingerprint, speaks_core, update_chunk_frame,
 };
 use serde_json::json;
 
@@ -48,18 +50,32 @@ fn all_messages() -> Vec<Message> {
             device_name: "Tab".into(),
             device_id: "dev-1".into(),
             token: None,
+            app_version: None,
+            app_version_code: None,
+            silent_install: None,
         }),
         Message::Hello(HelloPayload {
             protocol_version: PROTOCOL_VERSION,
             device_name: "Tab".into(),
             device_id: "dev-1".into(),
             token: Some("secret".into()),
+            app_version: Some("0.2.0".into()),
+            app_version_code: Some(20_099),
+            silent_install: Some(true),
         }),
         Message::Welcome(WelcomePayload {
             protocol_version: PROTOCOL_VERSION,
             server_name: "PC".into(),
             server_id: "pc-1".into(),
             auth: AuthStatus::PairingRequired,
+            mode: None,
+        }),
+        Message::Welcome(WelcomePayload {
+            protocol_version: PROTOCOL_VERSION,
+            server_name: "PC".into(),
+            server_id: "pc-1".into(),
+            auth: AuthStatus::Authenticated,
+            mode: Some(SessionMode::UpdateOnly),
         }),
         Message::Error(ErrorPayload {
             code: ErrorCode::UnknownButton,
@@ -109,6 +125,18 @@ fn all_messages() -> Vec<Message> {
             microphone_muted: false,
             recording: true,
             streaming: false,
+        }),
+        Message::UpdateOffer(UpdateOfferPayload {
+            version: "0.2.0".into(),
+            version_code: 20_099,
+            size: 12_345_678,
+            sha256: "ab".repeat(32),
+        }),
+        Message::UpdateRequest(UpdateRequestPayload {
+            offset: UPDATE_CHUNK_SIZE,
+        }),
+        Message::UpdateResult(UpdateResultPayload {
+            outcome: UpdateOutcome::BadCertificate,
         }),
     ]
 }
@@ -186,6 +214,55 @@ fn version_compatibility() {
     assert!(is_compatible(PROTOCOL_VERSION));
     assert!(!is_compatible(PROTOCOL_VERSION + 1));
     assert!(!is_compatible(0));
+    // The frozen core: from protocol 5 on, whatever comes later.
+    assert!(!speaks_core(4));
+    assert!(speaks_core(5));
+    assert!(speaks_core(PROTOCOL_VERSION + 10));
+}
+
+#[test]
+fn update_chunk_frames() {
+    let frame = update_chunk_frame(0x0102_0304, b"apk");
+    assert_eq!(frame, [1, 2, 3, 4, b'a', b'p', b'k']);
+    assert_eq!(parse_update_chunk(&frame), Some((0x0102_0304, &b"apk"[..])));
+    assert_eq!(parse_update_chunk(&[0, 0, 0, 7]), Some((7, &b""[..])));
+    assert_eq!(parse_update_chunk(&[0, 0, 7]), None);
+}
+
+/// A later protocol's `hello` / `welcome` (fields added) still decode: the
+/// frozen core only grows optional fields, and unknown ones are ignored.
+#[test]
+fn a_later_core_still_decodes() {
+    let hello = Message::from_json(
+        r#"{"type":"hello","payload":{"protocolVersion":9,"deviceName":"Tab","deviceId":"d",
+            "token":"t","appVersion":"3.0.0","appVersionCode":3000099,"silentInstall":true,
+            "somethingNew":{"a":1}}}"#,
+    )
+    .unwrap();
+    let Message::Hello(hello) = hello else {
+        panic!("hello")
+    };
+    assert_eq!(hello.protocol_version, 9);
+    assert_eq!(hello.app_version_code, Some(3_000_099));
+
+    let welcome = Message::from_json(
+        r#"{"type":"welcome","payload":{"protocolVersion":9,"serverName":"PC","serverId":"s",
+            "auth":"authenticated","mode":"update_only","later":true}}"#,
+    )
+    .unwrap();
+    assert!(matches!(
+        welcome,
+        Message::Welcome(WelcomePayload {
+            mode: Some(SessionMode::UpdateOnly),
+            ..
+        })
+    ));
+    let offer = Message::from_json(
+        r#"{"type":"update:offer","payload":{"version":"9.0.0","versionCode":9000099,
+            "size":1,"sha256":"00","signedBy":"later"}}"#,
+    )
+    .unwrap();
+    assert!(matches!(offer, Message::UpdateOffer(_)));
 }
 
 #[test]
@@ -228,6 +305,9 @@ fn hello_token_is_omitted_before_pairing() {
         device_name: "Tab".into(),
         device_id: "dev-1".into(),
         token: None,
+        app_version: None,
+        app_version_code: None,
+        silent_install: None,
     })
     .unwrap();
     assert!(value.get("token").is_none());
@@ -297,6 +377,9 @@ fn debug_output_never_shows_a_secret() {
             device_name: "Tab".into(),
             device_id: "dev-1".into(),
             token: Some("tok-SECRET-1".into()),
+            app_version: None,
+            app_version_code: None,
+            silent_install: None,
         }),
         Message::PairRequest(PairRequestPayload {
             pin: "SECRET-PIN".into(),
@@ -319,6 +402,9 @@ fn debug_output_never_shows_a_secret() {
             device_name: "Tab".into(),
             device_id: "dev-1".into(),
             token: None,
+            app_version: None,
+            app_version_code: None,
+            silent_install: None,
         }
     );
     assert!(

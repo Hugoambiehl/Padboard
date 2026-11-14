@@ -168,6 +168,9 @@ fn hello(id: &str, pairing: &Pairing) -> Message {
         device_name: format!("Fake tablet ({id})"),
         device_id: pairing.device_id.clone(),
         token: pairing.token.clone(),
+        app_version: Some(env!("CARGO_PKG_VERSION").to_owned()),
+        app_version_code: None,
+        silent_install: None,
     })
 }
 

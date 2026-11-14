@@ -213,6 +213,16 @@ export interface HelloPayload {
 	deviceId: string;
 	/** Token received in `pair:success`. Absent before pairing. */
 	token?: string;
+	/** The tablet app's version (`versionName`, e.g. "0.2.0"). Protocol 5. */
+	appVersion?: string;
+	/** The tablet app's `versionCode`, which updates must exceed. Protocol 5. */
+	appVersionCode?: number;
+	/**
+	 * The app can install an update without asking (kiosk mode: it is the
+	 * device owner). Only such tablets are offered updates over Wi-Fi.
+	 * Protocol 5.
+	 */
+	silentInstall?: boolean;
 }
 
 /**
@@ -420,6 +430,63 @@ export interface TabletStatusPayload {
 	kiosk: boolean;
 }
 
+export interface UpdateOfferPayload {
+	/** `versionName` of the offered APK. */
+	version: string;
+	/**
+	 * `versionCode` of the offered APK: the tablet refuses one that is not
+	 * above its own.
+	 */
+	versionCode: number;
+	/** APK size in bytes (at most [`MAX_UPDATE_SIZE`]). */
+	size: number;
+	/**
+	 * SHA-256 of the APK, lowercase hex: checked by the tablet once
+	 * received, before its own checks of the APK's signature.
+	 */
+	sha256: string;
+}
+
+export interface UpdateRequestPayload {
+	/** Start of the piece, a multiple of [`UPDATE_CHUNK_SIZE`] below `size`. */
+	offset: number;
+}
+
+/**
+ * How an offered update ended on the tablet. Values may be added: only a
+ * tablet older than (or as old as) the PC that offered sends it.
+ */
+export enum UpdateOutcome {
+	/**
+	 * Checked and handed to Android's installer: the app restarts in the
+	 * new version (the connection drops).
+	 */
+	Installing = "installing",
+	/** Not in kiosk mode: the tablet cannot install without asking. Use USB. */
+	NotDeviceOwner = "not_device_owner",
+	/** Not newer than the installed version (never installed: no downgrade). */
+	NotNewer = "not_newer",
+	/** Another app's package. */
+	WrongPackage = "wrong_package",
+	/**
+	 * Not signed with the installed app's certificate (or, in a release
+	 * build, the release certificate).
+	 */
+	BadCertificate = "bad_certificate",
+	/** The bytes received do not match `sha256` or `size`. */
+	BadHash = "bad_hash",
+	/** The transfer stopped or the file could not be written. */
+	TransferFailed = "transfer_failed",
+	/** Android's installer refused it. */
+	InstallFailed = "install_failed",
+	/** Another update is already in progress on the tablet. */
+	Busy = "busy",
+}
+
+export interface UpdateResultPayload {
+	outcome: UpdateOutcome;
+}
+
 export enum VolumeCommand {
 	Up = "up",
 	Down = "down",
@@ -450,6 +517,21 @@ export enum AuthStatus {
 	TokenRejected = "token_rejected",
 }
 
+/**
+ * What an authenticated session allows, announced in `welcome`. Frozen
+ * core: never gains a value (an older tablet could not read it).
+ */
+export enum SessionMode {
+	/** Same protocol: the grid, presses, settings, states. */
+	Full = "full",
+	/**
+	 * Different protocols (`welcome.protocolVersion` tells which side is
+	 * older): only the frozen core. The PC offers an update when the tablet
+	 * is the older one; otherwise the PC is the one to update.
+	 */
+	UpdateOnly = "update_only",
+}
+
 export interface WelcomePayload {
 	protocolVersion: number;
 	/** Human-readable name of the PC (hostname), shown in the tablet's top bar. */
@@ -460,6 +542,8 @@ export interface WelcomePayload {
 	 */
 	serverId: string;
 	auth: AuthStatus;
+	/** What the session allows. Absent before protocol 5 (always `full`). */
+	mode?: SessionMode;
 }
 
 /** One change requested by the editor. */
@@ -634,5 +718,22 @@ export type Message =
 	 * Desktop → tablet: PC states shown on the screensaver. Sent once
 	 * authenticated and on every change.
 	 */
-	| { type: "system:status", payload: SystemStatusPayload };
+	| { type: "system:status", payload: SystemStatusPayload }
+	/**
+	 * Desktop → tablet (frozen core): a newer version of the app, sent when
+	 * the user asks for it on the PC. The tablet answers with
+	 * `update:request`s, or an `update:result` refusing it.
+	 */
+	| { type: "update:offer", payload: UpdateOfferPayload }
+	/**
+	 * Tablet → desktop (frozen core): the APK piece starting at `offset`
+	 * ([`UPDATE_CHUNK_SIZE`] bytes, fewer for the last), sent back in a
+	 * binary frame ([`update_chunk_frame`]). One request at a time.
+	 */
+	| { type: "update:request", payload: UpdateRequestPayload }
+	/**
+	 * Tablet → desktop (frozen core): how the offered update ended on the
+	 * tablet's side.
+	 */
+	| { type: "update:result", payload: UpdateResultPayload };
 

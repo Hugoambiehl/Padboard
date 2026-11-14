@@ -40,10 +40,19 @@ const status: Snapshot = {
       peer: "127.0.0.1:50000",
       connectedAtMs: Date.now(),
       kiosk: true,
+      tablet: {
+        protocolVersion: 5,
+        updateOnly: false,
+        appVersion: "0.1.0",
+        appVersionCode: 10099,
+        silentInstall: true,
+      },
+      update: null,
     },
   ],
   pairing: { state: "idle" },
   pairedDevices: [],
+  outdatedTablets: [],
   usb: {
     adb: { state: "ready", path: "/usr/bin/adb", version: "1.0.41" },
     devices: [

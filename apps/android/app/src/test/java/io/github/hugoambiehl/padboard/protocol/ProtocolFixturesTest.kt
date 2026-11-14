@@ -81,6 +81,30 @@ class ProtocolFixturesTest {
         assertEquals(Message.Pong(Heartbeat(42u)), fixture("pong"))
     }
 
+    /** The frozen core of every protocol version (fixtures/core) still decodes, see the Rust crate. */
+    @Test
+    fun theFrozenCoreOfEveryVersionStillDecodes() {
+        val core = File(dir, "core").listFiles { f -> f.extension == "json" }.orEmpty()
+        assertTrue("no core fixture in $dir/core", core.isNotEmpty())
+        for (file in core) {
+            val message = parseMessage(file.readText())
+            assertTrue(
+                "core/${file.name} is not a core message",
+                message is Message.Hello ||
+                    message is Message.Welcome ||
+                    message is Message.UpdateOffer ||
+                    message is Message.UpdateRequest ||
+                    message is Message.UpdateResult
+            )
+        }
+        // Protocol 4 had no mode: read as a full session by the caller.
+        val oldWelcome = parseMessage(File(dir, "core/welcome-v4.json").readText()) as Message.Welcome
+        assertNull(oldWelcome.payload.mode)
+        val offer = (fixture("update_offer") as Message.UpdateOffer).payload
+        assertEquals(20099u, offer.versionCode)
+        assertEquals(64, offer.sha256.length)
+    }
+
     @Test
     fun unknownFieldsAreIgnored() {
         val message = parseMessage("""{"type":"ping","payload":{"seq":1,"future":true},"extra":0}""")

@@ -18,6 +18,22 @@
 //! - JSON fields are `camelCase`, enum values `snake_case`.
 //! - Every message type has a fixture in `fixtures/` (decoded by Rust and Kotlin tests).
 //!
+//! Protocol 5: tablet updates pushed by the PC. `hello` carries the tablet
+//! app's version and whether it can install an update silently (kiosk mode);
+//! `welcome.mode` says whether the session is a normal one or limited to
+//! updating (`update_only`, when the two sides speak different protocol
+//! versions); `update:offer` / `update:request` / `update:result`, the APK
+//! itself in binary frames.
+//!
+//! **The frozen core.** `hello`, `welcome`, `error`, `ping`, `pong` and the
+//! `update:*` messages, with the binary frames, never change in a breaking
+//! way, whatever [`PROTOCOL_VERSION`] becomes: they may only gain optional
+//! fields. A tablet from protocol [`FIRST_UPDATABLE_VERSION`] on can then
+//! always be updated by a newer PC, and tell a user that the PC is the one
+//! to update. Tablets from protocol 4 and before predate it: only USB
+//! (`adb install`) updates them. Each version's `hello` and `welcome` are
+//! kept as fixtures (`fixtures/core/`) and must keep decoding.
+//!
 //! Protocol 4: the tablet reports its kiosk mode (`tablet:status`) and the
 //! PC can take it out of it (`tablet:command`); the PC sends the tablet's
 //! settings (`tablet:settings`, screensaver) and the states shown on the
@@ -49,12 +65,49 @@ pub use fingerprint::{short_fingerprint, spki_sha256};
 pub use layout::{ButtonIcon, ButtonView, Category, Folder, GridSize, Layout, Page, ProfileInfo};
 
 /// Version of the wire protocol. Checked during the `hello` / `welcome` handshake.
-pub const PROTOCOL_VERSION: u32 = 4;
+pub const PROTOCOL_VERSION: u32 = 5;
+
+/// The first protocol with the frozen core (see the crate documentation): a
+/// tablet speaking it or a later one can be updated over Wi-Fi by any PC.
+pub const FIRST_UPDATABLE_VERSION: u32 = 5;
 
 /// Returns `true` if a peer speaking `version` can talk to us.
 #[must_use]
 pub fn is_compatible(version: u32) -> bool {
     version == PROTOCOL_VERSION
+}
+
+/// Returns `true` if a peer speaking `version` knows the frozen core: when
+/// not [compatible](is_compatible), its session can still be limited to
+/// updating.
+#[must_use]
+pub fn speaks_core(version: u32) -> bool {
+    version >= FIRST_UPDATABLE_VERSION
+}
+
+/// Size of the APK pieces of an update (`update:request`): the last one is
+/// shorter.
+pub const UPDATE_CHUNK_SIZE: u32 = 64 * 1024;
+
+/// Largest APK the PC offers.
+pub const MAX_UPDATE_SIZE: u32 = 256 * 1024 * 1024;
+
+/// The binary frame carrying the APK bytes from `offset` (an
+/// `update:request`): the offset as 4 big-endian bytes, then the bytes.
+#[must_use]
+pub fn update_chunk_frame(offset: u32, bytes: &[u8]) -> Vec<u8> {
+    let mut frame = Vec::with_capacity(4 + bytes.len());
+    frame.extend_from_slice(&offset.to_be_bytes());
+    frame.extend_from_slice(bytes);
+    frame
+}
+
+/// Reads an APK piece frame: its offset and bytes (`None` if shorter than
+/// the offset).
+#[must_use]
+pub fn parse_update_chunk(frame: &[u8]) -> Option<(u32, &[u8])> {
+    let (offset, bytes) = frame.split_first_chunk::<4>()?;
+    Some((u32::from_be_bytes(*offset), bytes))
 }
 
 /// Envelope of every message exchanged over the WebSocket.
@@ -120,6 +173,20 @@ pub enum Message {
     /// authenticated and on every change.
     #[serde(rename = "system:status")]
     SystemStatus(SystemStatusPayload),
+    /// Desktop → tablet (frozen core): a newer version of the app, sent when
+    /// the user asks for it on the PC. The tablet answers with
+    /// `update:request`s, or an `update:result` refusing it.
+    #[serde(rename = "update:offer")]
+    UpdateOffer(UpdateOfferPayload),
+    /// Tablet → desktop (frozen core): the APK piece starting at `offset`
+    /// ([`UPDATE_CHUNK_SIZE`] bytes, fewer for the last), sent back in a
+    /// binary frame ([`update_chunk_frame`]). One request at a time.
+    #[serde(rename = "update:request")]
+    UpdateRequest(UpdateRequestPayload),
+    /// Tablet → desktop (frozen core): how the offered update ended on the
+    /// tablet's side.
+    #[serde(rename = "update:result")]
+    UpdateResult(UpdateResultPayload),
 }
 
 #[typeshare]
@@ -135,6 +202,17 @@ pub struct HelloPayload {
     /// Token received in `pair:success`. Absent before pairing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
+    /// The tablet app's version (`versionName`, e.g. "0.2.0"). Protocol 5.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub app_version: Option<String>,
+    /// The tablet app's `versionCode`, which updates must exceed. Protocol 5.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub app_version_code: Option<u32>,
+    /// The app can install an update without asking (kiosk mode: it is the
+    /// device owner). Only such tablets are offered updates over Wi-Fi.
+    /// Protocol 5.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub silent_install: Option<bool>,
 }
 
 #[typeshare]
@@ -148,6 +226,23 @@ pub struct WelcomePayload {
     /// token to the PC it paired with.
     pub server_id: String,
     pub auth: AuthStatus,
+    /// What the session allows. Absent before protocol 5 (always `full`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<SessionMode>,
+}
+
+/// What an authenticated session allows, announced in `welcome`. Frozen
+/// core: never gains a value (an older tablet could not read it).
+#[typeshare]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionMode {
+    /// Same protocol: the grid, presses, settings, states.
+    Full,
+    /// Different protocols (`welcome.protocolVersion` tells which side is
+    /// older): only the frozen core. The PC offers an update when the tablet
+    /// is the older one; otherwise the PC is the one to update.
+    UpdateOnly,
 }
 
 /// Authentication state of a connection, announced in `welcome`.
@@ -193,6 +288,9 @@ impl fmt::Debug for HelloPayload {
             .field("device_name", &self.device_name)
             .field("device_id", &self.device_id)
             .field("token", &self.token.as_ref().map(|_| REDACTED))
+            .field("app_version", &self.app_version)
+            .field("app_version_code", &self.app_version_code)
+            .field("silent_install", &self.silent_install)
             .finish()
     }
 }
@@ -356,6 +454,65 @@ pub struct SystemStatusPayload {
     pub streaming: bool,
 }
 
+#[typeshare]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateOfferPayload {
+    /// `versionName` of the offered APK.
+    pub version: String,
+    /// `versionCode` of the offered APK: the tablet refuses one that is not
+    /// above its own.
+    pub version_code: u32,
+    /// APK size in bytes (at most [`MAX_UPDATE_SIZE`]).
+    pub size: u32,
+    /// SHA-256 of the APK, lowercase hex: checked by the tablet once
+    /// received, before its own checks of the APK's signature.
+    pub sha256: String,
+}
+
+#[typeshare]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateRequestPayload {
+    /// Start of the piece, a multiple of [`UPDATE_CHUNK_SIZE`] below `size`.
+    pub offset: u32,
+}
+
+#[typeshare]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateResultPayload {
+    pub outcome: UpdateOutcome,
+}
+
+/// How an offered update ended on the tablet. Values may be added: only a
+/// tablet older than (or as old as) the PC that offered sends it.
+#[typeshare]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateOutcome {
+    /// Checked and handed to Android's installer: the app restarts in the
+    /// new version (the connection drops).
+    Installing,
+    /// Not in kiosk mode: the tablet cannot install without asking. Use USB.
+    NotDeviceOwner,
+    /// Not newer than the installed version (never installed: no downgrade).
+    NotNewer,
+    /// Another app's package.
+    WrongPackage,
+    /// Not signed with the installed app's certificate (or, in a release
+    /// build, the release certificate).
+    BadCertificate,
+    /// The bytes received do not match `sha256` or `size`.
+    BadHash,
+    /// The transfer stopped or the file could not be written.
+    TransferFailed,
+    /// Android's installer refused it.
+    InstallFailed,
+    /// Another update is already in progress on the tablet.
+    Busy,
+}
+
 impl Message {
     /// Serializes the message to its JSON wire form.
     ///
@@ -395,6 +552,9 @@ impl Message {
             Self::TabletCommand(_) => "tablet:command",
             Self::TabletSettings(_) => "tablet:settings",
             Self::SystemStatus(_) => "system:status",
+            Self::UpdateOffer(_) => "update:offer",
+            Self::UpdateRequest(_) => "update:request",
+            Self::UpdateResult(_) => "update:result",
         }
     }
 }

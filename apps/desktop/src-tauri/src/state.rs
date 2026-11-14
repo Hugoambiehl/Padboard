@@ -13,8 +13,9 @@ use serde::Serialize;
 use crate::adb::UsbStatus;
 use crate::auth::{AuthChange, PairedDeviceView, PairingView, Transport};
 use crate::netif::LanAddress;
-use crate::server::{ActionOutcome, ServerEvent};
+use crate::server::{ActionOutcome, ServerEvent, TabletInfo};
 use crate::settings::Settings;
+use crate::tablet_update::TabletUpdate;
 use crate::wifi::MdnsStatus;
 
 /// Number of entries kept in the activity log.
@@ -29,6 +30,9 @@ pub struct Snapshot {
     pub paired_devices: Vec<PairedDeviceView>,
     /// `adb` and the devices plugged over USB.
     pub usb: UsbStatus,
+    /// Paired tablets turned away because their app is too old to be
+    /// updated over Wi-Fi (USB will): most recent first, one per device.
+    pub outdated_tablets: Vec<OutdatedTablet>,
     /// Most recent first.
     pub activity: VecDeque<ActivityEntry>,
     #[serde(skip)]
@@ -118,6 +122,18 @@ pub struct ClientInfo {
     pub connected_at_ms: u64,
     /// The tablet is in kiosk mode (it reports it right after connecting).
     pub kiosk: bool,
+    /// Its app's version and protocol, from `hello`.
+    pub tablet: TabletInfo,
+    /// An update sent over this connection.
+    pub update: Option<TabletUpdate>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutdatedTablet {
+    pub device_id: String,
+    pub device_name: String,
+    pub at_ms: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -192,6 +208,7 @@ impl Snapshot {
             pairing: PairingView::Idle,
             paired_devices: Vec::new(),
             usb: UsbStatus::default(),
+            outdated_tablets: Vec::new(),
             activity: VecDeque::new(),
             labels,
             next_activity_id: 1,
@@ -256,15 +273,42 @@ impl Snapshot {
                 device_name,
                 peer,
                 transport,
-            } => self.clients.push(ClientInfo {
-                id,
+                tablet,
+            } => {
+                self.outdated_tablets.retain(|t| t.device_id != device_id);
+                self.clients.push(ClientInfo {
+                    id,
+                    device_id,
+                    device_name,
+                    transport,
+                    peer: peer.to_string(),
+                    connected_at_ms: now_ms(),
+                    // In kiosk mode it installs silently (it says so in
+                    // `hello`); `tablet:status` follows in full sessions.
+                    kiosk: tablet.silent_install,
+                    tablet,
+                    update: None,
+                });
+            }
+            ServerEvent::OutdatedTablet {
                 device_id,
                 device_name,
-                transport,
-                peer: peer.to_string(),
-                connected_at_ms: now_ms(),
-                kiosk: false,
-            }),
+            } => {
+                self.outdated_tablets.retain(|t| t.device_id != device_id);
+                self.outdated_tablets.insert(
+                    0,
+                    OutdatedTablet {
+                        device_id,
+                        device_name,
+                        at_ms: now_ms(),
+                    },
+                );
+            }
+            ServerEvent::TabletUpdate { id, update } => {
+                if let Some(client) = self.clients.iter_mut().find(|c| c.id == id) {
+                    client.update = Some(update);
+                }
+            }
             ServerEvent::TabletStatus { id, kiosk } => {
                 if let Some(client) = self.clients.iter_mut().find(|c| c.id == id) {
                     client.kiosk = kiosk;
@@ -377,6 +421,7 @@ mod tests {
             device_name: "Tab".into(),
             peer: peer(),
             transport: Transport::Usb,
+            tablet: crate::server::TabletInfo::default(),
         });
         assert_eq!(s.clients.len(), 1);
         s.apply(ServerEvent::ButtonPressed {
@@ -423,6 +468,7 @@ mod tests {
             device_name: "A".into(),
             peer: peer(),
             transport: Transport::Wifi,
+            tablet: crate::server::TabletInfo::default(),
         });
         s.apply(ServerEvent::ClientConnected {
             id: 2,
@@ -430,6 +476,7 @@ mod tests {
             device_name: "B".into(),
             peer: peer(),
             transport: Transport::Usb,
+            tablet: crate::server::TabletInfo::default(),
         });
         s.apply(ServerEvent::Mdns(MdnsStatus::Announced));
         assert_eq!(s.server.wifi.mdns, MdnsStatus::Announced);

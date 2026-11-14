@@ -129,7 +129,15 @@ data class HelloPayload (
 	/// Stable random identifier of the tablet (UUID), created on first launch.
 	val deviceId: String,
 	/// Token received in `pair:success`. Absent before pairing.
-	val token: String? = null
+	val token: String? = null,
+	/// The tablet app's version (`versionName`, e.g. "0.2.0"). Protocol 5.
+	val appVersion: String? = null,
+	/// The tablet app's `versionCode`, which updates must exceed. Protocol 5.
+	val appVersionCode: UInt? = null,
+	/// The app can install an update without asking (kiosk mode: it is the
+	/// device owner). Only such tablets are offered updates over Wi-Fi.
+	/// Protocol 5.
+	val silentInstall: Boolean? = null
 )
 
 @Serializable
@@ -254,6 +262,66 @@ data class TabletStatusPayload (
 	val kiosk: Boolean
 )
 
+@Serializable
+data class UpdateOfferPayload (
+	/// `versionName` of the offered APK.
+	val version: String,
+	/// `versionCode` of the offered APK: the tablet refuses one that is not
+	/// above its own.
+	val versionCode: UInt,
+	/// APK size in bytes (at most [`MAX_UPDATE_SIZE`]).
+	val size: UInt,
+	/// SHA-256 of the APK, lowercase hex: checked by the tablet once
+	/// received, before its own checks of the APK's signature.
+	val sha256: String
+)
+
+@Serializable
+data class UpdateRequestPayload (
+	/// Start of the piece, a multiple of [`UPDATE_CHUNK_SIZE`] below `size`.
+	val offset: UInt
+)
+
+/// How an offered update ended on the tablet. Values may be added: only a
+/// tablet older than (or as old as) the PC that offered sends it.
+@Serializable
+enum class UpdateOutcome(val string: String) {
+	/// Checked and handed to Android's installer: the app restarts in the
+	/// new version (the connection drops).
+	@SerialName("installing")
+	Installing("installing"),
+	/// Not in kiosk mode: the tablet cannot install without asking. Use USB.
+	@SerialName("not_device_owner")
+	NotDeviceOwner("not_device_owner"),
+	/// Not newer than the installed version (never installed: no downgrade).
+	@SerialName("not_newer")
+	NotNewer("not_newer"),
+	/// Another app's package.
+	@SerialName("wrong_package")
+	WrongPackage("wrong_package"),
+	/// Not signed with the installed app's certificate (or, in a release
+	/// build, the release certificate).
+	@SerialName("bad_certificate")
+	BadCertificate("bad_certificate"),
+	/// The bytes received do not match `sha256` or `size`.
+	@SerialName("bad_hash")
+	BadHash("bad_hash"),
+	/// The transfer stopped or the file could not be written.
+	@SerialName("transfer_failed")
+	TransferFailed("transfer_failed"),
+	/// Android's installer refused it.
+	@SerialName("install_failed")
+	InstallFailed("install_failed"),
+	/// Another update is already in progress on the tablet.
+	@SerialName("busy")
+	Busy("busy"),
+}
+
+@Serializable
+data class UpdateResultPayload (
+	val outcome: UpdateOutcome
+)
+
 /// Authentication state of a connection, announced in `welcome`.
 @Serializable
 enum class AuthStatus(val string: String) {
@@ -269,6 +337,20 @@ enum class AuthStatus(val string: String) {
 	TokenRejected("token_rejected"),
 }
 
+/// What an authenticated session allows, announced in `welcome`. Frozen
+/// core: never gains a value (an older tablet could not read it).
+@Serializable
+enum class SessionMode(val string: String) {
+	/// Same protocol: the grid, presses, settings, states.
+	@SerialName("full")
+	Full("full"),
+	/// Different protocols (`welcome.protocolVersion` tells which side is
+	/// older): only the frozen core. The PC offers an update when the tablet
+	/// is the older one; otherwise the PC is the one to update.
+	@SerialName("update_only")
+	UpdateOnly("update_only"),
+}
+
 @Serializable
 data class WelcomePayload (
 	val protocolVersion: UInt,
@@ -277,7 +359,9 @@ data class WelcomePayload (
 	/// Stable random identifier of the PC (UUID). The tablet only presents its
 	/// token to the PC it paired with.
 	val serverId: String,
-	val auth: AuthStatus
+	val auth: AuthStatus,
+	/// What the session allows. Absent before protocol 5 (always `full`).
+	val mode: SessionMode? = null
 )
 
 /// Envelope of every message exchanged over the WebSocket.
@@ -358,5 +442,22 @@ sealed class Message {
 	@Serializable
 	@SerialName("system:status")
 	data class SystemStatus(val payload: SystemStatusPayload): Message()
+	/// Desktop → tablet (frozen core): a newer version of the app, sent when
+	/// the user asks for it on the PC. The tablet answers with
+	/// `update:request`s, or an `update:result` refusing it.
+	@Serializable
+	@SerialName("update:offer")
+	data class UpdateOffer(val payload: UpdateOfferPayload): Message()
+	/// Tablet → desktop (frozen core): the APK piece starting at `offset`
+	/// ([`UPDATE_CHUNK_SIZE`] bytes, fewer for the last), sent back in a
+	/// binary frame ([`update_chunk_frame`]). One request at a time.
+	@Serializable
+	@SerialName("update:request")
+	data class UpdateRequest(val payload: UpdateRequestPayload): Message()
+	/// Tablet → desktop (frozen core): how the offered update ended on the
+	/// tablet's side.
+	@Serializable
+	@SerialName("update:result")
+	data class UpdateResult(val payload: UpdateResultPayload): Message()
 }
 

@@ -1,0 +1,6 @@
+{
+  "type": "update:result",
+  "payload": {
+    "outcome": "installing"
+  }
+}

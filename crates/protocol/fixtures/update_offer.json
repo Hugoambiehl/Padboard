@@ -1,0 +1,9 @@
+{
+  "type": "update:offer",
+  "payload": {
+    "version": "0.2.0",
+    "versionCode": 20099,
+    "size": 9437184,
+    "sha256": "5e2708e2b665a965499c69508df4a140775bd9906b8a2ce9137d34aa62d1c878"
+  }
+}

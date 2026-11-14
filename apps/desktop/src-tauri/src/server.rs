@@ -8,8 +8,11 @@
 //! - **Wi-Fi**: LAN port, a token (or a PIN pairing) is required.
 //!
 //! Per connection:
-//! 1. the tablet must send `hello` within [`Limits::handshake`] with a
-//!    compatible protocol version, otherwise it gets an `error` and is closed;
+//! 1. the tablet must send `hello` within [`Limits::handshake`]. A protocol
+//!    without the frozen core (4 and before) gets an `error` and is closed
+//!    (a paired one is reported to the UI: USB updates it). Another protocol
+//!    version with the core is only served once authenticated, in an
+//!    **update-only** session (step 4);
 //! 2. the server answers `welcome` with the auth status. Until authenticated,
 //!    only `pair:request` is accepted (anything else: `unauthorized`, closed),
 //!    for at most [`Limits::unauthenticated`]; at most [`Limits::max_pairing`]
@@ -18,7 +21,16 @@
 //!    attempts can never lock a paired tablet out;
 //! 3. once authenticated: `layout:sync`, then `button:press` runs the bound
 //!    action and `ping` gets a `pong`. A newer session of the same device or a
-//!    revocation ends the session (`superseded` / `revoked`).
+//!    revocation ends the session (`superseded` / `revoked`);
+//! 4. an update-only session (protocol versions differ) gets nothing but the
+//!    frozen core: `pong`s and the `update:*` exchange. No layout, settings
+//!    or states are sent, no order reaches it, and any other message is
+//!    refused with `unauthorized` and closes it.
+//!
+//! Updates over the connection (both kinds of session): the UI offers an
+//! APK ([`ServerContext::offer_update`], kiosk tablets only), the tablet
+//! asks for it piece by piece (`update:request`, answered with binary
+//! frames) and reports how it ended (`update:result`).
 //!
 //! Handshakes carrying an `Origin` header are rejected: browsers always send
 //! one, the tablet never does, so a web page open on the PC cannot drive the
@@ -33,9 +45,10 @@ use futures_util::{SinkExt, StreamExt};
 use padboard_actions::{Action, ActionError, ActionExecutor, NavigateAction, NavigateTo};
 use padboard_protocol::{
     AuthStatus, ButtonEvent, ErrorCode, ErrorPayload, Heartbeat, HelloPayload, Layout, Message,
-    NavigatePayload, NavigateTarget, PROTOCOL_VERSION, PairSuccessPayload, SystemStatusPayload,
-    TabletCommandPayload, TabletOrder, TabletSettingsPayload, TabletStatusPayload, WelcomePayload,
-    is_compatible,
+    NavigatePayload, NavigateTarget, PROTOCOL_VERSION, PairSuccessPayload, SessionMode,
+    SystemStatusPayload, TabletCommandPayload, TabletOrder, TabletSettingsPayload,
+    TabletStatusPayload, UpdateRequestPayload, UpdateResultPayload, WelcomePayload, is_compatible,
+    speaks_core, update_chunk_frame,
 };
 use serde::Serialize;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -53,6 +66,7 @@ use tokio_tungstenite::tungstenite::{self, Message as WsMessage};
 use crate::appearance::{self, SystemState};
 use crate::auth::{Auth, AuthChange, Transport};
 use crate::config::ActiveLayout;
+use crate::tablet_update::{OfferError, TabletUpdate, Transfer, UpdatePackage};
 
 /// Messages from the tablet are tiny; this bounds memory per connection.
 const MAX_MESSAGE_SIZE: usize = 64 * 1024;
@@ -115,9 +129,27 @@ pub struct ServerContext {
     pub running: std::sync::Mutex<std::collections::HashSet<String>>,
     /// Set once started (`lib.rs`); absent in tests and simulated test mode.
     pub obs: OnceLock<crate::obs::Obs>,
-    /// Outboxes of the authenticated sessions, by connection id: how the UI
-    /// sends an order to one tablet ([`ServerContext::order`]).
-    pub sessions: std::sync::Mutex<std::collections::HashMap<u64, Outbox>>,
+    /// The authenticated sessions, by connection id: how the UI sends an
+    /// order or an update to one tablet ([`ServerContext::order`],
+    /// [`ServerContext::offer_update`]).
+    pub sessions: std::sync::Mutex<std::collections::HashMap<u64, SessionHandle>>,
+}
+
+/// What the UI can reach of one session.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "updates are offered from the UI in the next step")
+)]
+#[derive(Debug)]
+pub struct SessionHandle {
+    /// Orders and messages; `None` for an update-only session.
+    outbox: Option<Outbox>,
+    /// Updates offered by the UI.
+    offers: tokio::sync::mpsc::UnboundedSender<Arc<UpdatePackage>>,
+    /// The tablet's `versionCode` (protocol 5 on).
+    app_version_code: Option<u32>,
+    /// The tablet installs updates without asking (kiosk mode).
+    silent_install: bool,
 }
 
 impl ServerContext {
@@ -127,11 +159,45 @@ impl ServerContext {
             .sessions
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        sessions.get(&client_id).is_some_and(|outbox| {
-            outbox
-                .send(Message::TabletCommand(TabletCommandPayload { order }))
-                .is_ok()
-        })
+        sessions
+            .get(&client_id)
+            .and_then(|handle| handle.outbox.as_ref())
+            .is_some_and(|outbox| {
+                outbox
+                    .send(Message::TabletCommand(TabletCommandPayload { order }))
+                    .is_ok()
+            })
+    }
+
+    /// Offers `package` to the tablet of connection `client_id`, which must
+    /// install silently (kiosk mode) and have an older version.
+    ///
+    /// # Errors
+    /// Why it cannot be offered.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "offered from the UI in the next step")
+    )]
+    pub fn offer_update(
+        &self,
+        client_id: u64,
+        package: Arc<UpdatePackage>,
+    ) -> Result<(), OfferError> {
+        let sessions = self
+            .sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let handle = sessions.get(&client_id).ok_or(OfferError::Gone)?;
+        if !handle.silent_install {
+            return Err(OfferError::NotSilent);
+        }
+        if handle
+            .app_version_code
+            .is_none_or(|installed| installed >= package.version_code)
+        {
+            return Err(OfferError::NotNewer);
+        }
+        handle.offers.send(package).map_err(|_| OfferError::Gone)
     }
 }
 
@@ -166,6 +232,18 @@ pub enum ServerEvent {
         device_name: String,
         peer: SocketAddr,
         transport: Transport,
+        tablet: TabletInfo,
+    },
+    /// A paired tablet whose app predates the frozen core (protocol 4 and
+    /// before) was turned away: only USB can update it.
+    OutdatedTablet {
+        device_id: String,
+        device_name: String,
+    },
+    /// An update sent over a connection progressed or ended.
+    TabletUpdate {
+        id: u64,
+        update: TabletUpdate,
     },
     ClientDisconnected {
         id: u64,
@@ -181,6 +259,18 @@ pub enum ServerEvent {
         kiosk: bool,
     },
     Auth(AuthChange),
+}
+
+/// What a tablet said about its app in `hello`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TabletInfo {
+    pub protocol_version: u32,
+    /// The protocols differ: the session only serves updates.
+    pub update_only: bool,
+    pub app_version: Option<String>,
+    pub app_version_code: Option<u32>,
+    pub silent_install: bool,
 }
 
 /// Result of a button press, as shown in the activity log.
@@ -392,13 +482,10 @@ where
         device_name,
         device_id,
         token,
+        app_version,
+        app_version_code,
+        silent_install,
     } = hello;
-    if !is_compatible(protocol_version) {
-        let reason = format!(
-            "protocol version {protocol_version} is not supported (expected {PROTOCOL_VERSION})"
-        );
-        return reject(&mut ws, ErrorCode::UnsupportedVersion, reason).await;
-    }
     if device_id.is_empty()
         || device_id.chars().count() > MAX_ID_LEN
         || device_id.chars().any(char::is_control)
@@ -406,6 +493,30 @@ where
         return reject(&mut ws, ErrorCode::BadRequest, "invalid deviceId".into()).await;
     }
     let device_name = clean_name(&device_name);
+    let unsupported = format!(
+        "protocol version {protocol_version} is not supported (expected {PROTOCOL_VERSION})"
+    );
+    let compatible = is_compatible(protocol_version);
+    if !compatible && !speaks_core(protocol_version) {
+        // An app from before the frozen core cannot be updated over the
+        // connection. If it is a paired one, the user learns that USB will.
+        if transport == Transport::Wifi
+            && ctx
+                .auth
+                .authenticate(&device_id, &device_name, token.as_deref())
+                == AuthStatus::Authenticated
+        {
+            tracing::info!(%peer, device = %device_name, protocol_version, "paired tablet with an old app");
+            emit(
+                ctx,
+                ServerEvent::OutdatedTablet {
+                    device_id: device_id.clone(),
+                    device_name: device_name.clone(),
+                },
+            );
+        }
+        return reject(&mut ws, ErrorCode::UnsupportedVersion, unsupported).await;
+    }
     drop(handshaking);
 
     let auth = match transport {
@@ -417,6 +528,23 @@ where
     if auth == AuthStatus::TokenRejected {
         tracing::warn!(%peer, device = %device_name, "unknown or revoked token");
     }
+    // Another protocol: authenticated tablets only, for updates; pairing
+    // needs both sides on the same protocol.
+    if !compatible && auth != AuthStatus::Authenticated {
+        return reject(&mut ws, ErrorCode::UnsupportedVersion, unsupported).await;
+    }
+    let mode = if compatible {
+        SessionMode::Full
+    } else {
+        SessionMode::UpdateOnly
+    };
+    let tablet = TabletInfo {
+        protocol_version,
+        update_only: mode == SessionMode::UpdateOnly,
+        app_version: app_version.map(|v| clean_name(&v)),
+        app_version_code,
+        silent_install: silent_install == Some(true),
+    };
     let pairing_slot = if auth == AuthStatus::Authenticated {
         None
     } else {
@@ -435,6 +563,7 @@ where
             server_name: ctx.server_name.clone(),
             server_id: ctx.server_id.clone(),
             auth,
+            mode: Some(mode),
         }),
     )
     .await?;
@@ -454,6 +583,31 @@ where
         }
     }
     drop(pairing_slot);
+
+    if mode == SessionMode::UpdateOnly {
+        tracing::info!(%peer, client = id, ?transport, device = %device_name, protocol_version, "tablet connected for updates only");
+        emit(
+            ctx,
+            ServerEvent::ClientConnected {
+                id,
+                device_id: device_id.clone(),
+                device_name,
+                peer,
+                transport,
+                tablet: tablet.clone(),
+            },
+        );
+        let kick = ctx.auth.open_session(&device_id, id, transport);
+        let result = update_session(&mut ws, id, &tablet, kick, ctx).await;
+        ctx.auth.close_session(&device_id, id);
+        let _ = SinkExt::close(&mut ws).await;
+        emit(ctx, ServerEvent::ClientDisconnected { id });
+        tracing::info!(%peer, client = id, "tablet disconnected");
+        return match result {
+            Err(ConnectionError::Closed) => Ok(()),
+            other => other,
+        };
+    }
 
     // Subscribe before reading, so an edit or a state change landing in
     // between is not missed. The layout carries every button's current state.
@@ -476,10 +630,11 @@ where
             device_name,
             peer,
             transport,
+            tablet: tablet.clone(),
         },
     );
     let kick = ctx.auth.open_session(&device_id, id, transport);
-    let result = session(&mut ws, id, kick, feeds, ctx).await;
+    let result = session(&mut ws, id, &tablet, kick, feeds, ctx).await;
     ctx.auth.close_session(&device_id, id);
     // Completes the closing handshake (replies to the peer's close frame, or
     // sends ours) so the tablet sees a clean close instead of a dropped socket.
@@ -538,6 +693,7 @@ where
 async fn session<S>(
     ws: &mut WebSocketStream<S>,
     id: u64,
+    tablet: &TabletInfo,
     mut kick: tokio::sync::oneshot::Receiver<crate::auth::Kick>,
     mut feeds: Feeds,
     ctx: &Arc<ServerContext>,
@@ -548,7 +704,18 @@ where
     // Messages sent on behalf of what presses started (navigation, the
     // outcome of a multi action running in its own task).
     let (outbox, mut outgoing) = tokio::sync::mpsc::unbounded_channel::<Message>();
-    let _registered = Registered::new(ctx, id, outbox.clone());
+    let (offers_tx, mut offers) = tokio::sync::mpsc::unbounded_channel();
+    let _registered = Registered::new(
+        ctx,
+        id,
+        SessionHandle {
+            outbox: Some(outbox.clone()),
+            offers: offers_tx,
+            app_version_code: tablet.app_version_code,
+            silent_install: tablet.silent_install,
+        },
+    );
+    let mut transfer: Option<Transfer> = None;
     let mut kick_pending = true;
     let mut layouts_open = true;
     let mut states_open = true;
@@ -569,6 +736,10 @@ where
             }
             Some(message) = outgoing.recv() => {
                 send(ws, &message).await?;
+                continue;
+            }
+            Some(package) = offers.recv() => {
+                offer(ws, id, ctx, &mut transfer, package).await?;
                 continue;
             }
             changed = feeds.states.changed(), if states_open => {
@@ -618,6 +789,12 @@ where
             Message::Ping(Heartbeat { seq }) => {
                 send(ws, &Message::Pong(Heartbeat { seq })).await?;
             }
+            Message::UpdateRequest(UpdateRequestPayload { offset }) => {
+                serve_chunk(ws, id, ctx, transfer.as_mut(), offset).await?;
+            }
+            Message::UpdateResult(UpdateResultPayload { outcome }) => {
+                finish_update(id, ctx, &mut transfer, outcome);
+            }
             other @ (Message::Hello(_)
             | Message::Welcome(_)
             | Message::Error(_)
@@ -629,12 +806,156 @@ where
             | Message::PairFailure(_)
             | Message::TabletCommand(_)
             | Message::TabletSettings(_)
-            | Message::SystemStatus(_)) => {
+            | Message::SystemStatus(_)
+            | Message::UpdateOffer(_)) => {
                 let reason = format!("unexpected {} after handshake", other.type_tag());
                 send_error(ws, ErrorCode::BadRequest, reason).await?;
             }
         }
     }
+}
+
+/// The loop of an update-only session (protocol versions differ): the
+/// frozen core and nothing else. Any other message closes it.
+async fn update_session<S>(
+    ws: &mut WebSocketStream<S>,
+    id: u64,
+    tablet: &TabletInfo,
+    mut kick: tokio::sync::oneshot::Receiver<crate::auth::Kick>,
+    ctx: &Arc<ServerContext>,
+) -> Result<(), ConnectionError>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let (offers_tx, mut offers) = tokio::sync::mpsc::unbounded_channel();
+    let _registered = Registered::new(
+        ctx,
+        id,
+        SessionHandle {
+            outbox: None,
+            offers: offers_tx,
+            // A newer tablet is never offered anything (no downgrade).
+            app_version_code: tablet.app_version_code,
+            silent_install: tablet.silent_install,
+        },
+    );
+    let mut transfer: Option<Transfer> = None;
+    let mut kick_pending = true;
+    loop {
+        let message = tokio::select! {
+            message = timeout(ctx.limits.idle, next_message(ws)) => match message {
+                Ok(message) => message?,
+                Err(_) => return Err(ConnectionError::Idle),
+            },
+            Some(package) = offers.recv() => {
+                offer(ws, id, ctx, &mut transfer, package).await?;
+                continue;
+            }
+            kicked = &mut kick, if kick_pending => {
+                kick_pending = false;
+                if let Ok(reason) = kicked {
+                    let detail = format!("session ended: {reason:?}");
+                    send_error(ws, reason.error_code(), detail).await?;
+                    return Err(ConnectionError::Kicked(reason));
+                }
+                continue;
+            }
+        };
+        match message {
+            Ok(Message::Ping(Heartbeat { seq })) => {
+                send(ws, &Message::Pong(Heartbeat { seq })).await?;
+            }
+            Ok(Message::Pong(_)) => {}
+            Ok(Message::UpdateRequest(UpdateRequestPayload { offset })) => {
+                serve_chunk(ws, id, ctx, transfer.as_mut(), offset).await?;
+            }
+            Ok(Message::UpdateResult(UpdateResultPayload { outcome })) => {
+                finish_update(id, ctx, &mut transfer, outcome);
+            }
+            Ok(other) => {
+                let reason = format!(
+                    "{} is not allowed in an update-only session",
+                    other.type_tag()
+                );
+                return reject(ws, ErrorCode::Unauthorized, reason).await;
+            }
+            Err(reason) => return reject(ws, ErrorCode::BadRequest, reason).await,
+        }
+    }
+}
+
+/// Sends an offer (replacing any transfer in progress).
+async fn offer<S>(
+    ws: &mut WebSocketStream<S>,
+    id: u64,
+    ctx: &ServerContext,
+    transfer: &mut Option<Transfer>,
+    package: Arc<UpdatePackage>,
+) -> Result<(), ConnectionError>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    tracing::info!(client = id, version = %package.version, size = package.size(), "offering an update");
+    send(ws, &Message::UpdateOffer(package.offer())).await?;
+    let fresh = Transfer::new(package);
+    emit(
+        ctx,
+        ServerEvent::TabletUpdate {
+            id,
+            update: fresh.status(),
+        },
+    );
+    *transfer = Some(fresh);
+    Ok(())
+}
+
+/// Answers an `update:request` with the piece, in a binary frame.
+async fn serve_chunk<S>(
+    ws: &mut WebSocketStream<S>,
+    id: u64,
+    ctx: &ServerContext,
+    transfer: Option<&mut Transfer>,
+    offset: u32,
+) -> Result<(), ConnectionError>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let Some(transfer) = transfer else {
+        let reason = "no update offered".to_owned();
+        return send_error(ws, ErrorCode::BadRequest, reason).await;
+    };
+    let package = Arc::clone(&transfer.package);
+    let Some(bytes) = package.chunk(offset) else {
+        let reason = format!("no update piece at {offset}");
+        return send_error(ws, ErrorCode::BadRequest, reason).await;
+    };
+    ws.send(WsMessage::binary(update_chunk_frame(offset, bytes)))
+        .await?;
+    if let Some(update) = transfer.served(offset, bytes.len()) {
+        emit(ctx, ServerEvent::TabletUpdate { id, update });
+    }
+    Ok(())
+}
+
+/// The tablet's `update:result`.
+fn finish_update(
+    id: u64,
+    ctx: &ServerContext,
+    transfer: &mut Option<Transfer>,
+    outcome: padboard_protocol::UpdateOutcome,
+) {
+    let Some(done) = transfer.take() else {
+        tracing::debug!(client = id, ?outcome, "update result without an offer");
+        return;
+    };
+    let version = done.package.version.clone();
+    tracing::info!(client = id, %version, ?outcome, "tablet update result");
+    let update = if outcome == padboard_protocol::UpdateOutcome::Installing {
+        TabletUpdate::Installing { version }
+    } else {
+        TabletUpdate::Failed { version, outcome }
+    };
+    emit(ctx, ServerEvent::TabletUpdate { id, update });
 }
 
 /// A session's outbox in [`ServerContext::sessions`], for as long as it lives.
@@ -644,11 +965,11 @@ struct Registered<'a> {
 }
 
 impl<'a> Registered<'a> {
-    fn new(ctx: &'a ServerContext, id: u64, outbox: Outbox) -> Self {
+    fn new(ctx: &'a ServerContext, id: u64, handle: SessionHandle) -> Self {
         ctx.sessions
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(id, outbox);
+            .insert(id, handle);
         Self { ctx, id }
     }
 }
@@ -1008,6 +1329,8 @@ mod tests {
     use tokio_tungstenite::tungstenite::client::IntoClientRequest;
     use tokio_tungstenite::{MaybeTlsStream, connect_async};
 
+    use padboard_protocol::FIRST_UPDATABLE_VERSION;
+
     use super::*;
     use crate::auth::PairingView;
 
@@ -1126,6 +1449,21 @@ mod tests {
             device_name: "Test tablet".into(),
             device_id: device_id.into(),
             token: token.map(Into::into),
+            app_version: Some("0.2.0".into()),
+            app_version_code: Some(20_099),
+            silent_install: None,
+        })
+    }
+
+    /// A tablet in kiosk mode (`silent_install`) with this app version.
+    fn kiosk_hello(version: u32, device_id: &str, token: Option<&str>, code: u32) -> Message {
+        let Message::Hello(hello) = hello_with(version, device_id, token) else {
+            unreachable!()
+        };
+        Message::Hello(HelloPayload {
+            app_version_code: Some(code),
+            silent_install: Some(true),
+            ..hello
         })
     }
 
@@ -1243,16 +1581,306 @@ mod tests {
         assert_eq!(transport, Transport::Usb);
     }
 
+    // ─── Other protocol versions: update-only sessions ───────────────────
+
+    /// Waits for the next `ClientConnected` and returns its id and tablet.
+    async fn connected_id(h: &mut Harness) -> (u64, TabletInfo) {
+        loop {
+            if let ServerEvent::ClientConnected { id, tablet, .. } = next_event(h).await {
+                return (id, tablet);
+            }
+        }
+    }
+
+    /// Greets with another protocol version: an update-only session.
+    async fn update_only(h: &Harness, hello: &Message) -> Client {
+        let (client, welcome) = greet(h, hello).await;
+        assert_eq!(welcome.auth, AuthStatus::Authenticated);
+        assert_eq!(welcome.mode, Some(SessionMode::UpdateOnly));
+        assert_eq!(welcome.protocol_version, PROTOCOL_VERSION);
+        client
+    }
+
+    /// The next frame is the `pong` of `seq`: nothing was sent before it.
+    async fn ping_is_next(client: &mut Client, seq: u32) {
+        send_msg(client, &Message::Ping(Heartbeat { seq })).await;
+        assert_eq!(recv_msg(client).await, Message::Pong(Heartbeat { seq }));
+    }
+
+    async fn expect_unauthorized_close(client: &mut Client) {
+        let Message::Error(e) = recv_msg(client).await else {
+            panic!("expected error");
+        };
+        assert_eq!(e.code, ErrorCode::Unauthorized);
+        assert_closed(client).await;
+    }
+
     #[tokio::test]
-    async fn incompatible_version_is_rejected() {
+    async fn a_protocol_without_the_core_is_rejected() {
         let h = start(Transport::Usb, false).await;
         let (mut client, _) = connect_async(&h.url).await.unwrap();
-        send_msg(&mut client, &hello(PROTOCOL_VERSION + 1)).await;
+        send_msg(&mut client, &hello(FIRST_UPDATABLE_VERSION - 1)).await;
         let Message::Error(e) = recv_msg(&mut client).await else {
             panic!("expected error");
         };
         assert_eq!(e.code, ErrorCode::UnsupportedVersion);
         assert_closed(&mut client).await;
+    }
+
+    #[tokio::test]
+    async fn a_paired_tablet_with_an_old_app_is_reported() {
+        let mut h = start(Transport::Wifi, false).await;
+        let (token, client) = pair(&h, "old-tab").await;
+        drop(client);
+
+        // An unknown tablet with an old app: rejected, not reported.
+        let (mut stranger, _) = connect_async(&h.url).await.unwrap();
+        send_msg(&mut stranger, &hello_with(4, "stranger", Some("forged"))).await;
+        assert!(matches!(recv_msg(&mut stranger).await, Message::Error(_)));
+        assert_closed(&mut stranger).await;
+
+        let (mut old, _) = connect_async(&h.url).await.unwrap();
+        send_msg(&mut old, &hello_with(4, "old-tab", Some(&token))).await;
+        let Message::Error(e) = recv_msg(&mut old).await else {
+            panic!("expected error");
+        };
+        assert_eq!(e.code, ErrorCode::UnsupportedVersion);
+        assert_closed(&mut old).await;
+        loop {
+            match next_event(&mut h).await {
+                ServerEvent::OutdatedTablet { device_id, .. } => {
+                    assert_eq!(device_id, "old-tab");
+                    break;
+                }
+                ServerEvent::ClientConnected { device_id, .. } => {
+                    assert_ne!(device_id, "stranger");
+                }
+                _ => {}
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn another_version_needs_a_paired_tablet_on_wifi() {
+        let h = start(Transport::Wifi, false).await;
+        let _pin = start_pin(&h.auth);
+        let (mut client, _) = connect_async(&h.url).await.unwrap();
+        send_msg(
+            &mut client,
+            &hello_with(PROTOCOL_VERSION + 1, "new-tab", None),
+        )
+        .await;
+        let Message::Error(e) = recv_msg(&mut client).await else {
+            panic!("expected error: no pairing across versions");
+        };
+        assert_eq!(e.code, ErrorCode::UnsupportedVersion);
+        assert_closed(&mut client).await;
+    }
+
+    #[tokio::test]
+    async fn an_update_only_session_gets_nothing_but_pongs() {
+        let mut h = start(Transport::Usb, false).await;
+        let mut client = update_only(&h, &hello(PROTOCOL_VERSION + 1)).await;
+        let (id, tablet) = connected_id(&mut h).await;
+        assert!(tablet.update_only);
+        assert_eq!(tablet.protocol_version, PROTOCOL_VERSION + 1);
+
+        // No layout, settings or states at connection, nor on change.
+        ping_is_next(&mut client, 1).await;
+        // (`send_replace`: nobody subscribed, which is the point.)
+        h.layout
+            .send_replace(Arc::new(crate::config::seed::config().active_layout()));
+        h.state.send_modify(|s| {
+            s.audio = crate::appearance::Observed::Unavailable;
+        });
+        h.ctx.tablet_settings.send_replace(TabletSettingsPayload {
+            screensaver: false,
+            screensaver_delay_seconds: 60,
+        });
+        // No order reaches it either.
+        assert!(!h.ctx.order(id, TabletOrder::ExitKiosk));
+        ping_is_next(&mut client, 2).await;
+    }
+
+    #[tokio::test]
+    async fn an_update_only_session_cannot_press_a_button() {
+        let h = start(Transport::Usb, false).await;
+        let mut client = update_only(&h, &hello(PROTOCOL_VERSION + 1)).await;
+        send_msg(&mut client, &press("copy")).await;
+        expect_unauthorized_close(&mut client).await;
+        assert!(h.executor.executed.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn an_update_only_session_refuses_everything_outside_the_core() {
+        let mut h = start(Transport::Usb, false).await;
+        let refused = [
+            Message::ButtonRelease(ButtonEvent {
+                button_id: "copy".into(),
+            }),
+            Message::TabletStatus(TabletStatusPayload { kiosk: true }),
+            pair_request("123456"),
+            hello(PROTOCOL_VERSION + 1),
+            Message::TabletSettings(TabletSettingsPayload {
+                screensaver: true,
+                screensaver_delay_seconds: 15,
+            }),
+            Message::Navigate(NavigatePayload {
+                to: NavigateTarget::Next,
+                id: None,
+            }),
+        ];
+        for message in refused {
+            let mut client = update_only(&h, &hello(PROTOCOL_VERSION + 1)).await;
+            send_msg(&mut client, &message).await;
+            expect_unauthorized_close(&mut client).await;
+        }
+        assert!(h.executor.executed.lock().unwrap().is_empty());
+        // `tablet:status` was not taken into account.
+        while let Ok(event) = h.events.try_recv() {
+            assert!(
+                !matches!(event, ServerEvent::TabletStatus { .. }),
+                "{event:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn revoking_closes_an_update_only_session() {
+        let h = start(Transport::Wifi, false).await;
+        let (token, client) = pair(&h, "tab").await;
+        drop(client);
+        let mut client =
+            update_only(&h, &hello_with(PROTOCOL_VERSION + 1, "tab", Some(&token))).await;
+        ping_is_next(&mut client, 1).await;
+        assert!(h.auth.revoke("tab"));
+        let Message::Error(e) = recv_msg(&mut client).await else {
+            panic!("expected error");
+        };
+        assert_eq!(e.code, ErrorCode::Revoked);
+        assert_closed(&mut client).await;
+    }
+
+    fn package(code: u32, len: usize) -> Arc<UpdatePackage> {
+        let bytes = (0..len).map(|i| (i % 253) as u8).collect();
+        Arc::new(UpdatePackage::new("0.3.0".into(), code, bytes).unwrap())
+    }
+
+    async fn recv_binary(client: &mut Client) -> Vec<u8> {
+        let frame = timeout(Duration::from_secs(5), client.next())
+            .await
+            .expect("timed out waiting for a frame")
+            .unwrap()
+            .unwrap();
+        let WsMessage::Binary(bytes) = frame else {
+            panic!("expected a binary frame, got {frame:?}");
+        };
+        bytes.to_vec()
+    }
+
+    #[tokio::test]
+    async fn an_update_is_offered_and_served_in_pieces() {
+        let mut h = start(Transport::Usb, false).await;
+        let mut client =
+            update_only(&h, &kiosk_hello(PROTOCOL_VERSION + 1, "tab", None, 20_099)).await;
+        let (id, _) = connected_id(&mut h).await;
+        let chunk = padboard_protocol::UPDATE_CHUNK_SIZE;
+        let package = package(30_099, 2 * chunk as usize + 5);
+        h.ctx.offer_update(id, Arc::clone(&package)).unwrap();
+        let Message::UpdateOffer(offer) = recv_msg(&mut client).await else {
+            panic!("expected update:offer");
+        };
+        assert_eq!(offer, package.offer());
+
+        // A request outside the APK: an error, the session goes on.
+        send_msg(
+            &mut client,
+            &Message::UpdateRequest(UpdateRequestPayload { offset: 1 }),
+        )
+        .await;
+        let Message::Error(e) = recv_msg(&mut client).await else {
+            panic!("expected error");
+        };
+        assert_eq!(e.code, ErrorCode::BadRequest);
+        ping_is_next(&mut client, 1).await;
+
+        let mut received = Vec::new();
+        let mut offset = 0;
+        while offset < offer.size {
+            send_msg(
+                &mut client,
+                &Message::UpdateRequest(UpdateRequestPayload { offset }),
+            )
+            .await;
+            let frame = recv_binary(&mut client).await;
+            let (at, bytes) = padboard_protocol::parse_update_chunk(&frame).unwrap();
+            assert_eq!(at, offset);
+            received.extend_from_slice(bytes);
+            offset += chunk;
+        }
+        assert_eq!(received.len(), offer.size as usize);
+        assert_eq!(
+            UpdatePackage::new("0.3.0".into(), 30_099, received)
+                .unwrap()
+                .offer(),
+            offer
+        );
+        send_msg(
+            &mut client,
+            &Message::UpdateResult(UpdateResultPayload {
+                outcome: padboard_protocol::UpdateOutcome::Installing,
+            }),
+        )
+        .await;
+        loop {
+            if let ServerEvent::TabletUpdate { id: at, update } = next_event(&mut h).await
+                && update
+                    == (TabletUpdate::Installing {
+                        version: "0.3.0".into(),
+                    })
+            {
+                assert_eq!(at, id);
+                break;
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn updates_are_only_offered_to_kiosk_tablets_with_an_older_app() {
+        let mut h = start(Transport::Usb, false).await;
+        // Not in kiosk mode: USB (adb) updates it, never the connection.
+        let _plain = connected(&h).await;
+        let (plain, _) = connected_id(&mut h).await;
+        assert_eq!(
+            h.ctx.offer_update(plain, package(30_099, 10)),
+            Err(OfferError::NotSilent)
+        );
+
+        let (mut kiosk_client, _) =
+            greet(&h, &kiosk_hello(PROTOCOL_VERSION, "kiosk", None, 30_099)).await;
+        expect_layout(&mut kiosk_client).await;
+        let (kiosk, tablet) = connected_id(&mut h).await;
+        assert!(tablet.silent_install);
+        assert_eq!(
+            h.ctx.offer_update(kiosk, package(30_099, 10)),
+            Err(OfferError::NotNewer),
+            "same version"
+        );
+        assert_eq!(
+            h.ctx.offer_update(kiosk, package(20_099, 10)),
+            Err(OfferError::NotNewer),
+            "older version"
+        );
+        assert_eq!(
+            h.ctx.offer_update(999, package(40_099, 10)),
+            Err(OfferError::Gone)
+        );
+        // A full session gets offers too.
+        h.ctx.offer_update(kiosk, package(40_099, 10)).unwrap();
+        assert!(matches!(
+            recv_msg(&mut kiosk_client).await,
+            Message::UpdateOffer(_)
+        ));
     }
 
     #[tokio::test]

@@ -547,7 +547,11 @@ class ConnectionManager(
             is Message.PairRequest,
             is Message.PairSuccess,
             is Message.PairFailure,
-            is Message.TabletStatus -> Unit
+            is Message.TabletStatus,
+            is Message.UpdateRequest,
+            is Message.UpdateResult -> Unit
+            // Updates over the connection: handled in a later step.
+            is Message.UpdateOffer -> Unit
         }
         return null
     }

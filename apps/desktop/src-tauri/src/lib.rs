@@ -26,6 +26,7 @@ mod server;
 mod settings;
 mod state;
 mod storage;
+mod tablet_update;
 mod test_mode;
 mod tls;
 mod tray;

@@ -201,6 +201,8 @@ mod tests {
             peer: String::new(),
             connected_at_ms: 0,
             kiosk: false,
+            tablet: crate::server::TabletInfo::default(),
+            update: None,
         }
     }
 

@@ -39,6 +39,9 @@ fn fixture_stem(message: &Message) -> &'static str {
         Message::TabletCommand(_) => "tablet_command",
         Message::TabletSettings(_) => "tablet_settings",
         Message::SystemStatus(_) => "system_status",
+        Message::UpdateOffer(_) => "update_offer",
+        Message::UpdateRequest(_) => "update_request",
+        Message::UpdateResult(_) => "update_result",
     }
 }
 
@@ -101,6 +104,9 @@ fn every_message_type_has_a_fixture() {
         "tablet_command",
         "tablet_settings",
         "system_status",
+        "update_offer",
+        "update_request",
+        "update_result",
     ]
     .into_iter()
     .map(String::from)
@@ -121,6 +127,62 @@ fn handshake_fixtures_speak_the_current_version() {
             "{stem}.json"
         );
     }
+}
+
+/// The frozen core (crate documentation): every version's `hello`,
+/// `welcome` and `update:*` (`fixtures/core/<type>-v<N>.json`) still decodes
+/// into the same message type, so a newer PC can always read an older
+/// tablet, and the other way round. The current version's are there too.
+#[test]
+fn the_frozen_core_of_every_version_still_decodes() {
+    let dir = fixtures_dir().join("core");
+    let mut current = BTreeSet::new();
+    for entry in fs::read_dir(&dir).unwrap() {
+        let path = entry.unwrap().path();
+        let name = path.file_stem().unwrap().to_string_lossy().into_owned();
+        let (stem, version) = name.rsplit_once("-v").unwrap();
+        let version: u32 = version.parse().unwrap();
+        let value: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        let message: Message = serde_json::from_value(value.clone())
+            .unwrap_or_else(|e| panic!("core/{name}.json no longer decodes: {e}"));
+        assert_eq!(fixture_stem(&message), stem, "core/{name}.json");
+        assert!(
+            matches!(
+                message,
+                Message::Hello(_)
+                    | Message::Welcome(_)
+                    | Message::UpdateOffer(_)
+                    | Message::UpdateRequest(_)
+                    | Message::UpdateResult(_)
+            ),
+            "core/{name}.json is not a core message"
+        );
+        if let Some(v) = value["payload"]["protocolVersion"].as_u64() {
+            assert_eq!(u64::from(version), v, "core/{name}.json");
+        }
+        if version == padboard_protocol::PROTOCOL_VERSION {
+            current.insert(stem.to_owned());
+            let top: Value = serde_json::from_str(
+                &fs::read_to_string(fixtures_dir().join(format!("{stem}.json"))).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(top, value, "core/{name}.json differs from {stem}.json");
+        }
+    }
+    let expected: BTreeSet<String> = [
+        "hello",
+        "welcome",
+        "update_offer",
+        "update_request",
+        "update_result",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect();
+    assert_eq!(
+        current, expected,
+        "copy the current core fixtures to core/<type>-v<version>.json"
+    );
 }
 
 #[test]

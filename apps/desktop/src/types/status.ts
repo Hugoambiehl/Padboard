@@ -1,6 +1,8 @@
 // Hand-written mirror of apps/desktop/src-tauri/src/state.rs (UI state, not the
 // tablet protocol). Keep both in sync.
 
+import type { UpdateOutcome } from "../generated/types";
+
 export type ListenerState = "off" | "starting" | "listening" | "error";
 export type Transport = "usb" | "wifi";
 
@@ -55,6 +57,34 @@ export interface ClientInfo {
   connectedAtMs: number;
   /** The tablet is in kiosk mode. */
   kiosk: boolean;
+  /** Its app's version and protocol, from `hello`. */
+  tablet: TabletInfo;
+  /** An update sent over this connection. */
+  update: TabletUpdate | null;
+}
+
+/** Mirror of `server::TabletInfo`. */
+export interface TabletInfo {
+  protocolVersion: number;
+  /** The protocols differ: the session only serves updates. */
+  updateOnly: boolean;
+  appVersion: string | null;
+  appVersionCode: number | null;
+  /** Installs updates without asking (kiosk mode). */
+  silentInstall: boolean;
+}
+
+/** Mirror of `tablet_update::TabletUpdate`. */
+export type TabletUpdate =
+  | { state: "sending"; version: string; sent: number; total: number }
+  | { state: "installing"; version: string }
+  | { state: "failed"; version: string; outcome: UpdateOutcome };
+
+/** A paired tablet turned away: its app is too old for Wi-Fi updates. */
+export interface OutdatedTablet {
+  deviceId: string;
+  deviceName: string;
+  atMs: number;
 }
 
 export type PairingView =
@@ -132,5 +162,6 @@ export interface Snapshot {
   pairing: PairingView;
   pairedDevices: PairedDevice[];
   usb: UsbStatus;
+  outdatedTablets: OutdatedTablet[];
   activity: ActivityEntry[];
 }

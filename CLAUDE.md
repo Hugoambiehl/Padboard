@@ -300,6 +300,23 @@ SM-T580, always measure in release builds.
   waking touch is consumed whole: it never reaches the grid.
   `system:status` is derived from `SystemState` (unknown = off) and sent
   only when it changes.
+- **Protocol 5, the frozen core**: `hello`, `welcome`, `error`,
+  `ping`/`pong` and `update:*` (+ the APK's binary frames: 4-byte
+  big-endian offset, then bytes) never break, whatever the protocol
+  version: only optional fields are added (`SessionMode` never gains a
+  value). Every version's core is kept in `crates/protocol/fixtures/core/`
+  (`<type>-v<N>.json`, never edited; copy the new ones when bumping),
+  decoded by Rust and Kotlin tests. Handshake: protocol ≤ 4 is rejected
+  (a paired one is reported to the UI, `OutdatedTablet`: USB updates it);
+  another version with the core is checked **after** authentication and
+  served as an **update-only** session (`welcome.mode`): no layout,
+  settings, states or orders, only pongs and `update:*`; anything else
+  gets `unauthorized` and closes it (tests in `server.rs`). No pairing
+  across versions. `hello` carries `appVersion`, `appVersionCode` and
+  `silentInstall` (device owner). Updates over the connection go only to
+  `silentInstall` tablets with an older `versionCode`
+  (`ServerContext::offer_update`), in 64 KiB pieces the tablet pulls one at
+  a time (`tablet_update.rs`).
 - **Protocol version mirrored by hand** in `ProtocolJson.kt`: the hello /
   welcome fixtures carry the version and both sides' tests compare to them.
 - **Tablet disconnected**: the grid stays (same `GridScreen` call site, so
