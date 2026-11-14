@@ -740,13 +740,18 @@ class ConnectionManager(
         link.session.send(Message.UpdateResult(UpdateResultPayload(outcome)))
     }
 
-    /** The session ended during a transfer: nothing is kept. */
+    /**
+     * The session ended during a transfer: nothing is kept, nothing is
+     * installed, and the user is told (the PC offers it again once
+     * reconnected).
+     */
     private fun abandonDownload() {
         val d = download ?: return
         download = null
         runCatching { d.out.close() }
         d.file.delete()
-        _update.value = null
+        log.warning("update ${d.offer.version} interrupted: the connection ended")
+        _update.value = UpdateProgress.Failed(d.offer.version, UpdateOutcome.TransferFailed)
     }
 
     // ─── Pairing ────────────────────────────────────────────────────────

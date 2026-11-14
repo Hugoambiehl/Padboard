@@ -394,6 +394,26 @@ class ConnectionManagerTest {
         await(updating.update, "dismissed") { it == null }
     }
 
+    @Test
+    fun aTransferCutMidwayKeepsNothingSaysSoAndCanStartAgain() {
+        val bytes = apk(3 * UPDATE_CHUNK_SIZE.toInt())
+        pc.apk = bytes
+        pc.cutAfterPieces = 1
+        connectedOverUsb(updating)
+        pc.sendToTablets(offer(bytes))
+        await(updating.update, "interrupted") { it is UpdateProgress.Failed }
+        assertEquals(UpdateProgress.Failed("0.3.0", UpdateOutcome.TransferFailed), updating.update.value)
+        assertNull("nothing installed", updater.installed.value)
+        assertTrue("the partial file is deleted", updateDir.listFiles().orEmpty().isEmpty())
+        // Reconnected, the same update goes through.
+        pc.cutAfterPieces = Int.MAX_VALUE
+        await(updating.state, "reconnected") { it is LinkState.Connected }
+        Thread.sleep(300)
+        pc.sendToTablets(offer(bytes))
+        val installed = await(updater.installed, "installed after reconnecting") { it != null }
+        assertTrue(bytes.contentEquals(installed))
+    }
+
     private companion object {
         const val DEVICE_ID = "tablet-1"
     }
@@ -462,6 +482,10 @@ private class FakePc(val serverId: String, val name: String) {
 
     /** The APK served to `update:request`. */
     @Volatile var apk: ByteArray? = null
+
+    /** After this many pieces, the connection is cut (a link lost mid-transfer). */
+    @Volatile var cutAfterPieces: Int = Int.MAX_VALUE
+    private val piecesServed = AtomicInteger()
     val pressesFlow = MutableStateFlow<List<String>>(emptyList())
     val superseded = AtomicInteger()
 
@@ -540,6 +564,10 @@ private class FakePc(val serverId: String, val name: String) {
             when (val message = parsed) {
                 is Message.UpdateRequest -> {
                     val bytes = apk ?: return
+                    if (piecesServed.incrementAndGet() > cutAfterPieces) {
+                        webSocket.cancel()
+                        return
+                    }
                     val offset = message.payload.offset.toInt()
                     val end = minOf(bytes.size, offset + UPDATE_CHUNK_SIZE.toInt())
                     val frame = byteArrayOf(
