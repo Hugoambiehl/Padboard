@@ -56,7 +56,8 @@
     "via": {
       "usb": "USB",
       "wifi": "Wi-Fi"
-    }
+    },
+    "droppedWifi": "La connexion Wi-Fi avec {name} s’est coupée faute de réponse. Le PC et la tablette doivent pouvoir se joindre directement : un réseau invité, un répéteur ou des bornes différentes d’un réseau maillé l’empêchent. Utilise le câble USB, branche le PC en Ethernet, ou mets-les sur la même borne."
   },
   "activity": {
     "title": "Activité",

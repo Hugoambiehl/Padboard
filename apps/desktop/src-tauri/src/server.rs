@@ -241,6 +241,9 @@ pub enum ServerEvent {
     },
     ClientDisconnected {
         id: u64,
+        /// Silent for too long (no TCP close): over Wi-Fi, typically a
+        /// network that keeps the PC and the tablet apart.
+        lost: bool,
     },
     ButtonPressed {
         client_id: u64,
@@ -601,7 +604,13 @@ where
         let result = update_session(&mut ws, id, &tablet, kick, ctx).await;
         ctx.auth.close_session(&device_id, id);
         let _ = SinkExt::close(&mut ws).await;
-        emit(ctx, ServerEvent::ClientDisconnected { id });
+        emit(
+            ctx,
+            ServerEvent::ClientDisconnected {
+                id,
+                lost: matches!(result, Err(ConnectionError::Idle)),
+            },
+        );
         tracing::info!(%peer, client = id, "tablet disconnected");
         return match result {
             Err(ConnectionError::Closed) => Ok(()),
@@ -641,7 +650,13 @@ where
     // `SinkExt::close`, not the inherent `WebSocketStream::close`, which would try
     // to send a new close frame instead of finishing the handshake.
     let _ = SinkExt::close(&mut ws).await;
-    emit(ctx, ServerEvent::ClientDisconnected { id });
+    emit(
+        ctx,
+        ServerEvent::ClientDisconnected {
+            id,
+            lost: matches!(result, Err(ConnectionError::Idle)),
+        },
+    );
     tracing::info!(%peer, client = id, "tablet disconnected");
     match result {
         Err(ConnectionError::Closed) => Ok(()),

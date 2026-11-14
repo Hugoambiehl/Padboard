@@ -56,7 +56,8 @@
     "via": {
       "usb": "USB",
       "wifi": "Wi-Fi"
-    }
+    },
+    "droppedWifi": "The Wi-Fi connection with {name} dropped for lack of answers. The PC and the tablet must reach each other directly: a guest network, a repeater or different nodes of a mesh network prevent it. Use the USB cable, connect the PC with Ethernet, or put both on the same access point."
   },
   "activity": {
     "title": "Activity",

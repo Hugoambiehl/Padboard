@@ -33,6 +33,9 @@ pub struct Snapshot {
     /// Paired tablets turned away because their app is too old to be
     /// updated over Wi-Fi (USB will): most recent first, one per device.
     pub outdated_tablets: Vec<OutdatedTablet>,
+    /// Paired tablets whose Wi-Fi session went silent and was dropped (most
+    /// recent first, one per device): the network may keep them apart.
+    pub dropped_wifi: Vec<DroppedTablet>,
     /// Most recent first.
     pub activity: VecDeque<ActivityEntry>,
     #[serde(skip)]
@@ -141,6 +144,14 @@ pub struct ClientInfo {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DroppedTablet {
+    pub device_id: String,
+    pub device_name: String,
+    pub at_ms: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OutdatedTablet {
     pub device_id: String,
     pub device_name: String,
@@ -226,6 +237,7 @@ impl Snapshot {
             paired_devices: Vec::new(),
             usb: UsbStatus::default(),
             outdated_tablets: Vec::new(),
+            dropped_wifi: Vec::new(),
             activity: VecDeque::new(),
             labels,
             next_activity_id: 1,
@@ -335,7 +347,24 @@ impl Snapshot {
                     client.tablet.silent_install = kiosk;
                 }
             }
-            ServerEvent::ClientDisconnected { id } => self.clients.retain(|c| c.id != id),
+            ServerEvent::ClientDisconnected { id, lost } => {
+                if let Some(client) = self.clients.iter().find(|c| c.id == id)
+                    && lost
+                    && client.transport == Transport::Wifi
+                {
+                    self.dropped_wifi
+                        .retain(|t| t.device_id != client.device_id);
+                    self.dropped_wifi.insert(
+                        0,
+                        DroppedTablet {
+                            device_id: client.device_id.clone(),
+                            device_name: client.device_name.clone(),
+                            at_ms: now_ms(),
+                        },
+                    );
+                }
+                self.clients.retain(|c| c.id != id);
+            }
             ServerEvent::ButtonPressed {
                 client_id,
                 button_id,
@@ -434,6 +463,32 @@ mod tests {
     }
 
     #[test]
+    fn a_silent_wifi_session_is_reported() {
+        let mut s = snapshot();
+        for (id, transport) in [
+            (1, Transport::Wifi),
+            (2, Transport::Usb),
+            (3, Transport::Wifi),
+        ] {
+            s.apply(ServerEvent::ClientConnected {
+                id,
+                device_id: format!("tab-{id}"),
+                device_name: format!("Tab {id}"),
+                peer: peer(),
+                transport,
+                tablet: crate::server::TabletInfo::default(),
+            });
+        }
+        s.apply(ServerEvent::ClientDisconnected { id: 1, lost: true });
+        // Only silent Wi-Fi sessions: not USB, not a clean close.
+        s.apply(ServerEvent::ClientDisconnected { id: 2, lost: true });
+        s.apply(ServerEvent::ClientDisconnected { id: 3, lost: false });
+        assert_eq!(s.dropped_wifi.len(), 1);
+        assert_eq!(s.dropped_wifi[0].device_name, "Tab 1");
+        assert!(s.clients.is_empty());
+    }
+
+    #[test]
     fn tracks_clients_and_activity() {
         let mut s = snapshot();
         s.apply(ServerEvent::ClientConnected {
@@ -454,7 +509,7 @@ mod tests {
         let entry = &s.activity[0];
         assert_eq!(entry.label.as_deref(), Some("Copier"));
         assert_eq!(entry.device_name.as_deref(), Some("Tab"));
-        s.apply(ServerEvent::ClientDisconnected { id: 1 });
+        s.apply(ServerEvent::ClientDisconnected { id: 1, lost: false });
         assert!(s.clients.is_empty());
     }
 

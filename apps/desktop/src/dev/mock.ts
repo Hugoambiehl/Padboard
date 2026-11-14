@@ -83,6 +83,10 @@ const status: Snapshot = {
   ],
   pairing: { state: "idle" },
   pairedDevices: [],
+  droppedWifi:
+    new URLSearchParams(location.search).get("dropped") === "1"
+      ? [{ deviceId: "tab", deviceName: "Galaxy Tab A", atMs: Date.now() }]
+      : [],
   outdatedTablets:
     new URLSearchParams(location.search).get("outdated") === "1"
       ? [

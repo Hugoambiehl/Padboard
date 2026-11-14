@@ -32,6 +32,7 @@ const { t } = useI18n();
       <ClientsCard
         :clients="snapshot.clients"
         :outdated="snapshot.outdatedTablets"
+        :dropped="snapshot.droppedWifi"
         :app-version="snapshot.server.appVersion"
         :app-version-code="snapshot.server.appVersionCode"
         :development="snapshot.server.development"

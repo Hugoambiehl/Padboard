@@ -213,6 +213,15 @@ SM-T580, always measure in release builds.
   trust manager (`Pinning.kt`): OkHttp does not expose the handshake of a
   WebSocket upgrade. mDNS: Android < 14 resolves one address per service, so
   the desktop announces IPv4 only and the tablet accumulates addresses.
+- **Wi-Fi reachability**: PC and tablet must reach each other directly;
+  guest networks, client isolation, repeaters and some meshes prevent it
+  (seen on a Starlink mesh: 60–78 % ping loss, sessions dropped). The
+  tablet says so when the paired PC is announced by mDNS but does not
+  answer (`LinkState.Searching.announced`); the PC when a Wi-Fi session
+  goes silent and is dropped (`ClientDisconnected.lost` →
+  `Snapshot.dropped_wifi`, shown 5 min). Updates over Wi-Fi are paced
+  (`Config.updatePiecePause`, 250 ms between 64 KiB pieces); a cut
+  transfer keeps nothing and says so. Docs: install-tablet.md.
 - **Desktop session liveness**: tablets ping every 5 s; the desktop closes an
   authenticated session silent for 20 s.
 - **Button states** (`appearance.rs`, `observe.rs`): watcher threads publish

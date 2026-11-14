@@ -88,6 +88,13 @@ export type TabletUpdate =
   | { state: "installing"; version: string }
   | { state: "failed"; version: string; outcome: UpdateOutcome };
 
+/** A tablet whose Wi-Fi session went silent (the network may keep them apart). */
+export interface DroppedTablet {
+  deviceId: string;
+  deviceName: string;
+  atMs: number;
+}
+
 /** A paired tablet turned away: its app is too old for Wi-Fi updates. */
 export interface OutdatedTablet {
   deviceId: string;
@@ -201,5 +208,7 @@ export interface Snapshot {
   pairedDevices: PairedDevice[];
   usb: UsbStatus;
   outdatedTablets: OutdatedTablet[];
+  /** Paired tablets whose Wi-Fi session went silent and was dropped. */
+  droppedWifi: DroppedTablet[];
   activity: ActivityEntry[];
 }
