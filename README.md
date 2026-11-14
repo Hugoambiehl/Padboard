@@ -88,7 +88,7 @@ tagged commit, and checksums are published with it (`SHA256SUMS`).
 
 - **Tablet app**: the APK built by the workflow is signed on the
   maintainer's PC with the project's release key, which never leaves it
-  (certificate SHA-256 in [docs/android-release.md](docs/android-release.md)).
+  (certificate SHA-256 in [docs/release-signing.md](docs/release-signing.md)).
 - **Windows installer**: not signed yet. A free certificate for open
   source projects has been requested; until then, Windows SmartScreen asks
   for confirmation on first launch.

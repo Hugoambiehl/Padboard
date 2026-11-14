@@ -153,7 +153,7 @@ adb logcat --pid="$(adb shell pidof io.github.hugoambiehl.padboard)"   # logs
 
 A debug build and a release build are signed with different keys: switching
 between them needs `adb uninstall` (pairing lost). Release builds, signing
-and kiosk mode: [android-release.md](android-release.md),
+and kiosk mode: [release-signing.md](release-signing.md),
 [install-tablet.md](install-tablet.md#kiosk-mode).
 
 Measure the tablet's performance on **release** builds only

@@ -4,7 +4,7 @@
 #
 #   scripts/sign-apk.sh padboard-0.1.0-unsigned.apk      -> padboard-0.1.0.apk
 #
-# The key is found like Gradle does (docs/android-release.md): the
+# The key is found like Gradle does (docs/release-signing.md): the
 # `padboard.signing` property of ~/.gradle/gradle.properties, or
 # PADBOARD_SIGNING, names a properties file with storeFile, keyAlias,
 # storePassword (and optionally keyPassword). Passwords go to apksigner

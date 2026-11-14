@@ -27,6 +27,9 @@ thiserror.workspace = true
 tracing.workspace = true
 typeshare.workspace = true
 base64 = "0.23.1"
+# Update signatures (minisign, the same as tauri-plugin-updater).
+minisign-verify = "0.2.5"
+semver = "1.0.28"
 getrandom = "0.4.3"
 mdns-sd = "0.21.7"
 rcgen = { version = "0.14.10", default-features = false, features = ["crypto", "pem", "ring"] }

@@ -4,8 +4,9 @@
 # builds the Windows installer (NSIS, unsigned), the Linux .deb and the
 # unsigned release APK, then creates a DRAFT GitHub release with them, the
 # SHA-256 sums and the CHANGELOG.md section of the version (pre-release for
-# -rc.N). The APK is signed on the maintainer's PC and attached by hand:
-# the signing key never leaves it.
+# -rc.N). The maintainer then signs the draft on their PC
+# (scripts/sign-release.sh: APK, update signatures, latest.json, signed
+# SHA256SUMS): the signing keys never leave it.
 #
 # Manual run (`gh workflow run Release --ref main`): the same builds, kept as
 # artifacts for 7 days, no release.
@@ -51,6 +52,16 @@ jobs:
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # The app checks its updates with this key: a release without it
+      # could never update itself (docs/release-signing.md).
+      - name: Update public key
+        if: github.ref_type == 'tag'
+        run: |
+          if [[ ! -s apps/desktop/src-tauri/updater-key.pub ]]; then
+            echo "::error::apps/desktop/src-tauri/updater-key.pub is empty"
+            exit 1
+          fi
 
       - name: Rust toolchain (rust-toolchain.toml)
         run: rustup toolchain install

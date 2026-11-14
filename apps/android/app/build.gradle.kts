@@ -11,7 +11,7 @@ plugins {
 // Release signing key: a properties file outside the repo (storeFile, keyAlias,
 // storePassword), named by the `padboard.signing` Gradle property (in
 // ~/.gradle/gradle.properties) or PADBOARD_SIGNING. Without it, release APKs
-// are unsigned. See docs/android-release.md.
+// are unsigned. See docs/release-signing.md.
 val releaseSigning: Properties? =
     (providers.gradleProperty("padboard.signing").orNull ?: System.getenv("PADBOARD_SIGNING"))
         ?.let(::file)

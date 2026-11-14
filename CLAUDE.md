@@ -82,7 +82,7 @@ docs/design            # reference mockups (Main, Pairing, Editor .dc.html)
 docs/install-*.md      # user guides (Windows, Linux, tablet incl. kiosk mode and rescue)
 docs/development.md    # build, run, test (README is user-facing)
 docs/windows-test-plan.md # Windows per-action manual test plan
-docs/android-release.md # tablet signing key (outside the repo), release builds
+docs/release-signing.md # release keys (tablet APK, desktop updates), outside the repo
 scripts/gen-types.sh   # typeshare -> TS + Kotlin types
 Cargo.toml             # workspace
 ```
@@ -385,8 +385,17 @@ SM-T580, always measure in release builds.
   feat/fix/perf only; 0.1.0 has a written summary instead), commits and tags without pushing. A pushed `v*` tag
   runs `release.yml`: NSIS installer (unsigned, SignPath once public), .deb
   (built on Ubuntu 22.04), unsigned APK, draft release (pre-release for rc)
-  with SHA256SUMS. The APK is signed locally (`scripts/sign-apk.sh`) and
-  attached by hand: the key never goes to CI.
+  with SHA256SUMS. `scripts/sign-release.sh X` then signs the draft on the
+  maintainer's PC (keys never go to CI, `docs/release-signing.md`): the
+  APK (certificate checked), the installer for the updater (minisign,
+  `--app-version`: the version is in the signed trusted comment),
+  `latest.json`, and `SHA256SUMS` written again and signed for X; checked
+  by the `verify-release` example (the app's own code) before upload.
+  Future SignPath (Authenticode) signs the installer in CI before the
+  draft, so the minisign signature covers the final file; the script
+  refuses an unsigned installer once the workflow has a SignPath step.
+  Public update key: `apps/desktop/src-tauri/updater-key.pub` (empty =
+  updates off; the release workflow refuses it).
 - **Tray and startup** (`tray.rs`): the icon's menu opens the window,
   shows the connected tablets, quits. Closing the window hides it there
   (explained once by a dialog, `closeHintShown` in `preferences.json`);

@@ -29,6 +29,8 @@ mod storage;
 mod test_mode;
 mod tls;
 mod tray;
+#[doc(hidden)]
+pub mod updates;
 mod wifi;
 
 use std::path::{Path, PathBuf};
