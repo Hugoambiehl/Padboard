@@ -113,6 +113,80 @@ a cable unplug/replug, and after the PC wakes from sleep.
 | Startup | *Connexions* → *Démarrage* → turn on, sign out and in | Padboard starts hidden in the notification area and the tablet connects; turned off: it does not start (*Task Manager → Startup apps* lists it while on). The `Padboard` value of `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` is `"<install dir>\padboard-desktop.exe" --hidden`, path in quotes |
 | Installed apps | *Settings → Apps → Installed apps* | Padboard's publisher is *Hugo Ambiehl* |
 
+## 6. In-app update (from 0.2)
+
+Tests the real update (download, signature, NSIS install, restart) against
+**local test releases**: nothing is published. Two test installers of
+different versions are built with the `test-updates` feature (test builds
+only: the release workflow refuses it) and served from this PC. They
+replace the installed Padboard: note its version first and reinstall the
+official one at the end. Everything runs in **test mode**
+(`PADBOARD_TEST_DIR`): the real configuration in `%APPDATA%` is never used.
+
+**Before**: quit the running Padboard (tray → *Quitter Padboard*).
+Tools: those of 1.C, plus Git Bash with Python 3 (for
+`scripts/test-releases.sh`).
+
+### Build the two versions
+
+In `apps\desktop` (PowerShell), on an up-to-date `main`:
+
+```powershell
+npm ci
+# The versions as config files (JSON on the command line loses its quotes in PowerShell)
+Set-Content $env:TEMP\v1.json '{"version":"0.2.0-rc.1"}'
+Set-Content $env:TEMP\v2.json '{"version":"0.2.0-rc.2"}'
+$common = '--bundles', 'nsis', '--features', 'test-updates', '--config', 'src-tauri/tauri.test-updates.conf.json'
+npx tauri build @common --config $env:TEMP\v1.json
+Copy-Item ..\..\target\release\bundle\nsis\Padboard_0.2.0-rc.1_x64-setup.exe $env:TEMP\A.exe
+npx tauri build @common --config $env:TEMP\v2.json
+Copy-Item ..\..\target\release\bundle\nsis\Padboard_0.2.0-rc.2_x64-setup.exe $env:TEMP\B.exe
+```
+
+### Serve version B (Git Bash, repository root; keep it open)
+
+```bash
+scripts/test-releases.sh add 0.2.0-rc.2 --installer "$TEMP/B.exe"
+scripts/test-releases.sh serve      # http://127.0.0.1:8765, prints each request
+```
+
+### Install and start version A in test mode (PowerShell)
+
+```powershell
+& $env:TEMP\A.exe /S                       # silent: does not start the app
+$env:PADBOARD_TEST_DIR = "$env:TEMP\padboard-update-test"
+$env:PADBOARD_TEST_RELEASES = 'http://127.0.0.1:8765'
+$env:PADBOARD_TEST_UPDATE_KEY = "$PWD\..\..\target\test-releases\test-update.key.pub"
+$env:PADBOARD_TEST_APP_VERSION = '0.2.0-rc.1'
+& "$env:LOCALAPPDATA\Padboard\padboard-desktop.exe"
+```
+
+(If Padboard is installed elsewhere, use the path of its Start menu
+shortcut.) The window title must read **Padboard (mode test)**.
+
+### Checks
+
+| Check | Do | Expect |
+|---|---|---|
+| Found | *Connexions* → *À propos* → *Mises à jour*: turn on **Versions de test**, then *Rechercher* | *La version 0.2.0-rc.2 est disponible.*, the header shows *Mise à jour 0.2.0-rc.2*; the server window shows `GET /api/releases` |
+| Edits kept | Rename a button in the editor, then at once *Installer et redémarrer* | A progress bar (passive NSIS), **no UAC prompt**, Padboard comes back by itself, title still *Padboard (mode test)* (else close it at once and note it), the renamed button is there; *Settings → Apps → Installed apps*: Padboard **0.2.0-rc.2**; the test dir's `app.log` holds *installing the update, the app exits* |
+| Up to date | Restart version B with the same variables but `PADBOARD_TEST_APP_VERSION = '0.2.0-rc.2'`, *Rechercher* | *Padboard est à jour* (never an older or the same version) |
+| Tampered installer | Reinstall A (`& $env:TEMP\A.exe /S`), start it as above; in Git Bash append a byte to the served installer: `printf x >> target/test-releases/releases/download/v0.2.0-rc.2/Padboard_0.2.0-rc.2_x64-setup.exe`; *Rechercher*, *Installer et redémarrer* | *Le fichier téléchargé n’est pas signé pour cette version : mise à jour refusée.*, nothing installed (still 0.2.0-rc.1) |
+| Forged version | `scripts/test-releases.sh add 0.2.0-rc.2 --installer "$TEMP/B.exe"` again; then make a fake 9.9.9 that points to it: `mkdir -p target/test-releases/releases/download/v9.9.9 && sed 's/"version": "0.2.0-rc.2"/"version": "9.9.9"/' target/test-releases/releases/download/v0.2.0-rc.2/latest.json > target/test-releases/releases/download/v9.9.9/latest.json && scripts/test-releases.sh remove 0.0.0`; *Rechercher*, *Installer et redémarrer* | 9.9.9 is offered, but installing it is refused (*pas signé pour cette version*): the signature says 0.2.0-rc.2 |
+| Stable channel | Turn **Versions de test** off, *Rechercher* | *Padboard est à jour* (the test releases are release candidates; 9.9.9 too is refused: remove it first with `scripts/test-releases.sh remove 9.9.9`) |
+| Automatic check off | Turn *Rechercher automatiquement* off, quit, start again, wait 30 s | No `GET /api/releases` in the server window |
+| Automatic check on | Turn it on | One `GET /api/releases` at once |
+
+### Afterwards
+
+1. Quit Padboard, stop the server (Ctrl+C), close the PowerShell window
+   (the variables go with it).
+2. *Settings → Apps* → uninstall Padboard (leave *delete the app data*
+   unticked), then install the official installer of the version noted
+   before (release page), and check *Settings → Apps* shows it.
+3. Delete `%TEMP%\padboard-update-test`, `%TEMP%\A.exe`, `%TEMP%\B.exe`,
+   `%TEMP%\v1.json`, `%TEMP%\v2.json` and `target\test-releases`.
+
 ## Known Windows limits
 
 - Keys cannot be sent to elevated (administrator) windows.
