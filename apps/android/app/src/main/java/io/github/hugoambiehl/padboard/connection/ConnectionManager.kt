@@ -153,7 +153,14 @@ class ConnectionManager(
         val retryMin: Duration = 500.milliseconds,
         val retryMax: Duration = 5.seconds,
         /** An update whose next piece does not come for this long is abandoned. */
-        val updateStall: Duration = 30.seconds
+        val updateStall: Duration = 30.seconds,
+        /**
+         * Pause before asking for the next piece of an update: caps the
+         * transfer (64 KiB per pause, ≈ 250 KB/s at 250 ms) so a weak Wi-Fi
+         * link (mesh, repeater) keeps room for the pings instead of being
+         * saturated and dropped. Zero: no pause.
+         */
+        val updatePiecePause: Duration = 250.milliseconds
     )
 
     private val dispatcher = Dispatchers.Default.limitedParallelism(1)
@@ -700,6 +707,9 @@ class ConnectionManager(
         d.lastPiece = TimeSource.Monotonic.markNow()
         _update.value = UpdateProgress.Receiving(d.offer.version, d.received, size)
         if (d.received < size) {
+            if (config.updatePiecePause.isPositive()) delay(config.updatePiecePause)
+            // The session may have ended during the pause.
+            if (download !== d) return
             link.session.send(Message.UpdateRequest(UpdateRequestPayload(d.received.toUInt())))
         } else {
             received(link, d)

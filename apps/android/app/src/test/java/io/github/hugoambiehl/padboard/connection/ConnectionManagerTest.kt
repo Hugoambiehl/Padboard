@@ -81,7 +81,8 @@ class ConnectionManagerTest {
             pingEvery = 200.milliseconds,
             deadAfter = 1.seconds,
             retryMin = 50.milliseconds,
-            retryMax = 200.milliseconds
+            retryMax = 200.milliseconds,
+            updatePiecePause = 20.milliseconds
         )
     private val manager = ConnectionManager(scope, OkHttpClient(), pairing, directory, "Test tablet", config)
     private val updateDir: File = Files.createTempDirectory("padboard-update").toFile()
@@ -360,6 +361,9 @@ class ConnectionManagerTest {
         runBlocking { withTimeout(5.seconds) { pc.results.first { UpdateOutcome.Installing in it } } }
         assertEquals(UpdateProgress.Installing("0.3.0"), updating.update.value)
         assertEquals(3, pc.received.count { it is Message.UpdateRequest })
+        // Paced: each piece but the first waits for the pause.
+        val times = pc.requestTimes.toList()
+        assertTrue("pieces too close: $times", times.zipWithNext { a, b -> b - a }.all { it >= 15 })
     }
 
     @Test
@@ -483,6 +487,9 @@ private class FakePc(val serverId: String, val name: String) {
     /** The APK served to `update:request`. */
     @Volatile var apk: ByteArray? = null
 
+    /** When each `update:request` arrived (ms). */
+    val requestTimes = CopyOnWriteArrayList<Long>()
+
     /** After this many pieces, the connection is cut (a link lost mid-transfer). */
     @Volatile var cutAfterPieces: Int = Int.MAX_VALUE
     private val piecesServed = AtomicInteger()
@@ -563,6 +570,7 @@ private class FakePc(val serverId: String, val name: String) {
             receivedFlow.value = received.toList()
             when (val message = parsed) {
                 is Message.UpdateRequest -> {
+                    requestTimes += System.currentTimeMillis()
                     val bytes = apk ?: return
                     if (piecesServed.incrementAndGet() > cutAfterPieces) {
                         webSocket.cancel()
