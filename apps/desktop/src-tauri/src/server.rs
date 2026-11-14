@@ -776,6 +776,16 @@ where
             // Long presses arrive in phase 4.
             Message::ButtonRelease(_) | Message::Pong(_) => {}
             Message::TabletStatus(TabletStatusPayload { kiosk }) => {
+                // Kiosk mode is device owner mode: updates then install
+                // silently, whatever `hello` said (kiosk turned on since).
+                if let Some(handle) = ctx
+                    .sessions
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .get_mut(&id)
+                {
+                    handle.silent_install = kiosk;
+                }
                 emit(ctx, ServerEvent::TabletStatus { id, kiosk });
             }
             Message::Ping(Heartbeat { seq }) => {
@@ -1885,6 +1895,25 @@ mod tests {
             h.ctx.offer_update(999, package(40_099, 10)),
             Err(OfferError::Gone)
         );
+        // Kiosk mode turned on during the session (`tablet:status`): from
+        // then on, it installs silently.
+        let mut plain_client = _plain;
+        send_msg(
+            &mut plain_client,
+            &Message::TabletStatus(TabletStatusPayload { kiosk: true }),
+        )
+        .await;
+        loop {
+            if let ServerEvent::TabletStatus { id, kiosk: true } = next_event(&mut h).await {
+                assert_eq!(id, plain);
+                break;
+            }
+        }
+        h.ctx.offer_update(plain, package(30_099, 10)).unwrap();
+        assert!(matches!(
+            recv_msg(&mut plain_client).await,
+            Message::UpdateOffer(_)
+        ));
         // A full session gets offers too.
         h.ctx.offer_update(kiosk, package(40_099, 10)).unwrap();
         assert!(matches!(

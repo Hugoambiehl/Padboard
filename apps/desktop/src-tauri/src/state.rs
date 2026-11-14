@@ -320,6 +320,8 @@ impl Snapshot {
             ServerEvent::TabletStatus { id, kiosk } => {
                 if let Some(client) = self.clients.iter_mut().find(|c| c.id == id) {
                     client.kiosk = kiosk;
+                    // Device owner: updates install silently.
+                    client.tablet.silent_install = kiosk;
                 }
             }
             ServerEvent::ClientDisconnected { id } => self.clients.retain(|c| c.id != id),
