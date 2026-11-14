@@ -165,6 +165,7 @@ impl Snapshot {
             fingerprint,
             tls_error,
         } = init;
+        let version = crate::updates::source::Source::current().version;
         let labels = layout
             .pages
             .iter()
@@ -174,8 +175,8 @@ impl Snapshot {
         let wifi_starting = wifi_enabled && tls_error.is_none();
         Self {
             server: ServerStatus {
-                app_version: env!("CARGO_PKG_VERSION").to_owned(),
-                app_version_code: crate::updates::assets::version_code(env!("CARGO_PKG_VERSION")),
+                app_version: version.clone(),
+                app_version_code: crate::updates::assets::version_code(&version),
                 name: server_name,
                 usb: ListenerStatus {
                     state: ListenerState::Starting,

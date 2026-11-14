@@ -67,7 +67,6 @@ impl UpdateKey {
     }
 
     /// The text of the embedded key, as `tauri-plugin-updater` takes it.
-    #[cfg_attr(not(windows), allow(dead_code))]
     #[must_use]
     pub fn embedded_text() -> &'static str {
         EMBEDDED_KEY.trim()

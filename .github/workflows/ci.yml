@@ -86,6 +86,10 @@ jobs:
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
+      # Test builds only (local release server, updates/source.rs).
+      - name: cargo clippy (test-updates)
+        run: cargo clippy -p padboard-desktop --all-targets --features test-updates --locked -- -D warnings
+
       - name: cargo test
         run: cargo test --workspace --locked
 

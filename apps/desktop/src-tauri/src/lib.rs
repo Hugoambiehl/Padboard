@@ -593,7 +593,7 @@ pub fn run() {
     {
         builder = builder.plugin(
             tauri_plugin_updater::Builder::new()
-                .pubkey(updates::signing::UpdateKey::embedded_text())
+                .pubkey(updates::source::Source::current().key_text)
                 .build(),
         );
     }
@@ -853,7 +853,7 @@ pub fn run() {
             let updates_handle = app.handle().clone();
             let updates = updates::Updates::new(
                 preferences.updates,
-                test_mode.is_some().then_some(updates::OffReason::TestMode),
+                test_mode.is_some(),
                 Box::new(move |view| {
                     if let Err(e) = updates_handle.emit(UPDATES_EVENT, view) {
                         tracing::warn!("cannot emit the updates: {e}");

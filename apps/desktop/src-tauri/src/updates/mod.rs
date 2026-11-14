@@ -11,6 +11,7 @@
 pub mod assets;
 pub mod release;
 pub mod signing;
+pub mod source;
 pub mod tablet;
 
 use std::sync::{Arc, Mutex, PoisonError};
@@ -20,7 +21,7 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 
 use self::release::ApiRelease;
-use self::signing::UpdateKey;
+use self::source::Source;
 
 /// First check after launch (the app settles first), then daily.
 const FIRST_CHECK: Duration = Duration::from_secs(10);
@@ -145,29 +146,37 @@ impl std::fmt::Debug for Updates {
 }
 
 struct Shared {
+    /// Where releases come from (GitHub, or a local server in test builds).
+    source: Source,
     current: Version,
     inner: Mutex<Inner>,
     notify: Notify,
     /// `None` when off (no key, test mode).
     http: Option<reqwest::Client>,
-    api_url: String,
     /// Wakes the background loop (preferences changed, "Rechercher").
     wake: tokio::sync::Notify,
 }
 
 impl Updates {
-    /// `off`: why updates are off, `None` when they may run. `notify` gets
-    /// every change.
+    /// Updates from [`Source::current`]. Off in test mode (except with a test
+    /// source) and without a key. `notify` gets every change.
     #[must_use]
-    pub fn new(preferences: UpdatePreferences, off: Option<OffReason>, notify: Notify) -> Self {
-        let off = off.or_else(|| UpdateKey::embedded().is_none().then_some(OffReason::NoKey));
-        Self::with_api(preferences, off, assets::RELEASES_API.to_owned(), notify)
+    pub fn new(preferences: UpdatePreferences, test_mode: bool, notify: Notify) -> Self {
+        let source = Source::current();
+        let off = if test_mode && !source.test {
+            Some(OffReason::TestMode)
+        } else if source.key().is_none() {
+            Some(OffReason::NoKey)
+        } else {
+            None
+        };
+        Self::with_source(preferences, off, source, notify)
     }
 
-    fn with_api(
+    fn with_source(
         preferences: UpdatePreferences,
         off: Option<OffReason>,
-        api_url: String,
+        source: Source,
         notify: Notify,
     ) -> Self {
         let http = if off.is_none() { client() } else { None };
@@ -182,14 +191,14 @@ impl Updates {
             tracing::info!(?reason, "updates are off");
         }
         Self(Arc::new(Shared {
-            current: current_version(),
+            current: Version::parse(&source.version).unwrap_or_else(|_| Version::new(0, 0, 0)),
+            source,
             inner: Mutex::new(Inner {
                 preferences,
                 status,
             }),
             notify,
             http,
-            api_url,
             wake: tokio::sync::Notify::new(),
         }))
     }
@@ -303,7 +312,7 @@ impl Updates {
             .unwrap_or_else(PoisonError::into_inner)
             .preferences
             .prereleases;
-        let status = match fetch_releases(http, &self.0.api_url).await {
+        let status = match fetch_releases(http, &self.0.source.api_url).await {
             Ok(releases) => match release::newest(&releases, &self.0.current, prereleases) {
                 Some(newer) => {
                     tracing::info!(version = %newer.version, "update available");
@@ -369,8 +378,8 @@ impl Updates {
         match self.status() {
             UpdateStatus::Available { version, .. }
             | UpdateStatus::Downloading { version, .. }
-            | UpdateStatus::Installing { version } => assets::page_url(&version),
-            _ => assets::RELEASES_URL.to_owned(),
+            | UpdateStatus::Installing { version } => self.0.source.page(Some(&version)),
+            _ => self.0.source.page(None),
         }
     }
 
@@ -399,7 +408,8 @@ mod windows {
         version: &str,
         before_exit: impl Fn() + Send + Sync + 'static,
     ) -> Result<(), UpdateError> {
-        let manifest = assets::download_url(assets::RELEASES_URL, version, assets::MANIFEST);
+        let manifest =
+            assets::download_url(&updates.0.source.releases_url, version, assets::MANIFEST);
         let network = |e: tauri_plugin_updater::Error| {
             tracing::warn!("update: {e}");
             UpdateError::Network
@@ -490,10 +500,6 @@ async fn fetch_releases(http: &reqwest::Client, api_url: &str) -> Result<Vec<Api
     serde_json::from_slice(&body).map_err(|e| e.to_string())
 }
 
-fn current_version() -> Version {
-    Version::parse(env!("CARGO_PKG_VERSION")).unwrap_or_else(|_| Version::new(0, 0, 0))
-}
-
 fn now_millis() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -532,12 +538,22 @@ mod tests {
         (url, hits)
     }
 
+    fn source(api_url: String) -> Source {
+        Source {
+            api_url,
+            releases_url: String::new(),
+            key_text: String::new(),
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+            test: true,
+        }
+    }
+
     fn service(api_url: String) -> (Updates, mpsc::Receiver<UpdatesView>) {
         let (tx, rx) = mpsc::channel();
-        let updates = Updates::with_api(
+        let updates = Updates::with_source(
             UpdatePreferences::default(),
             None,
-            api_url,
+            source(api_url),
             Box::new(move |view| {
                 let _ = tx.send(view);
             }),
@@ -600,10 +616,10 @@ mod tests {
     #[tokio::test]
     async fn off_never_contacts_github() {
         let (url, hits) = serve("[]").await;
-        let updates = Updates::with_api(
+        let updates = Updates::with_source(
             UpdatePreferences::default(),
             Some(OffReason::TestMode),
-            url,
+            source(url),
             Box::new(|_| {}),
         );
         assert!(matches!(updates.check_now(), Err(CommandError::Off)));
@@ -644,10 +660,10 @@ mod tests {
 
     #[test]
     fn only_an_installable_update_is_installed() {
-        let updates = Updates::with_api(
+        let updates = Updates::with_source(
             UpdatePreferences::default(),
             Some(OffReason::NoKey),
-            String::new(),
+            source(String::new()),
             Box::new(|_| {}),
         );
         assert!(matches!(

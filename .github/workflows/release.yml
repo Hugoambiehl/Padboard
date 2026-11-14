@@ -132,6 +132,16 @@ jobs:
           npm ci
           npx tauri build --bundles nsis
 
+      # Test builds can read releases from a local server (test-updates
+      # feature, updates/source.rs): a shipped binary must not contain it.
+      - name: No test update source in the binary
+        shell: bash
+        run: |
+          if grep -q PADBOARD_TEST_RELEASES target/release/padboard-desktop.exe; then
+            echo "::error::the installer's app was built with test-updates"
+            exit 1
+          fi
+
       - uses: actions/upload-artifact@v7
         with:
           name: windows
@@ -180,6 +190,13 @@ jobs:
         run: |
           npm ci
           npx tauri build --bundles deb
+
+      - name: No test update source in the binary
+        run: |
+          if grep -q PADBOARD_TEST_RELEASES target/release/padboard-desktop; then
+            echo "::error::the .deb's app was built with test-updates"
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v7
         with:

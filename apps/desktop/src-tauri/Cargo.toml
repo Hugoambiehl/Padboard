@@ -15,6 +15,11 @@ repository.workspace = true
 name = "padboard_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+# Test builds only: releases from a local server, checked with a test key
+# (updates/source.rs). Never enabled for a shipped build (release workflow).
+test-updates = []
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

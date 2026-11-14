@@ -53,15 +53,12 @@ pub struct Apks {
 }
 
 impl Apks {
-    /// This PC's version, from the GitHub release, kept in `dir`.
+    /// This PC's version, from its release ([`super::source::Source`]),
+    /// kept in `dir`.
     #[must_use]
     pub fn new(dir: PathBuf) -> Self {
-        Self::with(
-            UpdateKey::embedded(),
-            assets::RELEASES_URL.to_owned(),
-            dir,
-            env!("CARGO_PKG_VERSION").to_owned(),
-        )
+        let source = super::source::Source::current();
+        Self::with(source.key(), source.releases_url, dir, source.version)
     }
 
     fn with(key: Option<UpdateKey>, base_url: String, dir: PathBuf, version: String) -> Self {
