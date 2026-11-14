@@ -102,7 +102,9 @@ sealed interface GridStatus {
         /** Paired over Wi-Fi (else only the cable can bring the PC back). */
         val wifi: Boolean,
         val retryInMs: Long,
-        val attempt: Int
+        val attempt: Int,
+        /** Announced on the network but not answering (see `LinkState.Searching`). */
+        val announced: Boolean = false
     ) : GridStatus
 }
 

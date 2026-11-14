@@ -104,7 +104,13 @@ fun DisconnectedCard(
             }
         }
         Text(
-            stringResource(if (status.wifi) R.string.disconnected_body_wifi else R.string.disconnected_body_usb),
+            stringResource(
+                when {
+                    !status.wifi -> R.string.disconnected_body_usb
+                    status.announced -> R.string.disconnected_body_unreachable
+                    else -> R.string.disconnected_body_wifi
+                }
+            ),
             style = PadboardType.Body,
             color = PadboardColors.TextMuted2
         )

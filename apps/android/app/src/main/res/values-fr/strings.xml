@@ -12,7 +12,7 @@
     <string name="setup_invalid_host">Adresse invalide.</string>
     <string name="setup_manual_connect">Se connecter</string>
     <string name="setup_back">Retour à la grille</string>
-    <string name="pairing_unreachable">Impossible de joindre ce PC en Wi-Fi. Vérifie que le Wi-Fi est activé dans Padboard sur le PC et que les deux appareils sont sur le même réseau.</string>
+    <string name="pairing_unreachable">Impossible de joindre ce PC en Wi-Fi. Vérifie que le Wi-Fi est activé dans Padboard sur le PC, et que la tablette et le PC peuvent se joindre directement : pas de réseau invité, de répéteur ni de bornes différentes d’un réseau maillé. Sinon, utilise le câble USB.</string>
     <string name="pairing_lost">La connexion au PC a été interrompue pendant l’association. Recommence.</string>
 
     <!-- PIN entry -->
@@ -63,6 +63,7 @@
     <string name="disconnected_title">Connexion au PC perdue</string>
     <string name="disconnected_body_wifi">Recherche par câble USB et par Wi-Fi. Vérifie que Padboard est lancé sur le PC.</string>
     <string name="disconnected_body_usb">Rebranche le câble USB, ou associe la tablette en Wi-Fi pour pouvoir t’en passer.</string>
+    <string name="disconnected_body_unreachable">Le PC est visible sur le réseau mais ne répond pas : le réseau empêche la tablette et le PC de se joindre (réseau invité, isolation des appareils, répéteur ou autre borne d’un réseau maillé). Utilise le câble USB, branche le PC en Ethernet, ou mets-les sur la même borne.</string>
     <string name="disconnected_next_attempt">Nouvelle tentative dans %1$d s</string>
     <string name="disconnected_trying">Tentative en cours…</string>
     <string name="disconnected_retry">Réessayer maintenant</string>

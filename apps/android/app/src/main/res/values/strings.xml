@@ -14,7 +14,7 @@
     <string name="setup_invalid_host">Invalid address.</string>
     <string name="setup_manual_connect">Connect</string>
     <string name="setup_back">Back to the grid</string>
-    <string name="pairing_unreachable">Cannot reach this PC over Wi-Fi. Check that Wi-Fi is on in Padboard on the PC and that both devices are on the same network.</string>
+    <string name="pairing_unreachable">Cannot reach this PC over Wi-Fi. Check that Wi-Fi is on in Padboard on the PC, and that the tablet and the PC can reach each other directly: not on a guest network, a repeater or different mesh nodes. Otherwise, use the USB cable.</string>
     <string name="pairing_lost">The connection to the PC was lost while pairing. Start again.</string>
 
     <!-- PIN entry -->
@@ -64,6 +64,7 @@
     <string name="disconnected_title">Connection to the PC lost</string>
     <string name="disconnected_body_wifi">Looking over the USB cable and Wi-Fi. Check that Padboard runs on the PC.</string>
     <string name="disconnected_body_usb">Plug the USB cable back in, or pair the tablet over Wi-Fi to do without it.</string>
+    <string name="disconnected_body_unreachable">The PC is visible on the network but does not answer: the network keeps the tablet and the PC apart (guest network, client isolation, repeater, or a different mesh node). Use the USB cable, connect the PC with Ethernet, or put both on the same access point.</string>
     <string name="disconnected_next_attempt">Next attempt in %1$d s</string>
     <string name="disconnected_trying">Trying…</string>
     <string name="disconnected_retry">Try now</string>

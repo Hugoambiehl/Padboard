@@ -81,7 +81,9 @@ private fun Screens(viewModel: PadboardViewModel, link: LinkState, layout: Layou
                         GridStatus.Connected(state.serverName, state.transport, state.latencyMs, state.paired)
                     else ->
                         (state as LinkState.Searching).let { s ->
-                            layout?.let { GridStatus.Reconnecting(s.serverName, s.wifi, s.retryInMs, s.attempt) }
+                            layout?.let {
+                                GridStatus.Reconnecting(s.serverName, s.wifi, s.retryInMs, s.attempt, s.announced)
+                            }
                         }
                 }
             when {

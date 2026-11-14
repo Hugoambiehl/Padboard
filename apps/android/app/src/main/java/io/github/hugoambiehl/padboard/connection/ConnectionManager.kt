@@ -77,7 +77,13 @@ sealed interface LinkState {
         val serverName: String,
         val wifi: Boolean = true,
         val retryInMs: Long = 0,
-        val attempt: Int = 0
+        val attempt: Int = 0,
+        /**
+         * The paired PC is announced on the network (mDNS) but does not
+         * answer: the network keeps them apart (guest network, isolation,
+         * repeater, mesh node), not a stopped Padboard.
+         */
+        val announced: Boolean = false
     ) : LinkState
 
     data class Connected(
@@ -374,7 +380,13 @@ class ConnectionManager(
                     // (another PC on the cable): only the cable brings it back.
                     LinkState.Searching(last.name, wifi = false, retry.inWholeMilliseconds, attempt)
                 } else if (paired != null) {
-                    LinkState.Searching(paired.serverName, wifi = true, retry.inWholeMilliseconds, attempt)
+                    LinkState.Searching(
+                        paired.serverName,
+                        wifi = true,
+                        retry.inWholeMilliseconds,
+                        attempt,
+                        announced = directory.pcs.value.any { it.serverId == paired.serverId }
+                    )
                 } else {
                     LinkState.Unpaired
                 }

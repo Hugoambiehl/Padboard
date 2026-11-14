@@ -302,6 +302,18 @@ class ConnectionManagerTest {
         await(manager.state, "lost") { it !is LinkState.Connected }
     }
 
+    @Test
+    fun aPcAnnouncedButUnreachableIsSaidSo() {
+        paired()
+        // Announced by mDNS at an address that does not answer (the network
+        // keeps them apart), and the PC's own address is down too.
+        pc.close()
+        directory.pcs.value = listOf(DiscoveredPc(pc.serverId, pc.name, 5, listOf("127.0.0.1"), 9))
+        manager.start(DEVICE_ID)
+        val state = await(manager.state, "searching") { it is LinkState.Searching } as LinkState.Searching
+        assertTrue(state.announced)
+    }
+
     // ─── Protocol 5: versions and updates ────────────────────────────────
 
     private fun connectedOverUsb(m: ConnectionManager) {
