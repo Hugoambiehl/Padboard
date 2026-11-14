@@ -2,6 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { ActionOutcome, PairingView } from "./types/status";
 import type { Edit, EditOutcome, EditorState } from "./generated/types";
+import type { UpdatePreferences, UpdatesView } from "./types/updates";
 
 export const startPairing = () => invoke<PairingView>("start_pairing");
 export const cancelPairing = () => invoke<void>("cancel_pairing");
@@ -63,3 +64,13 @@ export const quitApp = () => invoke<void>("quit_app");
 /** Start with the session (hidden in the tray). */
 export const getAutostart = () => invoke<boolean>("get_autostart");
 export const setAutostart = (enabled: boolean) => invoke<void>("set_autostart", { enabled });
+
+// Updates
+export const getUpdates = () => invoke<UpdatesView>("get_updates");
+export const setUpdatePreferences = (preferences: UpdatePreferences) =>
+  invoke<void>("set_update_preferences", { preferences });
+export const checkForUpdates = () => invoke<void>("check_for_updates");
+/** Downloads, checks and installs the update (Windows); the app then restarts. */
+export const installUpdate = () => invoke<void>("install_update");
+/** The available version's page (or the releases), in the browser. */
+export const openReleasePage = () => invoke<void>("open_release_page");

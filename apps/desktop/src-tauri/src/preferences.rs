@@ -22,6 +22,9 @@ pub struct Preferences {
     /// Closing the window hides it in the tray: explained once, then silent.
     #[serde(default)]
     pub close_hint_shown: bool,
+    /// Looking for new versions (on by default).
+    #[serde(default)]
+    pub updates: crate::updates::UpdatePreferences,
 }
 
 /// Shortest and longest screensaver delays accepted.
@@ -89,6 +92,10 @@ mod tests {
                 delay_seconds: 60,
             },
             close_hint_shown: true,
+            updates: crate::updates::UpdatePreferences {
+                check: false,
+                prereleases: true,
+            },
         };
         config.save(&changed).unwrap();
         assert_eq!(config.load::<Preferences>().unwrap(), Some(changed));
@@ -107,5 +114,8 @@ mod tests {
         assert!(prefs.lan_enabled);
         assert_eq!(prefs.screensaver, Screensaver::default());
         assert!(!prefs.close_hint_shown);
+        // Saved before updates existed: they are looked for.
+        assert!(prefs.updates.check);
+        assert!(!prefs.updates.prereleases);
     }
 }

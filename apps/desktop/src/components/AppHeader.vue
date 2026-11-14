@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { Redo2, Undo2 } from "lucide-vue-next";
+import { Download, Redo2, Undo2 } from "lucide-vue-next";
 import ProfileMenu from "./ProfileMenu.vue";
 import { useEditor } from "../composables/useEditor";
 import { useStatus } from "../composables/useStatus";
+import { useUpdates } from "../composables/useUpdates";
 
 defineProps<{ view: "editor" | "connections" }>();
-defineEmits<{ pair: []; toggleView: [] }>();
+defineEmits<{ pair: []; toggleView: []; showUpdates: [] }>();
 const { t } = useI18n();
 const { canUndo, canRedo, undo, redo } = useEditor();
 const { snapshot } = useStatus();
+const { updates } = useUpdates();
+/** The version to offer in the header, once one is found. */
+const newVersion = computed(() => {
+  const status = updates.value?.status;
+  return status?.state === "available" ? status.version : null;
+});
 
 const clients = computed(() => snapshot.value?.clients ?? []);
 /** "Galaxy Tab A · USB" for one tablet, "2 tablettes" for more. */
@@ -58,6 +65,16 @@ const pill = computed(() => {
       </div>
     </div>
     <div class="flex flex-wrap items-center gap-2.5">
+      <button
+        v-if="newVersion"
+        type="button"
+        class="flex items-center gap-2 rounded-full border border-accent/40 bg-accent/12 px-3 py-1.5 text-[13px] text-[#C9C2FF] transition-colors hover:bg-accent/20"
+        data-update-badge
+        @click="$emit('showUpdates')"
+      >
+        <Download :size="14" aria-hidden="true" />
+        {{ t("updates.badge", { version: newVersion }) }}
+      </button>
       <button
         type="button"
         class="flex items-center gap-2 rounded-full border px-3 py-1.5 text-[13px] transition-colors"

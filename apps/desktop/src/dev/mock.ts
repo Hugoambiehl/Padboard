@@ -93,6 +93,22 @@ const presets = [
   { id: "mute", group: "media", color: "violet", icon: "VolumeX", action: hk("AudioVolumeMute") },
 ];
 
+/** `&update=available|linux|downloading|failed` previews the updates card. */
+function updates() {
+  const preview = new URLSearchParams(location.search).get("update");
+  const status =
+    preview === "available"
+      ? { state: "available", version: "0.2.0", installable: true }
+      : preview === "linux"
+        ? { state: "available", version: "0.2.0", installable: false }
+        : preview === "downloading"
+          ? { state: "downloading", version: "0.2.0", received: 6_000_000, total: 9_000_000 }
+          : preview === "failed"
+            ? { state: "failed", error: "signature" }
+            : { state: "upToDate", checkedAt: Date.now() };
+  return { current: "0.1.0", preferences: { check: true, prereleases: false }, status };
+}
+
 export function install() {
   mockIPC(
     (cmd) => {
@@ -133,6 +149,8 @@ export function install() {
           return new URLSearchParams(location.search).get("lang") === "en" ? "en" : "fr";
         case "plugin:app|version":
           return "0.1.0";
+        case "get_updates":
+          return updates();
         default:
           return null;
       }

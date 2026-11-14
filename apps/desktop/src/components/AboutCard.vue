@@ -6,6 +6,7 @@ import { Info, Scale } from "lucide-vue-next";
 import BaseCard from "./BaseCard.vue";
 import CopyField from "./CopyField.vue";
 import LicensesDialog from "./LicensesDialog.vue";
+import UpdatesSection from "./UpdatesSection.vue";
 
 const SOURCE_URL = "https://github.com/Hugoambiehl/Padboard";
 
@@ -23,7 +24,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <BaseCard :title="t('about.title')" :icon="Info">
+  <BaseCard id="about" :title="t('about.title')" :icon="Info">
     <p class="text-sm">
       {{ t("app.name") }}
       <span v-if="version" class="text-muted-2">{{ t("about.version", { version }) }}</span>
@@ -43,6 +44,7 @@ onMounted(async () => {
       <Scale :size="16" class="text-muted-2" aria-hidden="true" />
       {{ t("about.licenses") }}
     </button>
+    <UpdatesSection />
     <LicensesDialog v-if="licensesOpen" @close="licensesOpen = false" />
   </BaseCard>
 </template>

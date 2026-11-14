@@ -15,7 +15,8 @@ you may already have.
   can lock a dedicated tablet in kiosk mode.
 - Over a **USB cable** (no setup) or **Wi-Fi** (encrypted, paired once with
   a code). No account, no cloud, no ads, no tracking: the PC and the tablet
-  only talk to each other.
+  only talk to each other, apart from the PC looking for new versions on
+  GitHub (which you can turn off).
 - Free software (GPL-3.0-or-later), built only with free and open-source
   tools and libraries.
 
@@ -31,6 +32,17 @@ then follow the guide for your system:
 - [Linux](docs/install-linux.md) (Ubuntu 22.04+, Debian 12+): `Padboard_<version>_amd64.deb`
 - [The tablet](docs/install-tablet.md): `padboard-<version>.apk`, then USB
   or Wi-Fi, and kiosk mode
+
+### Updates
+
+The desktop app looks for a new version at launch, then once a day: it
+asks GitHub for the list of Padboard releases, and sends nothing about
+you or your PC (GitHub sees the request, like any web page visit). Turn it
+off, or ask for test versions (release candidates), in the connections
+view, **About** card. On Windows, a new version installs in one click;
+the installer is checked first against a signature made by the
+maintainer for that exact version. On Linux, the app shows the new
+version and its page: install the `.deb` by hand.
 
 ## What the buttons can do
 
@@ -89,6 +101,9 @@ tagged commit, and checksums are published with it (`SHA256SUMS`).
 - **Tablet app**: the APK built by the workflow is signed on the
   maintainer's PC with the project's release key, which never leaves it
   (certificate SHA-256 in [docs/release-signing.md](docs/release-signing.md)).
+- **Updates**: the desktop's in-app updates and the checksums are also
+  signed on the maintainer's PC, with a separate key bound to each
+  version (`scripts/sign-release.sh`); the app refuses anything else.
 - **Windows installer**: not signed yet. A free certificate for open
   source projects has been requested; until then, Windows SmartScreen asks
   for confirmation on first launch.
@@ -100,10 +115,13 @@ Team roles:
 - Approvers (each signed release): [Hugo Ambiehl](https://github.com/Hugoambiehl)
 
 **Privacy**: this program will not transfer any information to other
-networked systems unless specifically requested by the user. The desktop
-app only talks to your own tablets (over USB, or over Wi-Fi once you turn
-it on and pair them) and, if you configure it, to OBS Studio; the tablet
-app only talks to the PC it is paired with.
+networked systems unless specifically requested by the user or the person
+installing or operating it. The desktop app talks to your own tablets
+(over USB, or over Wi-Fi once you turn it on and pair them), to OBS Studio
+if you configure it, and to GitHub to look for new versions: it downloads
+the list of releases at launch and daily (nothing about you or your PC is
+sent; turn it off in the **About** card) and, when you ask for it, the
+update. The tablet app only talks to the PC it is paired with.
 
 ## License
 

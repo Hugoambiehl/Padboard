@@ -526,6 +526,35 @@
     "source": "Source code",
     "licenses": "Licenses"
   },
+  "updates": {
+    "title": "Updates",
+    "off": {
+      "noKey": "Automatic updates are not available in this build of Padboard.",
+      "testMode": "Updates are off in test mode."
+    },
+    "idle": "Not checked yet.",
+    "checking": "Looking for a new version…",
+    "upToDate": "Padboard is up to date (checked {time}).",
+    "available": "Version {version} is available.",
+    "manual": "Download it from the release page (on Linux, the .deb package is installed by hand).",
+    "downloading": "Downloading version {version}…",
+    "downloadingPercent": "Downloading version {version}… {percent}%",
+    "installing": "Installing version {version}: Padboard will restart.",
+    "error": {
+      "network": "Cannot reach GitHub. Next try tomorrow, or with “Check now”.",
+      "signature": "The download is not signed for this version: update refused.",
+      "install": "Cannot start the installer."
+    },
+    "install": "Install and restart",
+    "notes": "Release notes",
+    "page": "See the release",
+    "check": "Check now",
+    "auto": "Check automatically",
+    "autoHint": "At launch, then once a day. Only the list of releases is asked from GitHub.",
+    "prereleases": "Test versions",
+    "prereleasesHint": "Also offers release candidates (rc), less tested.",
+    "badge": "Update {version}"
+  },
   "licenses": {
     "title": "Licenses",
     "intro": "Padboard and the free components it includes, with their licenses.",

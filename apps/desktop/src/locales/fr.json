@@ -526,6 +526,35 @@
     "source": "Code source",
     "licenses": "Licences"
   },
+  "updates": {
+    "title": "Mises à jour",
+    "off": {
+      "noKey": "Les mises à jour automatiques ne sont pas disponibles dans cette version de Padboard.",
+      "testMode": "Mises à jour désactivées en mode test."
+    },
+    "idle": "Pas encore vérifié.",
+    "checking": "Recherche d’une nouvelle version…",
+    "upToDate": "Padboard est à jour (vérifié le {time}).",
+    "available": "La version {version} est disponible.",
+    "manual": "Téléchargez-la depuis la page de la version (sous Linux, le paquet .deb s’installe à la main).",
+    "downloading": "Téléchargement de la version {version}…",
+    "downloadingPercent": "Téléchargement de la version {version}… {percent} %",
+    "installing": "Installation de la version {version} : Padboard va redémarrer.",
+    "error": {
+      "network": "Impossible de joindre GitHub. Nouvel essai demain, ou avec « Rechercher ».",
+      "signature": "Le fichier téléchargé n’est pas signé pour cette version : mise à jour refusée.",
+      "install": "Impossible de lancer l’installeur."
+    },
+    "install": "Installer et redémarrer",
+    "notes": "Notes de version",
+    "page": "Voir la version",
+    "check": "Rechercher",
+    "auto": "Rechercher automatiquement",
+    "autoHint": "Au démarrage puis une fois par jour. Seule la liste des versions est demandée à GitHub.",
+    "prereleases": "Versions de test",
+    "prereleasesHint": "Propose aussi les versions candidates (rc), moins éprouvées.",
+    "badge": "Mise à jour {version}"
+  },
   "licenses": {
     "title": "Licences",
     "intro": "Padboard et les composants libres qu’il intègre, avec leurs licences.",

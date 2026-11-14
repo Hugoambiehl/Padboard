@@ -396,6 +396,20 @@ SM-T580, always measure in release builds.
   refuses an unsigned installer once the workflow has a SignPath step.
   Public update key: `apps/desktop/src-tauri/updater-key.pub` (empty =
   updates off; the release workflow refuses it).
+- **Desktop updates** (`updates/`): the releases list from the GitHub
+  API (`Hugoambiehl/Padboard`), at launch + 10 s then daily, on by
+  default, pre-releases only with "Versions de test" (`preferences.json`
+  `updates`); never in test mode, off when `updater-key.pub` is empty.
+  Windows: `tauri-plugin-updater` ~2.12 (last for tauri 2.11 / Rust 1.88,
+  Windows-only dependency, driven from Rust only: no JS package, no
+  permission for the page), `requireSignedVersion`, NSIS `passive`,
+  pending edits flushed in `on_before_exit`. Linux: notice + release page
+  (opened through the `open` action, URL built by the backend). Our HTTP:
+  `reqwest` with `rustls-no-provider` (ring installed as default
+  provider). UI: "Mises à jour" section of the About card, header badge;
+  `types/updates.ts` mirrors `UpdatesView` by hand. The plugin's Windows
+  path cannot be cross-checked from Linux (ring needs MSVC's `lib.exe`):
+  CI's Windows job builds it.
 - **Tray and startup** (`tray.rs`): the icon's menu opens the window,
   shows the connected tablets, quits. Closing the window hides it there
   (explained once by a dialog, `closeHintShown` in `preferences.json`);

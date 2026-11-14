@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { nextTick, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useEventListener } from "@vueuse/core";
 import { listen } from "@tauri-apps/api/event";
@@ -21,6 +21,13 @@ const view = ref<"editor" | "connections">(
     : "editor",
 );
 const pairingOpen = ref(false);
+
+/** The header's update badge: the "À propos" card of the connections view. */
+async function showUpdates() {
+  view.value = "connections";
+  await nextTick();
+  document.getElementById("about")?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
 /** First close of the window: explain that Padboard stays in the tray. */
 const closeHintOpen = ref(false);
 void listen("close-to-tray", () => {
@@ -48,6 +55,7 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
       :view="view"
       @pair="pairingOpen = true"
       @toggle-view="view = view === 'editor' ? 'connections' : 'editor'"
+      @show-updates="showUpdates"
     />
     <p v-if="failed" class="p-5 text-sm text-cat-red">{{ t("app.loadError") }}</p>
     <p v-else-if="!snapshot" class="p-5 text-sm text-muted">{{ t("app.loading") }}</p>

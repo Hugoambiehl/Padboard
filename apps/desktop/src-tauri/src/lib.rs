@@ -60,6 +60,8 @@ const STATUS_EVENT: &str = "status";
 const OBS_EVENT: &str = "obs";
 /// Name of the event carrying a fresh [`EditorState`] to the frontend.
 const EDITOR_EVENT: &str = "editor";
+/// Name of the event carrying the updates' [`updates::UpdatesView`].
+const UPDATES_EVENT: &str = "updates";
 
 type SharedSnapshot = Arc<Mutex<Snapshot>>;
 
@@ -84,6 +86,7 @@ struct Backend {
     /// Starting with the session: the system's entry, or a flag in test mode
     /// (tests never touch the real autostart).
     autostart: autostart::Autostart,
+    updates: updates::Updates,
 }
 
 impl Backend {
@@ -183,6 +186,65 @@ fn get_autostart(backend: tauri::State<'_, Backend>) -> Result<bool, String> {
 fn set_autostart(backend: tauri::State<'_, Backend>, enabled: bool) -> Result<(), String> {
     tracing::info!(enabled, "start with the session");
     backend.autostart.set(enabled)
+}
+
+/// The updates card: this version, the choices, what was found.
+#[tauri::command]
+fn get_updates(backend: tauri::State<'_, Backend>) -> updates::UpdatesView {
+    backend.updates.view()
+}
+
+/// Saves the update choices (automatic check, test versions).
+#[tauri::command]
+fn set_update_preferences(
+    backend: tauri::State<'_, Backend>,
+    preferences: updates::UpdatePreferences,
+) -> Result<(), String> {
+    {
+        let mut saved = backend
+            .preferences
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        saved.updates = preferences;
+        backend.config.save(&*saved).map_err(|e| e.to_string())?;
+    }
+    tracing::info!(?preferences, "update preferences");
+    backend.updates.set_preferences(preferences);
+    Ok(())
+}
+
+/// Looks for a new version now.
+#[tauri::command]
+fn check_for_updates(backend: tauri::State<'_, Backend>) -> Result<(), String> {
+    backend.updates.check_now().map_err(|e| e.to_string())
+}
+
+/// Downloads, checks and installs the available version (Windows); the app
+/// exits once the installer runs, pending edits saved first.
+#[tauri::command]
+fn install_update(app: tauri::AppHandle, backend: tauri::State<'_, Backend>) -> Result<(), String> {
+    let handle = app.clone();
+    backend
+        .updates
+        .install(&app, move || {
+            if let Some(backend) = handle.try_state::<Backend>() {
+                backend.editor.flush();
+            }
+            tracing::info!("exiting for the update");
+        })
+        .map_err(|e| e.to_string())
+}
+
+/// Opens the available version's page (or the list of releases) in the
+/// browser. The address is built by the backend, never taken from the UI.
+#[tauri::command]
+async fn open_release_page(backend: tauri::State<'_, Backend>) -> Result<(), String> {
+    let target = backend.updates.release_page();
+    let action = padboard_actions::Action::Open(padboard_actions::OpenAction { target });
+    match server::perform(&backend.server, action, None).await {
+        ActionOutcome::Ok => Ok(()),
+        outcome => Err(format!("{outcome:?}")),
+    }
 }
 
 #[tauri::command]
@@ -447,6 +509,16 @@ pub fn run() {
     } else {
         autostart::Autostart::system()
     };
+    // In-app updates (Windows): the key is the one embedded in the app; the
+    // plugin is only driven from Rust (no permission for the page).
+    #[cfg(windows)]
+    {
+        builder = builder.plugin(
+            tauri_plugin_updater::Builder::new()
+                .pubkey(updates::signing::UpdateKey::embedded_text())
+                .build(),
+        );
+    }
     builder
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -474,7 +546,12 @@ pub fn run() {
             library,
             test_button,
             get_obs,
-            set_obs
+            set_obs,
+            get_updates,
+            set_update_preferences,
+            check_for_updates,
+            install_update,
+            open_release_page
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -693,6 +770,18 @@ pub fn run() {
                 }
             });
 
+            let updates_handle = app.handle().clone();
+            let updates = updates::Updates::new(
+                preferences.updates,
+                test_mode.is_some().then_some(updates::OffReason::TestMode),
+                Box::new(move |view| {
+                    if let Err(e) = updates_handle.emit(UPDATES_EVENT, view) {
+                        tracing::warn!("cannot emit the updates: {e}");
+                    }
+                }),
+            );
+            tauri::async_runtime::spawn(updates.clone().run());
+
             autostart.refresh();
             app.manage(Backend {
                 config,
@@ -708,6 +797,7 @@ pub fn run() {
                 adb_refresh,
                 kiosk_busy: Mutex::default(),
                 autostart,
+                updates,
             });
 
             // Quitting from a signal (session logout, Ctrl+C in a terminal)
