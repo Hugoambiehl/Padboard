@@ -644,7 +644,7 @@ pub fn run() {
     };
     if let Some(mode) = &test_mode {
         if mode.system() {
-            tracing::warn!(dir = %mode.config_dir().display(), "TEST MODE (system): separate configuration, actions RUN on this PC, real states, USB and Wi-Fi off");
+            tracing::warn!(dir = %mode.config_dir().display(), "TEST MODE (system): separate configuration, actions RUN on this PC, real states, USB on (adb), Wi-Fi off unless PADBOARD_BIND=lan");
         } else {
             tracing::warn!(dir = %mode.config_dir().display(), "TEST MODE: separate configuration, actions recorded and never executed, USB and Wi-Fi off");
         }
