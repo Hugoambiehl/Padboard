@@ -156,6 +156,15 @@ between them needs `adb uninstall` (pairing lost). Release builds, signing
 and kiosk mode: [release-signing.md](release-signing.md),
 [install-tablet.md](install-tablet.md#kiosk-mode).
 
+UI tests (`app/src/androidTest`, e.g. `KioskCornerTest`: nothing on any
+screen in the corner that leaves kiosk mode) run on a throwaway emulator
+at the tablet's size, created and deleted by the script (your own AVDs
+are not touched; see the script for the API 37 image's quirks):
+
+```sh
+scripts/tablet-ui-tests.sh
+```
+
 Measure the tablet's performance on **release** builds only
 (`dumpsys gfxinfo <package> framestats`): debug builds are several times
 slower.

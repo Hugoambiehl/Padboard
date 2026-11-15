@@ -135,7 +135,7 @@
       "enable": "Activer le mode kiosque",
       "enabling": "Activation…",
       "hint": "Padboard devient propriétaire de la tablette : verrouillé à l’écran, écran d’accueil, sans barre d’état ni écran de verrouillage. Impossible si la tablette a des comptes.",
-      "active": "Mode kiosque actif. Pour le quitter : « Libérer la tablette » dans Tablettes connectées, ou appui de 5 s dans le coin en haut à droite de la tablette.",
+      "active": "Mode kiosque actif. Pour le quitter : « Libérer la tablette » dans Tablettes connectées, ou appui de 5 s dans le coin en bas à gauche de l’écran de la tablette.",
       "otherOwner": "Mode kiosque impossible : l’application {owner} administre déjà cette tablette.",
       "error": {
         "testMode": "Le mode test n’utilise pas adb.",

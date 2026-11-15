@@ -103,6 +103,8 @@ Before `scripts/release.sh`:
       `scripts/desktop-e2e.sh --no-build e2e/tray`, on a desktop with a
       StatusNotifier host (GNOME: AppIndicator extension), with nothing
       skipped in the output.
+- [ ] `scripts/tablet-ui-tests.sh` (tablet UI tests on an emulator at the
+      SM-T580's size, e.g. the kiosk exit corner left empty on every screen).
 - [ ] `scripts/platform-tools-pin.sh --check` (the "Installer adb" pin is
       Google's newest; if not, pin it and check it on Windows).
 - [ ] The fastlane changelog of the release's versionCode (releases only).

@@ -58,8 +58,8 @@ session can create a virtual keyboard, as on X11
 ([details](docs/install-linux.md#2-allow-keyboard-shortcuts-uinput)).
 
 **Kiosk mode.** On the tablet, Padboard becomes the device owner. It can
-leave this role at any time: from the PC, or by holding the top-right
-corner for 5 seconds. It requests no other permission than the network.
+leave this role at any time: from the PC, or by holding the bottom-left
+corner for 5 seconds, then confirming. It requests no other permission than the network.
 
 **Not in scope.** Padboard does not protect against malware already running
 on the PC, or someone with physical access to an unlocked PC or tablet.

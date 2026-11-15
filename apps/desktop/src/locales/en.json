@@ -135,7 +135,7 @@
       "enable": "Turn on kiosk mode",
       "enabling": "Turning on…",
       "hint": "Padboard becomes the tablet's owner: locked on screen, home screen, no status bar or lock screen. Not possible if the tablet has accounts.",
-      "active": "Kiosk mode on. To leave it: \"Release the tablet\" in Connected tablets, or hold the top-right corner of the tablet for 5 s.",
+      "active": "Kiosk mode on. To leave it: \"Release the tablet\" in Connected tablets, or hold the bottom-left corner of the tablet's screen for 5 s.",
       "otherOwner": "Kiosk mode not possible: the app {owner} already manages this tablet.",
       "error": {
         "testMode": "Test mode does not use adb.",

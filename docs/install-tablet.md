@@ -149,8 +149,32 @@ uninstalled.
 
 - From the PC: *Connections* → *Connected tablets* → **Release the tablet**
   (click twice).
-- On the tablet, even without a PC: hold the **top-right corner** (the clock)
-  for 5 seconds, then *Leave kiosk mode*.
+- On the tablet, even without a PC: hold the **bottom-left corner** of the
+  screen (right against both edges: the spot is small, about 6 mm) for
+  5 seconds without moving, then confirm. Nothing is ever drawn there, so
+  it cannot be held by accident while using a button.
+
+The confirmation, *Leave kiosk mode?*, lists what changes. Its red
+**Leave kiosk mode** button only works after 2 seconds; *Cancel*, a touch
+outside the dialog, Back, or 30 seconds without an answer all keep kiosk
+mode.
+
+Up to 0.2.0-rc.1 the gesture was in the top-right corner, next to the
+connection pill and the clock: it could be triggered by mistake while
+pairing. A tablet still on 0.1.0 or 0.2.0-rc.1 keeps that corner until it
+is updated.
+
+**Who left kiosk mode** is recorded on both sides:
+
+- the tablet's log (`adb logcat -s Kiosk`, kept only a short while):
+  `leaving kiosk mode, asked by: hidden gesture on the tablet` or
+  `… the PC (Libérer la tablette)`;
+- the PC's log (`padboard.log` in Padboard's configuration folder, see the
+  Windows or Linux guide; it starts over at each launch of Padboard):
+  `the tablet left kiosk mode by=Gesture` (or `by=Pc`) with `seconds_ago`.
+  A tablet that left kiosk mode away from the PC tells it at its next
+  connection, once. *Release the tablet* is logged too, when it is sent
+  (`order to the tablet order=ExitKiosk`).
 
 Updates (`adb install -r`) work in kiosk mode: the app comes back on screen
 right after.

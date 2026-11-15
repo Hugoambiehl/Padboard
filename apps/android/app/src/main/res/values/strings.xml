@@ -59,7 +59,10 @@
     <string name="pill_latency">%1$s · %2$d ms</string>
     <string name="pill_reconnecting">Reconnecting…</string>
     <string name="kiosk_exit_title">Leave kiosk mode?</string>
-    <string name="kiosk_exit_body">Padboard will no longer be locked on screen nor be the home screen, and the tablet becomes an ordinary tablet again (status bar, lock screen). To turn it back on: plug the tablet in over USB, then “Turn on kiosk mode” in the PC’s connections.</string>
+    <string name="kiosk_exit_unlocked">• Padboard will no longer be locked on screen, nor be the home screen.</string>
+    <string name="kiosk_exit_ordinary">• The tablet becomes an ordinary tablet again: status bar, lock screen, other apps.</string>
+    <string name="kiosk_exit_again">• To turn it back on: the tablet plugged in over USB, “Turn on kiosk mode” in the PC’s connections.</string>
+    <string name="kiosk_exit_mistake">Opened by mistake? Tap Cancel: nothing changes.</string>
     <string name="kiosk_exit_confirm">Leave kiosk mode</string>
     <string name="disconnected_title">Connection to the PC lost</string>
     <string name="disconnected_body_wifi">Looking over the USB cable and Wi-Fi. Check that Padboard runs on the PC.</string>

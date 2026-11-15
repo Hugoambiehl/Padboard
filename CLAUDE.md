@@ -315,8 +315,17 @@ SM-T580, always measure in release builds.
   (`enable_taskbar`, a LineageOS setting the app cannot write). Leaving it
   always removes the device owner (`clearDeviceOwnerApp`): from the PC
   (`tablet:command exit_kiosk`, "Libérer la tablette") or by holding the
-  top-right corner 5 s on any screen (touches observed, never consumed).
-  The tablet reports it with `tablet:status`. The PC's USB row reads the
+  bottom-left corner (`KIOSK_EXIT_CORNER`, 40 dp) 5 s on any screen
+  (touches observed, never consumed), then confirming (red button armed
+  after 2 s; cancel by default, closes alone after 30 s). Every screen
+  keeps that margin empty, checked by `KioskCornerTest` (androidTest,
+  `scripts/tablet-ui-tests.sh`: throwaway emulator at the tablet's size).
+  The top-right corner was used up to rc.1: next to the connection pill,
+  it was triggered during a pairing. The tablet reports kiosk mode with
+  `tablet:status`; who left it (`KioskExitOrigin`: gesture / PC) is
+  logged on the tablet, kept on disk (`KioskExits`) and sent once in the
+  next `tablet:status` (`kioskLeft`, optional field), logged by the PC.
+  The PC's USB row reads the
   device owner with `dpm list-owners` (on detection, after "Activer", on
   every `tablet:status`): already Padboard = success, another owner = a
   clear refusal (codes in `adb::KioskError`, translated by the UI).
