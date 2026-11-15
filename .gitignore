@@ -71,3 +71,6 @@ desktop.ini
 # ─── Misc ───────────────────────────────────────────────────────────
 *.log
 tmp/
+
+# Python bytecode (scripts/lib, scripts/tests)
+__pycache__/
