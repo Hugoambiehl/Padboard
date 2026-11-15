@@ -169,13 +169,31 @@ shortcut.) The window title must read **Padboard (mode test)**.
 | Check | Do | Expect |
 |---|---|---|
 | Found | *Connexions* → *À propos* → *Mises à jour*: turn on **Versions de test**, then *Rechercher* | *La version 0.2.0-rc.2 est disponible.*, the header shows *Mise à jour 0.2.0-rc.2*; the server window shows `GET /api/releases` |
-| Edits kept | Rename a button in the editor, then at once *Installer et redémarrer* | A progress bar (passive NSIS), **no UAC prompt**, Padboard comes back by itself, title still *Padboard (mode test)* (else close it at once and note it), the renamed button is there; *Settings → Apps → Installed apps*: Padboard **0.2.0-rc.2**; the test dir's `app.log` holds *installing the update, the app exits* |
+| Edits kept | Rename a button in the editor, then at once *Installer* | Padboard closes and the installer's **wizard** opens (not passive while it is not signed), **no UAC prompt**; follow it to the end and leave *Run Padboard* ticked: Padboard starts, title still *Padboard (mode test)* (else close it at once and note it), the renamed button is there; *Settings → Apps → Installed apps*: Padboard **0.2.0-rc.2**; the test dir's `app.log` holds *installing the update, the app exits* |
 | Up to date | Restart version B with the same variables but `PADBOARD_TEST_APP_VERSION = '0.2.0-rc.2'`, *Rechercher* | *Padboard est à jour* (never an older or the same version) |
-| Tampered installer | Reinstall A (`& $env:TEMP\A.exe /S`), start it as above; in Git Bash append a byte to the served installer: `printf x >> target/test-releases/releases/download/v0.2.0-rc.2/Padboard_0.2.0-rc.2_x64-setup.exe`; *Rechercher*, *Installer et redémarrer* | *Le fichier téléchargé n’est pas signé pour cette version : mise à jour refusée.*, nothing installed (still 0.2.0-rc.1) |
-| Forged version | `scripts/test-releases.sh add 0.2.0-rc.2 --installer "$TEMP/B.exe"` again; then make a fake 9.9.9 that points to it: `mkdir -p target/test-releases/releases/download/v9.9.9 && sed 's/"version": "0.2.0-rc.2"/"version": "9.9.9"/' target/test-releases/releases/download/v0.2.0-rc.2/latest.json > target/test-releases/releases/download/v9.9.9/latest.json && scripts/test-releases.sh remove 0.0.0`; *Rechercher*, *Installer et redémarrer* | 9.9.9 is offered, but installing it is refused (*pas signé pour cette version*): the signature says 0.2.0-rc.2 |
+| Tampered installer | Reinstall A (`& $env:TEMP\A.exe /S`), start it as above; in Git Bash append a byte to the served installer: `printf x >> target/test-releases/releases/download/v0.2.0-rc.2/Padboard_0.2.0-rc.2_x64-setup.exe`; *Rechercher*, *Installer* | *Le fichier téléchargé n’est pas signé pour cette version : mise à jour refusée.*, nothing installed (still 0.2.0-rc.1) |
+| Forged version | `scripts/test-releases.sh add 0.2.0-rc.2 --installer "$TEMP/B.exe"` again; then make a fake 9.9.9 that points to it: `mkdir -p target/test-releases/releases/download/v9.9.9 && sed 's/"version": "0.2.0-rc.2"/"version": "9.9.9"/' target/test-releases/releases/download/v0.2.0-rc.2/latest.json > target/test-releases/releases/download/v9.9.9/latest.json && scripts/test-releases.sh remove 0.0.0`; *Rechercher*, *Installer* | 9.9.9 is offered, but installing it is refused (*pas signé pour cette version*): the signature says 0.2.0-rc.2 |
 | Stable channel | Turn **Versions de test** off, *Rechercher* | *Padboard est à jour* (the test releases are release candidates; 9.9.9 too is refused: remove it first with `scripts/test-releases.sh remove 9.9.9`) |
 | Automatic check off | Turn *Rechercher automatiquement* off, quit, start again, wait 30 s | No `GET /api/releases` in the server window |
 | Automatic check on | Turn it on | One `GET /api/releases` at once |
+| Refusal kept | Tampered installer as above, then *Installer* within 10 s of the launch | The refusal stays shown after the automatic check (10 s after launch) |
+| Not installed | Reinstall A, start it, *Installer*, then **cancel** the wizard; start A again (same variables) | *L’installation de la version 0.2.0-rc.2 n’a pas abouti.*, with *Que faire ?* (opens *If your antivirus blocks Padboard*) and *Voir la version*; it stays after the automatic check; the next launch no longer shows it |
+
+### Real update with an antivirus (each release candidate)
+
+The checks above use a local test server and installers built on the PC.
+Before a release, do one real update on a Windows PC set up like a user's,
+with **Bitdefender active** (real-time protection and *Advanced Threat
+Control* on, no exception for Padboard):
+
+1. Install release candidate N from its GitHub release (installer
+   downloaded with the browser), turn on *Versions de test*.
+2. Publish release candidate N+1 (for v0.2.0: rc.1 then a minimal rc.2).
+3. In Padboard N: *Rechercher*, *Installer*, follow the wizard.
+4. Expect: no detection, Padboard N+1 starts, configuration kept. Note any
+   Bitdefender event (name, process chain) and report it as a false
+   positive (`docs/install-windows.md`); if the updater's install is
+   flagged while a manual install is not, see `docs/releasing.md`.
 
 ### Afterwards
 

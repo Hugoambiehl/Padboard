@@ -67,6 +67,41 @@ In OBS 28 or later: *Tools* → *WebSocket Server Settings* → *Enable
 WebSocket server*, then copy the port and the password into Padboard:
 *Connections* → *OBS Studio* → *Control OBS*.
 
+## Updates
+
+Padboard looks for a new version at launch and once a day (*Connections* →
+*About* → *Updates*; only the list of releases is asked from GitHub). When
+one is available, **Install** downloads it, checks its signature, then opens
+Padboard's installer: follow its steps as for the first install (Padboard
+closes meanwhile and your edits are saved first). While the installer is not
+signed, it opens as a regular wizard rather than installing silently.
+
+If the install does not finish (wizard closed, or blocked by an antivirus),
+Padboard says so at its next launch: try again with *Check now*, or install
+the version by hand from its release page.
+
+## If your antivirus blocks Padboard
+
+The installer is not signed yet (a code signing certificate is on its way),
+so an antivirus may take it for a threat, mostly when it is started by an
+update: Bitdefender's *Advanced Threat Control* (`Atc4.Detection`) has
+quarantined a test installer that way. The files of a release are the ones
+listed in its `SHA256SUMS`, signed by the maintainer.
+
+1. **Check the file**: in PowerShell, `Get-FileHash` on the installer must
+   print the SHA-256 listed in the release's `SHA256SUMS`. If it differs,
+   delete the file and do not run it.
+2. **Report the false positive** to your antivirus' maker, with the
+   installer and the name of the detection. Bitdefender:
+   [bitdefender.com/submit](https://www.bitdefender.com/submit), category
+   *False Positive*; confirmed false alarms are usually fixed within hours.
+   You can also [open an issue](https://github.com/Hugoambiehl/Padboard/issues)
+   so the maintainer reports it too.
+3. **Meanwhile**, install by hand: download the installer from the release
+   page and run it (section 1). If it was quarantined, restore it from the
+   antivirus' quarantine only if its SHA-256 is right, and add an exception
+   for it.
+
 ## Good to know
 
 - Keyboard shortcuts do not reach windows run as administrator (a Windows

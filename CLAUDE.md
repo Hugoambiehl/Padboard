@@ -428,8 +428,15 @@ SM-T580, always measure in release builds.
   `updates`); never in test mode, off when `updater-key.pub` is empty.
   Windows: `tauri-plugin-updater` ~2.12 (last for tauri 2.11 / Rust 1.88,
   Windows-only dependency, driven from Rust only: no JS package, no
-  permission for the page), `requireSignedVersion`, NSIS `passive`,
-  pending edits flushed in `on_before_exit`. Linux: notice + release page
+  permission for the page), `requireSignedVersion`, NSIS wizard
+  (`basicUi`, not `passive`, while the installer is unsigned: Bitdefender
+  ATC quarantined a passive test install; back to `passive` once SignPath
+  signs it), pending edits flushed in `on_before_exit`. The version being
+  installed is written to `update-pending.json`; a launch still on the
+  older version shows `NotInstalled` (wizard cancelled or blocked by an
+  antivirus, "Que faire ?" opens `help.rs`'s page). An automatic check
+  never replaces a failed install of the same version with "available"
+  (only "Rechercher" offers it again). Linux: notice + release page
   (opened through the `open` action, URL built by the backend). Our HTTP:
   `reqwest` with `rustls-no-provider` (ring installed as default
   provider). UI: "Mises à jour" section of the About card, header badge;

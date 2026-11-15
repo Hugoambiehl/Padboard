@@ -13,6 +13,7 @@ mod auth;
 mod autostart;
 mod config;
 mod editor_service;
+mod help;
 mod identity;
 mod locale;
 mod netif;
@@ -238,6 +239,21 @@ fn install_update(app: tauri::AppHandle, backend: tauri::State<'_, Backend>) -> 
             tracing::info!("exiting for the update");
         })
         .map_err(|e| e.to_string())
+}
+
+/// Opens the user guide's page about `topic` in the browser.
+#[tauri::command]
+async fn open_help(
+    backend: tauri::State<'_, Backend>,
+    topic: help::HelpTopic,
+) -> Result<(), String> {
+    let action = padboard_actions::Action::Open(padboard_actions::OpenAction {
+        target: topic.url(),
+    });
+    match server::perform(&backend.server, action, None).await {
+        ActionOutcome::Ok => Ok(()),
+        outcome => Err(format!("{outcome:?}")),
+    }
 }
 
 /// Opens the available version's page (or the list of releases) in the
@@ -631,7 +647,8 @@ pub fn run() {
             set_update_preferences,
             check_for_updates,
             install_update,
-            open_release_page
+            open_release_page,
+            open_help
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -854,6 +871,7 @@ pub fn run() {
             let updates = updates::Updates::new(
                 preferences.updates,
                 test_mode.is_some(),
+                config.root(),
                 Box::new(move |view| {
                     if let Err(e) = updates_handle.emit(UPDATES_EVENT, view) {
                         tracing::warn!("cannot emit the updates: {e}");

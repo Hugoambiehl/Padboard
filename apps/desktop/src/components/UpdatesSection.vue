@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { Download, ExternalLink, RefreshCw } from "lucide-vue-next";
+import { CircleHelp, Download, ExternalLink, RefreshCw } from "lucide-vue-next";
 import ToggleSwitch from "./ToggleSwitch.vue";
-import { checkForUpdates, installUpdate, openReleasePage, setUpdatePreferences } from "../commands";
+import {
+  checkForUpdates,
+  installUpdate,
+  openHelp,
+  openReleasePage,
+  setUpdatePreferences,
+} from "../commands";
 import { useUpdates } from "../composables/useUpdates";
 import type { UpdatePreferences } from "../types/updates";
 
@@ -48,6 +54,8 @@ const line = computed(() => {
       return t("updates.installing", { version: s.version });
     case "failed":
       return t(`updates.error.${s.error}`);
+    case "notInstalled":
+      return t("updates.notInstalled", { version: s.version });
   }
   return "";
 });
@@ -77,13 +85,23 @@ function save(change: Partial<UpdatePreferences>) {
     <h3 class="text-sm font-medium">{{ t("updates.title") }}</h3>
     <p
       class="text-sm"
-      :class="status?.state === 'failed' ? 'text-cat-red' : 'text-muted-2'"
+      :class="
+        status?.state === 'failed' || status?.state === 'notInstalled'
+          ? 'text-cat-red'
+          : 'text-muted-2'
+      "
       data-updates-status
     >
       {{ line }}
     </p>
     <p v-if="status?.state === 'available' && !status.installable" class="text-xs text-muted">
       {{ t("updates.manual") }}
+    </p>
+    <p v-if="status?.state === 'available' && status.installable" class="text-xs text-muted">
+      {{ t("updates.wizard") }}
+    </p>
+    <p v-if="status?.state === 'notInstalled'" class="text-xs text-muted">
+      {{ t("updates.notInstalledHint") }}
     </p>
     <div v-if="!off" class="flex flex-wrap gap-2">
       <button
@@ -97,14 +115,28 @@ function save(change: Partial<UpdatePreferences>) {
         {{ t("updates.install") }}
       </button>
       <button
-        v-if="status?.state === 'available'"
+        v-if="status?.state === 'notInstalled'"
+        type="button"
+        class="flex items-center gap-2 rounded-xl border border-line-2 bg-surface-2 px-3 py-2 text-sm transition-colors hover:bg-surface-active"
+        data-updates-help
+        @click="run(() => openHelp('antivirus'))"
+      >
+        <CircleHelp :size="16" class="text-muted-2" aria-hidden="true" />
+        {{ t("updates.help") }}
+      </button>
+      <button
+        v-if="status?.state === 'available' || status?.state === 'notInstalled'"
         type="button"
         class="flex items-center gap-2 rounded-xl border border-line-2 bg-surface-2 px-3 py-2 text-sm transition-colors hover:bg-surface-active"
         data-updates-page
         @click="run(openReleasePage)"
       >
         <ExternalLink :size="16" class="text-muted-2" aria-hidden="true" />
-        {{ status.installable ? t("updates.notes") : t("updates.page") }}
+        {{
+          status.state === "available" && status.installable
+            ? t("updates.notes")
+            : t("updates.page")
+        }}
       </button>
       <button
         type="button"

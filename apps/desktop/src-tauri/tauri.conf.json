@@ -68,7 +68,7 @@
       "pubkey": "",
       "requireSignedVersion": true,
       "windows": {
-        "installMode": "passive"
+        "installMode": "basicUi"
       }
     }
   }

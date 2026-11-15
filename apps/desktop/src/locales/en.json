@@ -589,13 +589,13 @@
     "manual": "Download it from the release page (on Linux, the .deb package is installed by hand).",
     "downloading": "Downloading version {version}…",
     "downloadingPercent": "Downloading version {version}… {percent}%",
-    "installing": "Installing version {version}: Padboard will restart.",
+    "installing": "The installer of version {version} opens: follow its steps, Padboard closes meanwhile.",
     "error": {
       "network": "Cannot reach GitHub. Next try tomorrow, or with “Check now”.",
       "signature": "The download is not signed for this version: update refused.",
       "install": "Cannot start the installer."
     },
-    "install": "Install and restart",
+    "install": "Install",
     "notes": "Release notes",
     "page": "See the release",
     "check": "Check now",
@@ -603,7 +603,11 @@
     "autoHint": "At launch, then once a day. Only the list of releases is asked from GitHub.",
     "prereleases": "Test versions",
     "prereleasesHint": "Also offers release candidates (rc), less tested.",
-    "badge": "Update {version}"
+    "badge": "Update {version}",
+    "wizard": "Padboard's installer will open: just follow its steps.",
+    "notInstalled": "Version {version} was not installed.",
+    "notInstalledHint": "The installer was closed before the end, or your antivirus blocked it. Try again with “Check now”, or install the version by hand from its page.",
+    "help": "What to do?"
   },
   "licenses": {
     "title": "Licenses",

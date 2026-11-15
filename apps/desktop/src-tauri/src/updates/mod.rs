@@ -14,6 +14,7 @@ pub mod signing;
 pub mod source;
 pub mod tablet;
 
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -28,6 +29,9 @@ const FIRST_CHECK: Duration = Duration::from_secs(10);
 const CHECK_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
 /// Releases looked at (the newest first).
 const RELEASES_LISTED: u32 = 30;
+/// Written just before the installer starts, with the version it installs;
+/// read at the next launch to tell whether the install happened.
+const PENDING_INSTALL: &str = "update-pending.json";
 
 /// The user's choices, persisted in `preferences.json`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -106,6 +110,11 @@ pub enum UpdateStatus {
     Failed {
         error: UpdateError,
     },
+    /// The installer of `version` was started, but this launch is still the
+    /// older version: cancelled, or blocked (an antivirus, typically).
+    NotInstalled {
+        version: String,
+    },
 }
 
 /// Everything the "Mises à jour" card shows.
@@ -159,13 +168,21 @@ struct Shared {
     http: Option<reqwest::Client>,
     /// Wakes the background loop (preferences changed, "Rechercher").
     wake: tokio::sync::Notify,
+    /// Where [`PENDING_INSTALL`] is kept (`None`: nowhere, in tests).
+    dir: Option<PathBuf>,
 }
 
 impl Updates {
     /// Updates from [`Source::current`]. Off in test mode (except with a test
-    /// source) and without a key. `notify` gets every change.
+    /// source) and without a key. `notify` gets every change. `dir` keeps
+    /// the install under way across the restart (the config dir).
     #[must_use]
-    pub fn new(preferences: UpdatePreferences, test_mode: bool, notify: Notify) -> Self {
+    pub fn new(
+        preferences: UpdatePreferences,
+        test_mode: bool,
+        dir: &Path,
+        notify: Notify,
+    ) -> Self {
         let source = Source::current();
         let off = if test_mode && !source.test {
             Some(OffReason::TestMode)
@@ -174,13 +191,69 @@ impl Updates {
         } else {
             None
         };
-        Self::with_source(preferences, off, source, notify)
+        let updates = Self::with_source(preferences, off, source, Some(dir.to_owned()), notify);
+        updates.after_restart();
+        updates
+    }
+
+    /// Reads (and forgets) the install started before this launch: still
+    /// the older version means it did not happen, which is shown until
+    /// "Rechercher" or a newer release.
+    fn after_restart(&self) {
+        let Some(path) = self.pending_path() else {
+            return;
+        };
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            return;
+        };
+        if let Err(e) = std::fs::remove_file(&path) {
+            tracing::warn!("cannot remove {}: {e}", path.display());
+        }
+        let pending = serde_json::from_str::<PendingInstall>(&text)
+            .ok()
+            .and_then(|p| Version::parse(&p.version).ok());
+        match pending {
+            Some(version) if version > self.0.current => {
+                tracing::warn!(%version, "the update started before this launch was not installed");
+                let version = version.to_string();
+                if !matches!(self.status(), UpdateStatus::Off { .. }) {
+                    self.0
+                        .inner
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .failed_install = Some(version.clone());
+                    self.set_status(UpdateStatus::NotInstalled { version });
+                }
+            }
+            Some(version) => tracing::info!(%version, "update installed"),
+            None => tracing::warn!("unreadable {PENDING_INSTALL}, ignored"),
+        }
+    }
+
+    fn pending_path(&self) -> Option<PathBuf> {
+        self.0.dir.as_ref().map(|dir| dir.join(PENDING_INSTALL))
+    }
+
+    /// Notes that the installer of `version` is about to start.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    fn installing(&self, version: &str) {
+        let Some(path) = self.pending_path() else {
+            return;
+        };
+        let text = serde_json::to_string(&PendingInstall {
+            version: version.to_owned(),
+        })
+        .unwrap_or_default();
+        if let Err(e) = std::fs::write(&path, text) {
+            tracing::warn!("cannot write {}: {e}", path.display());
+        }
     }
 
     fn with_source(
         preferences: UpdatePreferences,
         off: Option<OffReason>,
         source: Source,
+        dir: Option<PathBuf>,
         notify: Notify,
     ) -> Self {
         let http = if off.is_none() { client() } else { None };
@@ -205,6 +278,7 @@ impl Updates {
             notify,
             http,
             wake: tokio::sync::Notify::new(),
+            dir,
         }))
     }
 
@@ -349,7 +423,10 @@ impl Updates {
             match (&status, kind) {
                 (UpdateStatus::Available { version, .. }, Check::Automatic)
                     if inner.failed_install.as_ref() == Some(version)
-                        && matches!(before, UpdateStatus::Failed { .. }) =>
+                        && matches!(
+                            before,
+                            UpdateStatus::Failed { .. } | UpdateStatus::NotInstalled { .. }
+                        ) =>
                 {
                     tracing::info!(%version, "its install failed: the failure stays shown");
                     before
@@ -406,6 +483,12 @@ impl Updates {
     }
 }
 
+/// The content of [`PENDING_INSTALL`].
+#[derive(Debug, Serialize, Deserialize)]
+struct PendingInstall {
+    version: String,
+}
+
 /// Who asked for a check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Check {
@@ -423,7 +506,8 @@ impl Updates {
         match self.status() {
             UpdateStatus::Available { version, .. }
             | UpdateStatus::Downloading { version, .. }
-            | UpdateStatus::Installing { version } => self.0.source.page(Some(&version)),
+            | UpdateStatus::Installing { version }
+            | UpdateStatus::NotInstalled { version } => self.0.source.page(Some(&version)),
             _ => self.0.source.page(None),
         }
     }
@@ -508,6 +592,7 @@ mod windows {
             version: update.version.clone(),
         });
         tracing::info!(version = %update.version, "installing the update, the app exits");
+        updates.installing(&update.version);
         update.install(bytes).map_err(|e| {
             tracing::error!("cannot start the installer: {e}");
             UpdateError::Install
@@ -599,6 +684,7 @@ mod tests {
             UpdatePreferences::default(),
             None,
             source(api_url),
+            None,
             Box::new(move |view| {
                 let _ = tx.send(view);
             }),
@@ -665,6 +751,7 @@ mod tests {
             UpdatePreferences::default(),
             Some(OffReason::TestMode),
             source(url),
+            None,
             Box::new(|_| {}),
         );
         assert!(matches!(updates.check_now(), Err(CommandError::Off)));
@@ -756,12 +843,86 @@ mod tests {
         ));
     }
 
+    fn restarted(dir: &Path, current: &str) -> Updates {
+        let mut source = source(String::new());
+        source.version = current.to_owned();
+        let updates = Updates::with_source(
+            UpdatePreferences::default(),
+            None,
+            source,
+            Some(dir.to_owned()),
+            Box::new(|_| {}),
+        );
+        updates.after_restart();
+        updates
+    }
+
+    /// The installer was started (wizard cancelled, or blocked by an
+    /// antivirus) and Padboard is launched again in its older version.
+    #[test]
+    fn an_install_that_did_not_happen_is_reported_once() {
+        let tmp = tempfile::tempdir().unwrap();
+        let first = restarted(tmp.path(), "0.2.0-rc.1");
+        first.installing("0.2.0-rc.2");
+
+        let after = restarted(tmp.path(), "0.2.0-rc.1");
+        assert_eq!(
+            after.view().status,
+            UpdateStatus::NotInstalled {
+                version: "0.2.0-rc.2".into()
+            }
+        );
+        assert!(after.release_page().ends_with("/tag/v0.2.0-rc.2"));
+        // Said once: the next launch starts afresh.
+        assert_eq!(
+            restarted(tmp.path(), "0.2.0-rc.1").view().status,
+            UpdateStatus::Idle
+        );
+    }
+
+    #[test]
+    fn an_install_that_happened_is_silent() {
+        let tmp = tempfile::tempdir().unwrap();
+        restarted(tmp.path(), "0.2.0-rc.1").installing("0.2.0-rc.2");
+        assert_eq!(
+            restarted(tmp.path(), "0.2.0-rc.2").view().status,
+            UpdateStatus::Idle
+        );
+        assert!(!tmp.path().join(PENDING_INSTALL).exists());
+        // Garbage is ignored.
+        std::fs::write(tmp.path().join(PENDING_INSTALL), "nonsense").unwrap();
+        assert_eq!(
+            restarted(tmp.path(), "0.2.0-rc.2").view().status,
+            UpdateStatus::Idle
+        );
+    }
+
+    /// The first automatic check keeps the "not installed" notice.
+    #[tokio::test]
+    async fn the_automatic_check_keeps_the_not_installed_notice() {
+        let (url, _) = serve(
+            r#"[{"tag_name":"v99.0.0","draft":false,"prerelease":false,"assets":[{"name":"latest.json"}]}]"#,
+        )
+        .await;
+        let (updates, _rx) = service(url);
+        updates.0.inner.lock().unwrap().failed_install = Some("99.0.0".into());
+        updates.set_status(UpdateStatus::NotInstalled {
+            version: "99.0.0".into(),
+        });
+        updates.check(Check::Automatic).await;
+        assert!(matches!(
+            updates.view().status,
+            UpdateStatus::NotInstalled { .. }
+        ));
+    }
+
     #[test]
     fn only_an_installable_update_is_installed() {
         let updates = Updates::with_source(
             UpdatePreferences::default(),
             Some(OffReason::NoKey),
             source(String::new()),
+            None,
             Box::new(|_| {}),
         );
         assert!(matches!(

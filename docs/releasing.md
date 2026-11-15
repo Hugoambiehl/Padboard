@@ -67,6 +67,18 @@ for `apksigner`; the GitHub CLI (`gh`).
    `adb install -r padboard-X.apk`). A rejected draft is deleted
    (`gh release delete v0.1.0-rc.1`), never re-signed after publishing.
 
+   **Antiviruses**, while the installer is not signed (Authenticode): before
+   publishing, upload the signed draft's `Padboard_X_x64-setup.exe` to
+   [VirusTotal](https://www.virustotal.com) and submit it to Bitdefender as
+   a false positive ([bitdefender.com/submit](https://www.bitdefender.com/submit),
+   category *False Positive*, detection name if any, e.g. `Atc4.Detection`),
+   so the first users do not meet a detection. Bitdefender's *Advanced
+   Threat Control* quarantined a test installer started by the updater (see
+   `docs/install-windows.md`, *If your antivirus blocks Padboard*). That is
+   why the updater opens the installer as a wizard (`installMode`
+   `basicUi` in `tauri.conf.json`) instead of the passive mode: go back to
+   `passive` once SignPath signs the installer.
+
 5. **Publish** the draft from the GitHub page (or
    `gh release edit v0.1.0-rc.1 --draft=false`). From then on, the apps
    see it: `latest.json` is read from the latest release (and from

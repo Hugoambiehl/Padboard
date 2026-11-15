@@ -21,7 +21,10 @@ export type UpdateStatus =
   | { state: "available"; version: string; installable: boolean }
   | { state: "downloading"; version: string; received: number; total: number | null }
   | { state: "installing"; version: string }
-  | { state: "failed"; error: UpdateError };
+  | { state: "failed"; error: UpdateError }
+  /** The installer of `version` was started, but this is still the older
+   * version: cancelled, or blocked by an antivirus. */
+  | { state: "notInstalled"; version: string };
 
 export interface UpdatesView {
   current: string;

@@ -589,13 +589,13 @@
     "manual": "Télécharge-la depuis la page de la version (sous Linux, le paquet .deb s’installe à la main).",
     "downloading": "Téléchargement de la version {version}…",
     "downloadingPercent": "Téléchargement de la version {version}… {percent} %",
-    "installing": "Installation de la version {version} : Padboard va redémarrer.",
+    "installing": "L’installeur de la version {version} s’ouvre : suis ses étapes, Padboard se ferme en attendant.",
     "error": {
       "network": "Impossible de joindre GitHub. Nouvel essai demain, ou avec « Rechercher ».",
       "signature": "Le fichier téléchargé n’est pas signé pour cette version : mise à jour refusée.",
       "install": "Impossible de lancer l’installeur."
     },
-    "install": "Installer et redémarrer",
+    "install": "Installer",
     "notes": "Notes de version",
     "page": "Voir la version",
     "check": "Rechercher",
@@ -603,7 +603,11 @@
     "autoHint": "Au démarrage puis une fois par jour. Seule la liste des versions est demandée à GitHub.",
     "prereleases": "Versions de test",
     "prereleasesHint": "Propose aussi les versions candidates (rc), moins éprouvées.",
-    "badge": "Mise à jour {version}"
+    "badge": "Mise à jour {version}",
+    "wizard": "L’installeur de Padboard s’ouvrira : il suffit de suivre ses étapes.",
+    "notInstalled": "L’installation de la version {version} n’a pas abouti.",
+    "notInstalledHint": "L’installeur a été fermé avant la fin, ou ton antivirus l’a bloqué. Tu peux réessayer avec « Rechercher », ou installer la version à la main depuis sa page.",
+    "help": "Que faire ?"
   },
   "licenses": {
     "title": "Licences",

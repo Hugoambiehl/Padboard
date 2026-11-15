@@ -79,3 +79,6 @@ export const checkForUpdates = () => invoke<void>("check_for_updates");
 export const installUpdate = () => invoke<void>("install_update");
 /** The available version's page (or the releases), in the browser. */
 export const openReleasePage = () => invoke<void>("open_release_page");
+/** Pages of the user guides (the backend builds the address). */
+export type HelpTopic = "antivirus";
+export const openHelp = (topic: HelpTopic) => invoke<void>("open_help", { topic });
