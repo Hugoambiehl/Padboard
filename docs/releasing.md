@@ -87,6 +87,39 @@ for `apksigner`; the GitHub CLI (`gh`).
 A failed or wrong release candidate is not re-tagged: fix it on `main` and
 release `-rc.N+1`.
 
+## Checklist
+
+Copy it into the release's tracking issue (or tick it in your notes) for
+every release and release candidate.
+
+Before `scripts/release.sh`:
+
+- [ ] `main` is clean and its CI is green (the Windows job included).
+- [ ] Desktop end-to-end tests, all of them:
+      `PADBOARD_E2E_HEADLESS=1 scripts/desktop-e2e.sh` (headless; the
+      script says the tray tests are skipped).
+- [ ] **The tray tests with a real window** (mandatory: headless, they are
+      skipped because the virtual display has no tray):
+      `scripts/desktop-e2e.sh --no-build e2e/tray`, on a desktop with a
+      StatusNotifier host (GNOME: AppIndicator extension), with nothing
+      skipped in the output.
+- [ ] `scripts/platform-tools-pin.sh --check` (the "Installer adb" pin is
+      Google's newest; if not, pin it and check it on Windows).
+- [ ] The fastlane changelog of the release's versionCode (releases only).
+
+After `scripts/sign-release.sh`, before publishing:
+
+- [ ] `docs/windows-test-plan.md` on Windows (installer, USB with
+      *Installer adb*, actions, tray and startup, update).
+- [ ] The `.deb` on clean Ubuntu 22.04 and 24.04 (`apt install ./…deb`
+      pulls `adb`).
+- [ ] The tablet APK: `adb install -r`, then an update from the PC.
+- [ ] VirusTotal and Bitdefender's false positive form for the installer
+      (step 4, *Antiviruses*).
+- [ ] For a release candidate that follows another: the real update from
+      the previous one, with Bitdefender active
+      (`docs/windows-test-plan.md`, *Real update with an antivirus*).
+
 ## Notes
 
 - Debian sorts `0.1.0-rc.1` after `0.1.0`: installing the final `.deb` over a

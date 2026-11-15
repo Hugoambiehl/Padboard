@@ -2,6 +2,7 @@
 // run by scripts/desktop-e2e.sh before the build).
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { App, literal, t } from "./harness";
+import { version } from "../package.json";
 
 let app: App;
 beforeAll(async () => {
@@ -23,7 +24,8 @@ describe("about and licenses", () => {
       `//section[.//h2[normalize-space(.)=${literal(t("about.title"))}]]`,
     );
     const text = await app.session.text(card);
-    expect(text).toContain(t("about.version", { version: "0.1.0" }));
+    // The version of this build (main carries X.Y.Z-dev between releases).
+    expect(text).toContain(t("about.version", { version }));
     expect(text).toContain(t("about.license"));
   });
 
@@ -37,6 +39,10 @@ describe("about and licenses", () => {
       ),
     );
     await app.session.find(`//pre[contains(., "GNU GENERAL PUBLIC LICENSE")]`);
+    // Google's Platform-Tools: not part of Padboard, said so.
+    await app.session.find(
+      `//*[@data-licenses-downloaded][contains(., "Android SDK Platform-Tools")][contains(., ${literal(t("licenses.downloaded.license"))})]`,
+    );
     await app.shot("licenses");
 
     const search = await app.session.find("[data-licenses-search]");

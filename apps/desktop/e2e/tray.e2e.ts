@@ -25,6 +25,22 @@ function trayHost(): boolean {
   }
 }
 
+/**
+ * Why the tray tests cannot run here (`null`: they run). Headless, the window
+ * is on a virtual display without a tray, while the session bus still reports
+ * the real desktop's host: closing the window then hung, and WebKitWebDriver
+ * crashed (SIGSEGV). They stay mandatory with a real window before each
+ * release (docs/releasing.md).
+ */
+const traySkip = process.env.PADBOARD_E2E_HEADLESS
+  ? "headless (no tray on the virtual display): run with a real window before a release"
+  : trayHost()
+    ? null
+    : "no StatusNotifier host on this desktop (GNOME: AppIndicator extension)";
+if (traySkip) console.warn(`SKIPPED tray tests: ${traySkip}`);
+/** The test's name, with the reason when it is skipped. */
+const trayTest = (name: string) => (traySkip ? `${name} [skipped: ${traySkip}]` : name);
+
 const AUTOSTART_ENTRY = join(homedir(), ".config", "autostart", "Padboard.desktop");
 
 let app: App;
@@ -68,21 +84,27 @@ describe("tray and startup", () => {
     await app.session.click(toggle);
   });
 
-  it.skipIf(!trayHost())("the first close explains the tray, then hides the window", async () => {
-    await requestClose();
-    const dialog = await app.session.find("[data-close-to-tray]");
-    expect(await app.session.text(dialog)).toContain(t("tray.closeTitle"));
-    expect(await visible()).toBe(true);
-    await app.shot("close-to-tray");
+  it.skipIf(traySkip)(
+    trayTest("the first close explains the tray, then hides the window"),
+    async () => {
+      await requestClose();
+      const dialog = await app.session.find("[data-close-to-tray]");
+      expect(await app.session.text(dialog)).toContain(t("tray.closeTitle"));
+      expect(await visible()).toBe(true);
+      await app.shot("close-to-tray");
 
-    await app.session.click(await app.session.find("[data-close-hide]"));
-    await app.session.waitUntil(async () => (await hiddenCount()) === 1, "the window should hide");
-    expect(await visible()).toBe(false);
-    const prefs = JSON.parse(await app.readConfigFile("preferences.json"));
-    expect(prefs.closeHintShown).toBe(true);
-  });
+      await app.session.click(await app.session.find("[data-close-hide]"));
+      await app.session.waitUntil(
+        async () => (await hiddenCount()) === 1,
+        "the window should hide",
+      );
+      expect(await visible()).toBe(false);
+      const prefs = JSON.parse(await app.readConfigFile("preferences.json"));
+      expect(prefs.closeHintShown).toBe(true);
+    },
+  );
 
-  it.skipIf(!trayHost())("the next closes hide it at once", async () => {
+  it.skipIf(traySkip)(trayTest("the next closes hide it at once"), async () => {
     await requestClose();
     await app.session.waitUntil(async () => (await hiddenCount()) === 2, "the window should hide");
     expect(await app.session.findAll("[data-close-to-tray]")).toHaveLength(0);

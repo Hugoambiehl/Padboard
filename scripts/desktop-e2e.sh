@@ -14,7 +14,9 @@
 #
 # Environment:
 #   PADBOARD_E2E_HEADLESS=1       run on a virtual X display (needs xvfb-run),
-#                                 so the windows do not open on your screen
+#                                 so the windows do not open on your screen;
+#                                 the tray tests are skipped then (said so),
+#                                 run them with a real window before a release
 #   PADBOARD_E2E_NATIVE_DRIVER    path of WebKitWebDriver if not in PATH
 #   PADBOARD_E2E_KEEP=1           keep the test directories (printed paths)
 #
@@ -71,5 +73,11 @@ export PADBOARD_E2E_FAKE_TABLET="$CARGO_TARGET_DIR/debug/examples/fake-tablet"
 export PADBOARD_E2E_SHOTS="$CARGO_TARGET_DIR/screenshots"
 rm -rf "$PADBOARD_E2E_SHOTS"
 
-"${runner[@]}" npx vitest run --config e2e/vitest.config.ts "$@"
+status=0
+"${runner[@]}" npx vitest run --config e2e/vitest.config.ts "$@" || status=$?
 echo "desktop-e2e: screenshots in $PADBOARD_E2E_SHOTS"
+if [[ -n "${PADBOARD_E2E_HEADLESS:-}" ]]; then
+  echo "desktop-e2e: HEADLESS: the tray tests (e2e/tray) were skipped (no tray on the virtual display)." >&2
+  echo "desktop-e2e: before a release, run them with a real window: scripts/desktop-e2e.sh --no-build e2e/tray" >&2
+fi
+exit "$status"
