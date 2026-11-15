@@ -237,6 +237,23 @@ export interface Hotkey {
 	keys: string[];
 }
 
+export enum KioskExitOrigin {
+	/** The hidden gesture on the tablet (corner held, then confirmed). */
+	Gesture = "gesture",
+	/** "Libérer la tablette" on the PC (`tablet:command` `exit_kiosk`). */
+	Pc = "pc",
+}
+
+/** How and when the tablet left kiosk mode. */
+export interface KioskLeft {
+	by: KioskExitOrigin;
+	/**
+	 * Seconds between leaving and sending this report (the tablet's and
+	 * the PC's clocks may disagree; a duration does not depend on them).
+	 */
+	secondsAgo: number;
+}
+
 export interface ProfileInfo {
 	id: string;
 	name: string;
@@ -428,6 +445,12 @@ export interface TabletSettingsPayload {
 export interface TabletStatusPayload {
 	/** Kiosk mode: the app is the tablet's device owner, locked in front. */
 	kiosk: boolean;
+	/**
+	 * Kiosk mode was left and the PC has not been told yet: reported once,
+	 * in the first `tablet:status` sent after it (protocol 5, optional:
+	 * older tablets never send it, older PCs ignore it).
+	 */
+	kioskLeft?: KioskLeft;
 }
 
 export interface UpdateOfferPayload {

@@ -415,6 +415,32 @@ pub struct Heartbeat {
 pub struct TabletStatusPayload {
     /// Kiosk mode: the app is the tablet's device owner, locked in front.
     pub kiosk: bool,
+    /// Kiosk mode was left and the PC has not been told yet: reported once,
+    /// in the first `tablet:status` sent after it (protocol 5, optional:
+    /// older tablets never send it, older PCs ignore it).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kiosk_left: Option<KioskLeft>,
+}
+
+/// How and when the tablet left kiosk mode.
+#[typeshare]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KioskLeft {
+    pub by: KioskExitOrigin,
+    /// Seconds between leaving and sending this report (the tablet's and
+    /// the PC's clocks may disagree; a duration does not depend on them).
+    pub seconds_ago: u32,
+}
+
+#[typeshare]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KioskExitOrigin {
+    /// The hidden gesture on the tablet (corner held, then confirmed).
+    Gesture,
+    /// "Libérer la tablette" on the PC (`tablet:command` `exit_kiosk`).
+    Pc,
 }
 
 #[typeshare]

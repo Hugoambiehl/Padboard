@@ -9,7 +9,11 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.content.edit
 import io.github.hugoambiehl.padboard.MainActivity
+import io.github.hugoambiehl.padboard.connection.KioskExitLog
+import io.github.hugoambiehl.padboard.protocol.KioskExitOrigin
+import io.github.hugoambiehl.padboard.protocol.KioskLeft
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -67,14 +71,17 @@ object Kiosk {
 
     /**
      * Leaves kiosk mode for good. The lock task ends with the allow-list
-     * cleared; the caller's activity then shows as a normal app.
+     * cleared; the caller's activity then shows as a normal app. [by] is
+     * logged here and kept until the PC is told ([KioskExits]).
      */
-    fun exit(context: Context) {
+    fun exit(context: Context, by: KioskExitOrigin) {
         val dpm = dpm(context)
         if (!dpm.isDeviceOwnerApp(context.packageName)) {
             _active.value = false
             return
         }
+        log.info("leaving kiosk mode, asked by: ${describe(by)}")
+        KioskExits(context).record(by)
         val admin = admin(context)
         runCatching {
             dpm.clearPackagePersistentPreferredActivities(admin, context.packageName)
@@ -85,8 +92,13 @@ object Kiosk {
         setHome(context, enabled = false)
         @Suppress("DEPRECATION") // the only way for a device owner to give up the role
         dpm.clearDeviceOwnerApp(context.packageName)
-        log.info("kiosk mode left: no longer the device owner")
+        log.info("kiosk mode left (${describe(by)}): no longer the device owner")
         _active.value = false
+    }
+
+    private fun describe(by: KioskExitOrigin) = when (by) {
+        KioskExitOrigin.Gesture -> "hidden gesture on the tablet"
+        KioskExitOrigin.Pc -> "the PC (Libérer la tablette)"
     }
 
     /** The home entry exists only in kiosk mode, so a normal tablet never asks which home app to use. */
@@ -100,6 +112,38 @@ object Kiosk {
             },
             PackageManager.DONT_KILL_APP
         )
+    }
+}
+
+/**
+ * The last exit from kiosk mode not reported to the PC yet, kept on disk so
+ * an exit made away from the PC (or before the app restarted) still reaches
+ * the PC's log at the next connection.
+ */
+class KioskExits(context: Context) : KioskExitLog {
+    private val prefs = context.applicationContext.getSharedPreferences("kiosk_exit", Context.MODE_PRIVATE)
+
+    fun record(by: KioskExitOrigin) {
+        // Written before the device owner role is given up (the app may be closed right after).
+        prefs.edit(commit = true) {
+            putString(BY, by.string)
+            putLong(AT, System.currentTimeMillis())
+        }
+    }
+
+    override fun pending(): KioskLeft? {
+        val by = KioskExitOrigin.entries.firstOrNull { it.string == prefs.getString(BY, null) } ?: return null
+        val seconds = (System.currentTimeMillis() - prefs.getLong(AT, 0L)) / 1000
+        return KioskLeft(by, seconds.coerceIn(0L, UInt.MAX_VALUE.toLong()).toUInt())
+    }
+
+    override fun reported() {
+        prefs.edit { clear() }
+    }
+
+    private companion object {
+        const val BY = "by"
+        const val AT = "at"
     }
 }
 

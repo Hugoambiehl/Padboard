@@ -33,7 +33,7 @@ fun PadboardApp(viewModel: PadboardViewModel) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val systemStatus by viewModel.systemStatus.collectAsStateWithLifecycle()
     val update by viewModel.update.collectAsStateWithLifecycle()
-    KioskExitCorner(enabled = kiosk, onExit = viewModel::exitKiosk) {
+    KioskExitCorner(enabled = kiosk, onExit = viewModel::exitKioskByGesture) {
         Box {
             ScreensaverHost(settings = settings, status = systemStatus) {
                 Screens(viewModel, link, layout, pcs)

@@ -44,8 +44,8 @@ use std::time::Duration;
 use futures_util::{SinkExt, StreamExt};
 use padboard_actions::{Action, ActionError, ActionExecutor, NavigateAction, NavigateTo};
 use padboard_protocol::{
-    AuthStatus, ButtonEvent, ErrorCode, ErrorPayload, Heartbeat, HelloPayload, Layout, Message,
-    NavigatePayload, NavigateTarget, PROTOCOL_VERSION, PairSuccessPayload, SessionMode,
+    AuthStatus, ButtonEvent, ErrorCode, ErrorPayload, Heartbeat, HelloPayload, KioskLeft, Layout,
+    Message, NavigatePayload, NavigateTarget, PROTOCOL_VERSION, PairSuccessPayload, SessionMode,
     SystemStatusPayload, TabletCommandPayload, TabletOrder, TabletSettingsPayload,
     TabletStatusPayload, UpdateRequestPayload, UpdateResultPayload, WelcomePayload, is_compatible,
     speaks_core, update_chunk_frame,
@@ -155,14 +155,16 @@ impl ServerContext {
             .sessions
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        sessions
+        let sent = sessions
             .get(&client_id)
             .and_then(|handle| handle.outbox.as_ref())
             .is_some_and(|outbox| {
                 outbox
                     .send(Message::TabletCommand(TabletCommandPayload { order }))
                     .is_ok()
-            })
+            });
+        tracing::info!(client = client_id, ?order, sent, "order to the tablet");
+        sent
     }
 
     /// Offers `package` to the tablet of connection `client_id`, which must
@@ -798,7 +800,13 @@ where
             }
             // Long presses arrive in phase 4.
             Message::ButtonRelease(_) | Message::Pong(_) => {}
-            Message::TabletStatus(TabletStatusPayload { kiosk }) => {
+            Message::TabletStatus(TabletStatusPayload { kiosk, kiosk_left }) => {
+                if let Some(KioskLeft { by, seconds_ago }) = kiosk_left {
+                    // Who took the tablet out of kiosk mode, in the PC's log
+                    // (the tablet reports it once, even if it happened
+                    // while it was away from the PC).
+                    tracing::info!(client = id, ?by, seconds_ago, "the tablet left kiosk mode");
+                }
                 // Kiosk mode is device owner mode: updates then install
                 // silently, whatever `hello` said (kiosk turned on since).
                 if let Some(handle) = ctx
@@ -1758,7 +1766,10 @@ mod tests {
             Message::ButtonRelease(ButtonEvent {
                 button_id: "copy".into(),
             }),
-            Message::TabletStatus(TabletStatusPayload { kiosk: true }),
+            Message::TabletStatus(TabletStatusPayload {
+                kiosk: true,
+                kiosk_left: None,
+            }),
             pair_request("123456"),
             hello(PROTOCOL_VERSION + 1),
             Message::TabletSettings(TabletSettingsPayload {
@@ -1936,7 +1947,10 @@ mod tests {
         let mut plain_client = _plain;
         send_msg(
             &mut plain_client,
-            &Message::TabletStatus(TabletStatusPayload { kiosk: true }),
+            &Message::TabletStatus(TabletStatusPayload {
+                kiosk: true,
+                kiosk_left: None,
+            }),
         )
         .await;
         loop {
@@ -2557,7 +2571,10 @@ mod tests {
         };
         send_msg(
             &mut client,
-            &Message::TabletStatus(TabletStatusPayload { kiosk: true }),
+            &Message::TabletStatus(TabletStatusPayload {
+                kiosk: true,
+                kiosk_left: None,
+            }),
         )
         .await;
         loop {
@@ -2577,6 +2594,24 @@ mod tests {
                 order: TabletOrder::ExitKiosk
             })
         );
+        // The tablet obeys and says who asked (logged by the PC).
+        send_msg(
+            &mut client,
+            &Message::TabletStatus(TabletStatusPayload {
+                kiosk: false,
+                kiosk_left: Some(KioskLeft {
+                    by: padboard_protocol::KioskExitOrigin::Pc,
+                    seconds_ago: 0,
+                }),
+            }),
+        )
+        .await;
+        loop {
+            if let ServerEvent::TabletStatus { id: from, kiosk } = next_event(&mut h).await {
+                assert_eq!((from, kiosk), (id, false));
+                break;
+            }
+        }
         drop(client);
         loop {
             if let ServerEvent::ClientDisconnected { .. } = next_event(&mut h).await {

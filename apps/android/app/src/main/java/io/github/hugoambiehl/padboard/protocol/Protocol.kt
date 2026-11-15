@@ -141,6 +141,25 @@ data class HelloPayload (
 )
 
 @Serializable
+enum class KioskExitOrigin(val string: String) {
+	/// The hidden gesture on the tablet (corner held, then confirmed).
+	@SerialName("gesture")
+	Gesture("gesture"),
+	/// "Libérer la tablette" on the PC (`tablet:command` `exit_kiosk`).
+	@SerialName("pc")
+	Pc("pc"),
+}
+
+/// How and when the tablet left kiosk mode.
+@Serializable
+data class KioskLeft (
+	val by: KioskExitOrigin,
+	/// Seconds between leaving and sending this report (the tablet's and
+	/// the PC's clocks may disagree; a duration does not depend on them).
+	val secondsAgo: UInt
+)
+
+@Serializable
 data class ProfileInfo (
 	val id: String,
 	val name: String
@@ -259,7 +278,11 @@ data class TabletSettingsPayload (
 @Serializable
 data class TabletStatusPayload (
 	/// Kiosk mode: the app is the tablet's device owner, locked in front.
-	val kiosk: Boolean
+	val kiosk: Boolean,
+	/// Kiosk mode was left and the PC has not been told yet: reported once,
+	/// in the first `tablet:status` sent after it (protocol 5, optional:
+	/// older tablets never send it, older PCs ignore it).
+	val kioskLeft: KioskLeft? = null
 )
 
 @Serializable

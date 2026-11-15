@@ -1,11 +1,12 @@
 use padboard_protocol::{
     AuthStatus, ButtonEvent, ButtonView, Category, ErrorCode, ErrorPayload, Folder, GridSize,
-    Heartbeat, HelloPayload, Layout, Message, NavigatePayload, NavigateTarget, PROTOCOL_VERSION,
-    Page, PairFailurePayload, PairFailureReason, PairRequestPayload, PairSuccessPayload,
-    ProfileInfo, REDACTED, SessionMode, SystemStatusPayload, TabletCommandPayload, TabletOrder,
-    TabletSettingsPayload, TabletStatusPayload, UPDATE_CHUNK_SIZE, UpdateOfferPayload,
-    UpdateOutcome, UpdateRequestPayload, UpdateResultPayload, WelcomePayload, is_compatible,
-    parse_update_chunk, short_fingerprint, speaks_core, update_chunk_frame,
+    Heartbeat, HelloPayload, KioskExitOrigin, KioskLeft, Layout, Message, NavigatePayload,
+    NavigateTarget, PROTOCOL_VERSION, Page, PairFailurePayload, PairFailureReason,
+    PairRequestPayload, PairSuccessPayload, ProfileInfo, REDACTED, SessionMode,
+    SystemStatusPayload, TabletCommandPayload, TabletOrder, TabletSettingsPayload,
+    TabletStatusPayload, UPDATE_CHUNK_SIZE, UpdateOfferPayload, UpdateOutcome,
+    UpdateRequestPayload, UpdateResultPayload, WelcomePayload, is_compatible, parse_update_chunk,
+    short_fingerprint, speaks_core, update_chunk_frame,
 };
 use serde_json::json;
 
@@ -113,7 +114,17 @@ fn all_messages() -> Vec<Message> {
             to: NavigateTarget::Back,
             id: None,
         }),
-        Message::TabletStatus(TabletStatusPayload { kiosk: false }),
+        Message::TabletStatus(TabletStatusPayload {
+            kiosk: false,
+            kiosk_left: None,
+        }),
+        Message::TabletStatus(TabletStatusPayload {
+            kiosk: false,
+            kiosk_left: Some(KioskLeft {
+                by: KioskExitOrigin::Pc,
+                seconds_ago: 0,
+            }),
+        }),
         Message::TabletCommand(TabletCommandPayload {
             order: TabletOrder::ExitKiosk,
         }),
@@ -179,6 +190,18 @@ fn unknown_fields_are_ignored_for_forward_compatibility() {
             button_id: "mic".into()
         })
     );
+}
+
+#[test]
+fn a_tablet_status_without_the_kiosk_exit_still_decodes() {
+    // What tablets before 0.2.0-rc.2 send; and nothing is added when unset.
+    let json = r#"{"type":"tablet:status","payload":{"kiosk":true}}"#;
+    let status = Message::TabletStatus(TabletStatusPayload {
+        kiosk: true,
+        kiosk_left: None,
+    });
+    assert_eq!(Message::from_json(json).unwrap(), status);
+    assert_eq!(status.to_json().unwrap(), json);
 }
 
 #[test]

@@ -7,6 +7,8 @@ import io.github.hugoambiehl.padboard.protocol.ErrorCode
 import io.github.hugoambiehl.padboard.protocol.ErrorPayload
 import io.github.hugoambiehl.padboard.protocol.Fingerprint
 import io.github.hugoambiehl.padboard.protocol.GridSize
+import io.github.hugoambiehl.padboard.protocol.KioskExitOrigin
+import io.github.hugoambiehl.padboard.protocol.KioskLeft
 import io.github.hugoambiehl.padboard.protocol.Layout
 import io.github.hugoambiehl.padboard.protocol.Message
 import io.github.hugoambiehl.padboard.protocol.NavigatePayload
@@ -18,6 +20,7 @@ import io.github.hugoambiehl.padboard.protocol.PairFailureReason
 import io.github.hugoambiehl.padboard.protocol.PairSuccessPayload
 import io.github.hugoambiehl.padboard.protocol.ProfileInfo
 import io.github.hugoambiehl.padboard.protocol.SessionMode
+import io.github.hugoambiehl.padboard.protocol.TabletStatusPayload
 import io.github.hugoambiehl.padboard.protocol.UPDATE_CHUNK_SIZE
 import io.github.hugoambiehl.padboard.protocol.UpdateOfferPayload
 import io.github.hugoambiehl.padboard.protocol.UpdateOutcome
@@ -338,6 +341,33 @@ class ConnectionManagerTest {
         assertEquals("0.2.0", hello.appVersion)
         assertEquals(20099u, hello.appVersionCode)
         assertEquals(true, hello.silentInstall)
+    }
+
+    @Test
+    fun aKioskExitIsReportedToThePcOnce() {
+        // Left with the hidden gesture while away from the PC: told at the next connection.
+        val exits =
+            object : KioskExitLog {
+                var left: KioskLeft? = KioskLeft(KioskExitOrigin.Gesture, 42u)
+                var reports = 0
+
+                override fun pending() = left
+
+                override fun reported() {
+                    reports++
+                    left = null
+                }
+            }
+        val m = ConnectionManager(scope, OkHttpClient(), pairing, directory, "Test tablet", config, kioskExits = exits)
+        connectedOverUsb(m)
+        fun statuses() = pc.received.filterIsInstance<Message.TabletStatus>().map { it.payload }
+        runBlocking { withTimeout(5.seconds) { pc.receivedFlow.first { _ -> statuses().isNotEmpty() } } }
+        assertEquals(TabletStatusPayload(false, KioskLeft(KioskExitOrigin.Gesture, 42u)), statuses().single())
+        // The next status no longer carries it.
+        m.setKiosk(true)
+        runBlocking { withTimeout(5.seconds) { pc.receivedFlow.first { _ -> statuses().size == 2 } } }
+        assertEquals(TabletStatusPayload(true, null), statuses().last())
+        assertEquals(1, exits.reports)
     }
 
     @Test

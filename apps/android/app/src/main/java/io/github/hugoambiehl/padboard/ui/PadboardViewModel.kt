@@ -13,6 +13,8 @@ import io.github.hugoambiehl.padboard.connection.LinkState
 import io.github.hugoambiehl.padboard.connection.NsdDirectory
 import io.github.hugoambiehl.padboard.connection.PairingStore
 import io.github.hugoambiehl.padboard.kiosk.Kiosk
+import io.github.hugoambiehl.padboard.kiosk.KioskExits
+import io.github.hugoambiehl.padboard.protocol.KioskExitOrigin
 import io.github.hugoambiehl.padboard.protocol.TabletOrder
 import io.github.hugoambiehl.padboard.ui.grid.PageMemory
 import io.github.hugoambiehl.padboard.update.AndroidUpdater
@@ -34,7 +36,8 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
             pairing = PairingStore(application),
             directory = directory,
             deviceName = deviceName(application),
-            updater = AndroidUpdater(application)
+            updater = AndroidUpdater(application),
+            kioskExits = KioskExits(application)
         )
 
     val link = manager.state
@@ -64,7 +67,7 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             manager.orders.collect { order ->
                 when (order) {
-                    TabletOrder.ExitKiosk -> exitKiosk()
+                    TabletOrder.ExitKiosk -> Kiosk.exit(getApplication(), KioskExitOrigin.Pc)
                 }
             }
         }
@@ -90,8 +93,8 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
 
     fun retry() = manager.retry()
 
-    /** From the hidden gesture or the PC: kiosk mode is left for good. */
-    fun exitKiosk() = Kiosk.exit(getApplication())
+    /** The hidden gesture, confirmed: kiosk mode is left for good. */
+    fun exitKioskByGesture() = Kiosk.exit(getApplication(), KioskExitOrigin.Gesture)
 
     /** "Réessayer maintenant" while the PC is out of reach. */
     fun retryNow() = manager.nudge()

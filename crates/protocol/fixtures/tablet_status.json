@@ -1,6 +1,10 @@
 {
   "type": "tablet:status",
   "payload": {
-    "kiosk": true
+    "kiosk": false,
+    "kioskLeft": {
+      "by": "gesture",
+      "secondsAgo": 42
+    }
   }
 }

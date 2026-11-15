@@ -146,7 +146,8 @@ class ConnectionManager(
     private val directory: PcDirectory,
     private val deviceName: String,
     private val config: Config = Config(),
-    private val updater: AppUpdater = AppUpdater.None
+    private val updater: AppUpdater = AppUpdater.None,
+    private val kioskExits: KioskExitLog = KioskExitLog.None
 ) {
     data class Config(
         val usbEndpoint: Endpoint = Endpoint(Endpoint.LOOPBACK, Endpoint.USB_PORT),
@@ -315,7 +316,15 @@ class ConnectionManager(
         scope.launch {
             if (kiosk == on) return@launch
             kiosk = on
-            active?.session?.send(Message.TabletStatus(TabletStatusPayload(kiosk)))
+            active?.session?.let(::sendStatus)
+        }
+    }
+
+    /** `tablet:status`, with the kiosk exit the PC has not heard of yet (once). */
+    private fun sendStatus(session: Session) {
+        val left = kioskExits.pending()
+        if (session.send(Message.TabletStatus(TabletStatusPayload(kiosk, left))) && left != null) {
+            kioskExits.reported()
         }
     }
 
@@ -496,7 +505,7 @@ class ConnectionManager(
             active = link
             _state.value = LinkState.Connected(link.transport, link.welcome.serverName, paired, latencyMs = null)
             log.info("connected to ${link.welcome.serverName} over ${link.transport}")
-            link.session.send(Message.TabletStatus(TabletStatusPayload(kiosk)))
+            sendStatus(link.session)
         } else {
             val pcIsNewer = link.welcome.protocolVersion > PROTOCOL_VERSION
             _state.value = LinkState.UpdateOnly(link.transport, link.welcome.serverName, pcIsNewer)
