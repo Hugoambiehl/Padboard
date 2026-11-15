@@ -6,6 +6,7 @@ import BaseCard from "./BaseCard.vue";
 import { exitKiosk, updateWifiTablet } from "../commands";
 import type { ClientInfo, DroppedTablet, OutdatedTablet, TabletUpdate } from "../types/status";
 import { needsUpdate, wifiUpdateErrorMessage } from "../usb/update";
+import { type ReleaseArm, releaseClick } from "../usb/kiosk";
 import { useNow } from "../composables/useNow";
 
 const props = defineProps<{
@@ -36,8 +37,9 @@ function outdatedText(o: OutdatedTablet): string {
 }
 const { t, d } = useI18n();
 
-/** Tablet whose release from kiosk mode waits for a second click. */
-const confirming = ref<number | null>(null);
+/** Tablet whose release from kiosk mode waits for a second click (not a double-click). */
+const arm = ref<ReleaseArm>(null);
+const confirming = computed(() => arm.value?.id ?? null);
 const error = ref<string | null>(null);
 
 /** Updates over Wi-Fi: the request being sent, and why it was refused. */
@@ -83,11 +85,9 @@ function progress(u: TabletUpdate): { text: string; tone: string } {
 }
 
 async function release(id: number) {
-  if (confirming.value !== id) {
-    confirming.value = id;
-    return;
-  }
-  confirming.value = null;
+  const click = releaseClick(arm.value, id, Date.now());
+  arm.value = click.arm;
+  if (!click.confirmed) return;
   error.value = null;
   try {
     await exitKiosk(id);
@@ -177,7 +177,7 @@ async function release(id: number) {
               : 'border-line-2 bg-surface text-muted-2 hover:bg-surface-active hover:text-fg'
           "
           @click="release(c.id)"
-          @blur="confirming = null"
+          @blur="arm = null"
         >
           {{ confirming === c.id ? t("clients.confirmExitKiosk") : t("clients.exitKiosk") }}
         </button>

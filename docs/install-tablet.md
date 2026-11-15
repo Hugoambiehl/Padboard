@@ -148,7 +148,8 @@ the tablet becomes an ordinary tablet again, and Padboard can be
 uninstalled.
 
 - From the PC: *Connections* → *Connected tablets* → **Release the tablet**
-  (click twice).
+  (click, then click again at least a second later: a double-click only
+  arms the button).
 - On the tablet, even without a PC: hold the **bottom-left corner** of the
   screen (right against both edges: the spot is small, about 6 mm) for
   5 seconds without moving, then confirm. Nothing is ever drawn there, so

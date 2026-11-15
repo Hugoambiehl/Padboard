@@ -49,6 +49,7 @@ Kiosk mode on (*Activer le mode kiosque* in the PC's USB card).
 | Red button | Open the confirmation, tap the red button at once | Nothing for about 2 s (dimmed button), then it works |
 | Cancel | Open it, then each in turn: *Annuler*, Back (if the button bar shows one), a tap outside the dialog, no touch for 30 s | The dialog closes each time; `dpm list-owners` still lists Padboard |
 | Leave | Open it, wait 2 s, tap *Quitter le mode kiosque* | The tablet is ordinary again (status bar, launcher); `dpm list-owners` lists nothing; tablet log: *leaving kiosk mode, asked by: hidden gesture on the tablet*; PC log: *the tablet left kiosk mode* `by=Gesture` |
+| Double-click on the PC | Double-click *Libérer la tablette* in *Tablettes connectées* | The button only turns red (*Confirmer : quitter le mode kiosque*); the tablet stays in kiosk mode; clicking elsewhere puts the button back |
 | From the PC | Kiosk mode on again, then *Libérer la tablette* in *Tablettes connectées* | Kiosk mode left; PC log: *order to the tablet* `order=ExitKiosk`, then *the tablet left kiosk mode* `by=Pc`; tablet log: *… the PC (Libérer la tablette)* |
 | Left away from the PC | Kiosk mode on, quit Padboard on the PC, leave kiosk mode with the corner, wait a minute, start Padboard again | Once the tablet is back: PC log *the tablet left kiosk mode* `by=Gesture` with `seconds_ago` ≈ the time it was away, logged once (not again at the next reconnection) |
 

@@ -25,3 +25,23 @@ export function kioskErrorMessage(error: unknown): { key: string; params: Record
       return { key: "usbDevices.kiosk.error.failed", params: { detail: String(error) } };
   }
 }
+
+/**
+ * "Libérer la tablette" takes two clicks, and the second one counts only
+ * this long after the first: a double-click only arms the button.
+ */
+export const RELEASE_ARM_MS = 1000;
+
+/** The tablet whose release button is armed, and since when. */
+export type ReleaseArm = { id: number; at: number } | null;
+
+/** A click on tablet `id`'s release button at `now`: arms it, is ignored (too soon), or confirms. */
+export function releaseClick(
+  arm: ReleaseArm,
+  id: number,
+  now: number,
+): { arm: ReleaseArm; confirmed: boolean } {
+  if (arm?.id !== id) return { arm: { id, at: now }, confirmed: false };
+  if (now - arm.at < RELEASE_ARM_MS) return { arm, confirmed: false };
+  return { arm: null, confirmed: true };
+}
