@@ -57,7 +57,8 @@
     "linux": {
       "deb": {
         "depends": [
-          "adb"
+          "adb",
+          "ca-certificates"
         ],
         "files": {
           "/usr/share/doc/padboard/copyright": "../../../LICENSE"
