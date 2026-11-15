@@ -69,8 +69,9 @@ for `apksigner`; the GitHub CLI (`gh`).
 
    **Antiviruses**, while the installer is not signed (Authenticode): before
    publishing, upload the signed draft's `Padboard_X_x64-setup.exe` to
-   [VirusTotal](https://www.virustotal.com) and submit it to Bitdefender as
-   a false positive ([bitdefender.com/submit](https://www.bitdefender.com/submit),
+   [VirusTotal](https://www.virustotal.com) (below) and, if Bitdefender
+   detects it there or on Windows, submit it as a false positive
+   ([bitdefender.com/submit](https://www.bitdefender.com/submit),
    category *False Positive*, detection name if any, e.g. `Atc4.Detection`),
    so the first users do not meet a detection. Bitdefender's *Advanced
    Threat Control* quarantined a test installer started by the updater (see
@@ -78,6 +79,29 @@ for `apksigner`; the GitHub CLI (`gh`).
    why the updater opens the installer as a wizard (`installMode`
    `basicUi` in `tauri.conf.json`) instead of the passive mode: go back to
    `passive` once SignPath signs the installer.
+
+   **VirusTotal**, step by step:
+
+   1. Download the signed draft's installer
+      (`gh release download vX --pattern 'Padboard_*_x64-setup.exe'`) and
+      check its SHA-256 against the draft's `SHA256SUMS`
+      (`sha256sum -c --ignore-missing SHA256SUMS`).
+   2. Upload it to [virustotal.com](https://www.virustotal.com) (*File*).
+      Check that the SHA-256 VirusTotal shows is the same.
+   3. Expected: **Bitdefender and Microsoft *Undetected***, and no more
+      than a lone heuristic verdict on unknown unsigned programs. For
+      0.2.0-rc.1: 1/70, SecureAge *Malicious* (its heuristic on unknown
+      unsigned executables), every other engine *Undetected*. Note the
+      result (count, engines, SHA-256) in the release's notes.
+   4. Stop and do not publish if Bitdefender or Microsoft detects it, or if
+      an engine gives a named detection (a family name, not a generic
+      heuristic): rebuild nothing yet, look at what changed since the
+      previous clean release.
+
+   And on Windows, Bitdefender active with no exception for Padboard
+   (`docs/windows-test-plan.md`, section 7): nothing detected during the
+   download, the installation, the first launch watched for 5 minutes,
+   *Installer adb* and the first run of `adb.exe` (seen with 0.2.0-rc.1).
 
 5. **Publish** the draft from the GitHub page (or
    `gh release edit v0.1.0-rc.1 --draft=false`). From then on, the apps
@@ -118,8 +142,9 @@ After `scripts/sign-release.sh`, before publishing:
 - [ ] The tablet APK: `adb install -r`, then an update from the PC.
 - [ ] `docs/tablet-test-plan.md` on the real tablet (the section of the
       release, e.g. the kiosk exit corner and Android's system gestures).
-- [ ] VirusTotal and Bitdefender's false positive form for the installer
-      (step 4, *Antiviruses*).
+- [ ] VirusTotal (step 4: Bitdefender and Microsoft undetected, at most a
+      lone heuristic such as SecureAge's) and Bitdefender's false positive
+      form for the installer if it detected anything.
 - [ ] For a release candidate that follows another: the real update from
       the previous one, with Bitdefender active
       (`docs/windows-test-plan.md`, *Real update with an antivirus*).
