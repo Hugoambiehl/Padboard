@@ -80,9 +80,12 @@ Padboard, as a regular app.
 
 USB needs no pairing and no network.
 
-1. Install **adb**: `sudo apt install adb` (built from the Android Open
-   Source Project, Apache-2.0). Padboard finds it in the `PATH`, or choose
-   its location in *Connections* → *USB devices*.
+1. **adb** carries the connection over the cable. It comes with Padboard:
+   the `.deb` depends on your distribution's `adb` package (built from the
+   Android Open Source Project, Apache-2.0), so `apt` installed it with
+   Padboard (from Ubuntu's *universe* component, on by default). Padboard
+   finds it in the `PATH`; another one can be chosen in *Connections* →
+   *USB devices*.
 2. On the tablet, turn on **USB debugging** (see the
    [tablet guide](install-tablet.md#usb-debugging)), plug it in and accept
    the *Allow USB debugging?* prompt.
@@ -90,7 +93,9 @@ USB needs no pairing and no network.
    tablet connects by itself.
 
 If the row says *Access to the device denied*, your system lacks the udev
-rules for Android devices: `sudo apt install android-sdk-platform-tools-common`.
+rules for Android devices (`apt` installs them with `adb` unless
+recommended packages are turned off):
+`sudo apt install android-sdk-platform-tools-common`.
 
 ## 5. Or connect it over Wi-Fi
 

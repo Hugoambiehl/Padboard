@@ -56,6 +56,7 @@
     },
     "linux": {
       "deb": {
+        "depends": ["adb"],
         "files": {
           "/usr/share/doc/padboard/copyright": "../../../LICENSE"
         }
