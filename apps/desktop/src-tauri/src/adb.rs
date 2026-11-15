@@ -33,6 +33,14 @@ const INSTALL_TIMEOUT: Duration = Duration::from_secs(180);
 const RECHECK_EVERY: Duration = Duration::from_secs(5);
 const RETRY_MIN: Duration = Duration::from_secs(1);
 const RETRY_MAX: Duration = Duration::from_secs(10);
+/// No adb server answering: wait this long and ask again before starting
+/// one, in case another tool (Android Studio) is starting it right now (two
+/// servers starting together: the second aborts, and the system may report
+/// it as a crash).
+const START_GRACE: Duration = Duration::from_secs(1);
+/// The server restarting this often means another program keeps stopping it.
+const RESTARTS_WINDOW: Duration = Duration::from_secs(60);
+const RESTARTS_FREQUENT: usize = 3;
 /// Bounds the size of a device list message (4 hex digits allow 64 KiB).
 const MAX_MESSAGE: usize = 0xffff;
 
@@ -43,6 +51,9 @@ const MAX_MESSAGE: usize = 0xffff;
 pub struct UsbStatus {
     pub adb: AdbState,
     pub devices: Vec<UsbDevice>,
+    /// The adb server stopped [`RESTARTS_FREQUENT`] times within
+    /// [`RESTARTS_WINDOW`]: another program keeps stopping it.
+    pub server_unstable: bool,
 }
 
 impl Default for UsbStatus {
@@ -50,6 +61,7 @@ impl Default for UsbStatus {
         Self {
             adb: AdbState::Searching,
             devices: Vec::new(),
+            server_unstable: false,
         }
     }
 }
@@ -73,6 +85,18 @@ pub enum AdbState {
     Error {
         path: String,
         detail: String,
+    },
+    /// The running adb server speaks another version than this `adb`
+    /// (another adb on the PC started it). Each would stop the other's
+    /// server on every command, cutting USB: Padboard leaves it alone and
+    /// asks to use one adb everywhere. Checked again periodically.
+    #[serde(rename_all = "camelCase")]
+    Conflict {
+        path: String,
+        /// The server version of `path` ("1.0.41" → 41).
+        client: u32,
+        /// The running server's.
+        server: u32,
     },
 }
 
@@ -516,6 +540,64 @@ async fn track_devices(port: u16) -> Result<TcpStream, ProtocolError> {
     }
 }
 
+/// The running server's version (`host:version`: 4 hex digits, e.g.
+/// `0029` for 41). Does not start a server.
+async fn server_version(port: u16) -> Result<u32, ProtocolError> {
+    let mut stream = TcpStream::connect(("127.0.0.1", port)).await?;
+    let request = "host:version";
+    stream
+        .write_all(format!("{:04x}{request}", request.len()).as_bytes())
+        .await?;
+    let mut status = [0u8; 4];
+    stream.read_exact(&mut status).await?;
+    match &status {
+        b"OKAY" => {
+            let version = read_message(&mut stream).await?;
+            u32::from_str_radix(version.trim(), 16).map_err(|_| ProtocolError::Malformed)
+        }
+        b"FAIL" => Err(ProtocolError::Refused(read_message(&mut stream).await?)),
+        _ => Err(ProtocolError::Malformed),
+    }
+}
+
+/// The server version of an `adb` from its `adb version` output
+/// ("Android Debug Bridge version 1.0.41" → 41).
+fn client_version(output: &str) -> Option<u32> {
+    output
+        .lines()
+        .next()?
+        .split_whitespace()
+        .last()?
+        .strip_prefix("1.0.")?
+        .parse()
+        .ok()
+}
+
+/// When the adb server stopped after working (another program stopping it).
+#[derive(Debug, Default)]
+struct Restarts(std::collections::VecDeque<tokio::time::Instant>);
+
+impl Restarts {
+    fn record(&mut self, now: tokio::time::Instant) {
+        self.0.push_back(now);
+        while self
+            .0
+            .front()
+            .is_some_and(|t| now.duration_since(*t) > RESTARTS_WINDOW)
+        {
+            self.0.pop_front();
+        }
+    }
+
+    fn frequent(&self, now: tokio::time::Instant) -> bool {
+        self.0
+            .iter()
+            .filter(|t| now.duration_since(**t) <= RESTARTS_WINDOW)
+            .count()
+            >= RESTARTS_FREQUENT
+    }
+}
+
 /// One length-prefixed message (4 hex digits, then the payload).
 async fn read_message(stream: &mut TcpStream) -> Result<String, ProtocolError> {
     let mut len = [0u8; 4];
@@ -599,10 +681,12 @@ pub async fn run<R: Runner + Clone>(
     report: impl Fn(UsbStatus) + Send + 'static,
 ) {
     let mut retry = RETRY_MIN;
+    let mut restarts = Restarts::default();
     loop {
         let path = chosen.borrow_and_update().clone();
+        let unstable = restarts.frequent(tokio::time::Instant::now());
         let outcome = tokio::select! {
-            outcome = session(&config, &runner, path.as_deref(), &mut refresh, &report) => outcome,
+            outcome = session(&config, &runner, path.as_deref(), unstable, &mut refresh, &report) => outcome,
             changed = chosen.changed() => {
                 if changed.is_err() {
                     return; // the app is shutting down
@@ -613,7 +697,13 @@ pub async fn run<R: Runner + Clone>(
         };
         match outcome {
             // Tracked until the server went away: reconnect quickly.
-            Ok(()) => retry = RETRY_MIN,
+            Ok(()) => {
+                retry = RETRY_MIN;
+                restarts.record(tokio::time::Instant::now());
+                if restarts.frequent(tokio::time::Instant::now()) {
+                    tracing::warn!("the adb server keeps stopping: another program stops it");
+                }
+            }
             Err(()) => retry = (retry * 2).min(RETRY_MAX),
         }
         tokio::select! {
@@ -634,10 +724,14 @@ async fn session<R: Runner + Clone>(
     config: &Config,
     runner: &R,
     chosen: Option<&Path>,
+    server_unstable: bool,
     refresh: &mut mpsc::UnboundedReceiver<()>,
     report: &impl Fn(UsbStatus),
 ) -> Result<(), ()> {
-    let mut status = UsbStatus::default();
+    let mut status = UsbStatus {
+        server_unstable,
+        ..UsbStatus::default()
+    };
     let Some(adb) = locate(chosen) else {
         status.adb = AdbState::Missing {
             chosen: chosen.map(|p| p.display().to_string()),
@@ -646,9 +740,33 @@ async fn session<R: Runner + Clone>(
         return Err(());
     };
     let path = adb.display().to_string();
-    // Starts the server if needed (no-op when it runs).
-    if let Err(detail) = runner.run(&adb, vec!["start-server".into()]).await {
-        tracing::warn!("adb start-server failed: {detail}");
+    let version_output = runner.run(&adb, vec!["version".into()]).await.ok();
+    let client = version_output.as_deref().and_then(client_version);
+    // A running server is used as is; one of another version is left alone
+    // (any command of this adb would stop it). None: wait a moment (another
+    // tool may be starting one), then start it.
+    let mut running = server_version(config.server_port).await.ok();
+    if running.is_none() {
+        sleep(START_GRACE).await;
+        running = server_version(config.server_port).await.ok();
+    }
+    match (running, client) {
+        (Some(server), Some(client)) if server != client => {
+            tracing::warn!(adb = %path, client, server, "the running adb server is another version: left alone");
+            status.adb = AdbState::Conflict {
+                path,
+                client,
+                server,
+            };
+            report(status);
+            return Err(());
+        }
+        (Some(_), _) => {}
+        (None, _) => {
+            if let Err(detail) = runner.run(&adb, vec!["start-server".into()]).await {
+                tracing::warn!("adb start-server failed: {detail}");
+            }
+        }
     }
     let stream = match track_devices(config.server_port).await {
         Ok(stream) => stream,
@@ -662,11 +780,7 @@ async fn session<R: Runner + Clone>(
             return Err(());
         }
     };
-    let version = runner
-        .run(&adb, vec!["version".into()])
-        .await
-        .ok()
-        .and_then(|out| out.lines().next().map(|l| l.trim().to_owned()));
+    let version = version_output.and_then(|out| out.lines().next().map(|l| l.trim().to_owned()));
     status.adb = AdbState::Ready {
         path: path.clone(),
         version,
@@ -1237,21 +1351,49 @@ java.lang.IllegalStateException: Trying to set the device owner, but device owne
         );
     }
 
-    /// Fake adb server: answers `host:track-devices` then pushes the lists
-    /// sent on the returned channel.
+    /// Fake adb server (version 41): answers `host:version`, and
+    /// `host:track-devices` once, then pushes the lists sent on the
+    /// returned channel.
     async fn fake_server() -> (u16, mpsc::UnboundedSender<String>) {
+        fake_server_of_version(41).await
+    }
+
+    async fn fake_server_of_version(version: u32) -> (u16, mpsc::UnboundedSender<String>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
-        let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+        let (tx, rx) = mpsc::unbounded_channel::<String>();
         tokio::spawn(async move {
-            let (mut stream, _) = listener.accept().await.unwrap();
-            let mut request = [0u8; 22];
-            stream.read_exact(&mut request).await.unwrap();
-            assert_eq!(&request, b"0012host:track-devices");
-            stream.write_all(b"OKAY").await.unwrap();
-            while let Some(list) = rx.recv().await {
-                let message = format!("{:04x}{list}", list.len());
-                stream.write_all(message.as_bytes()).await.unwrap();
+            let mut rx = Some(rx);
+            loop {
+                let Ok((mut stream, _)) = listener.accept().await else {
+                    return;
+                };
+                let mut len = [0u8; 4];
+                if stream.read_exact(&mut len).await.is_err() {
+                    continue;
+                }
+                let len = usize::from_str_radix(std::str::from_utf8(&len).unwrap(), 16).unwrap();
+                let mut request = vec![0u8; len];
+                stream.read_exact(&mut request).await.unwrap();
+                match request.as_slice() {
+                    b"host:version" => {
+                        let answer = format!("OKAY0004{version:04x}");
+                        let _ = stream.write_all(answer.as_bytes()).await;
+                    }
+                    b"host:track-devices" => {
+                        let Some(mut rx) = rx.take() else { continue };
+                        stream.write_all(b"OKAY").await.unwrap();
+                        tokio::spawn(async move {
+                            while let Some(list) = rx.recv().await {
+                                let message = format!("{:04x}{list}", list.len());
+                                if stream.write_all(message.as_bytes()).await.is_err() {
+                                    return;
+                                }
+                            }
+                        });
+                    }
+                    other => panic!("unexpected request {:?}", String::from_utf8_lossy(other)),
+                }
             }
         });
         (port, tx)
@@ -1495,5 +1637,97 @@ java.lang.IllegalStateException: Trying to set the device owner, but device owne
         ));
         let status = next_status(&mut statuses).await;
         assert!(matches!(status.adb, AdbState::Error { .. }), "{status:?}");
+    }
+
+    #[test]
+    fn reads_the_client_server_version() {
+        assert_eq!(
+            client_version("Android Debug Bridge version 1.0.41\nVersion 34.0.4-debian\n"),
+            Some(41)
+        );
+        assert_eq!(
+            client_version("Android Debug Bridge version 1.0.39\n"),
+            Some(39)
+        );
+        assert_eq!(client_version("something else"), None);
+        assert_eq!(client_version(""), None);
+    }
+
+    #[test]
+    fn frequent_restarts_are_counted_within_a_minute() {
+        let start = tokio::time::Instant::now();
+        let mut restarts = Restarts::default();
+        restarts.record(start);
+        restarts.record(start + Duration::from_secs(10));
+        assert!(!restarts.frequent(start + Duration::from_secs(10)));
+        restarts.record(start + Duration::from_secs(20));
+        assert!(restarts.frequent(start + Duration::from_secs(20)));
+        // A minute later, the first ones no longer count.
+        assert!(!restarts.frequent(start + Duration::from_secs(75)));
+        restarts.record(start + Duration::from_secs(200));
+        assert_eq!(restarts.0.len(), 1);
+    }
+
+    /// Another adb (another server version) runs the server: Padboard
+    /// reports it and sends no command that would stop that server.
+    #[tokio::test]
+    async fn a_server_of_another_version_is_reported_and_left_alone() {
+        let tmp = tempfile::tempdir().unwrap();
+        let adb = tmp.path().join("adb");
+        std::fs::write(&adb, "").unwrap();
+        let (server_port, _lists) = fake_server_of_version(40).await;
+        let runner = FakeRunner::default();
+        let (_chosen_tx, chosen) = watch::channel(Some(adb.clone()));
+        let (status_tx, mut statuses) = mpsc::unbounded_channel();
+        tokio::spawn(run(
+            Config {
+                usb_port: 47321,
+                server_port,
+            },
+            runner.clone(),
+            chosen,
+            mpsc::unbounded_channel().1,
+            move |s| {
+                let _ = status_tx.send(s);
+            },
+        ));
+        let status = next_status(&mut statuses).await;
+        assert_eq!(
+            status.adb,
+            AdbState::Conflict {
+                path: adb.display().to_string(),
+                client: 41,
+                server: 40
+            }
+        );
+        // Only `adb version` (which does not touch the server) was run.
+        let calls = runner.calls.lock().unwrap().clone();
+        assert!(calls.iter().all(|c| c == "version"), "{calls:?}");
+    }
+
+    /// A running server of the same version is used without start-server.
+    #[tokio::test]
+    async fn a_running_server_is_not_started_again() {
+        let tmp = tempfile::tempdir().unwrap();
+        let adb = tmp.path().join("adb");
+        std::fs::write(&adb, "").unwrap();
+        let (server_port, _lists) = fake_server().await;
+        let runner = FakeRunner::default();
+        let (_chosen_tx, chosen) = watch::channel(Some(adb));
+        let (status_tx, mut statuses) = mpsc::unbounded_channel();
+        tokio::spawn(run(
+            Config {
+                usb_port: 47321,
+                server_port,
+            },
+            runner.clone(),
+            chosen,
+            mpsc::unbounded_channel().1,
+            move |s| {
+                let _ = status_tx.send(s);
+            },
+        ));
+        wait_for(&mut statuses, |s| matches!(s.adb, AdbState::Ready { .. })).await;
+        assert_eq!(runner.calls_matching("start-server"), 0);
     }
 }

@@ -65,6 +65,16 @@ Same WebSocket protocol over two transports:
   package (`bundle.linux.deb.depends`), which recommends the udev rules.
   Windows drivers: none needed for the SM-T580 on Windows 11; Samsung's
   driver is documented as a fallback (`help.rs` links the guides).
+  **Several adb on one PC** (adb.rs): they share one server (port 5037);
+  different server versions (`adb version` "1.0.N") stop each other's
+  server. Before any command Padboard asks the server its version
+  (`host:version`): another version = `AdbState::Conflict`, server left
+  alone (no `start-server`, no command), retried. No server: wait
+  `START_GRACE` (1 s) and ask again before `start-server` (two servers
+  starting together: one aborts, Ubuntu reports a crash). 3 server stops
+  within a minute = `UsbStatus.server_unstable`. Docs: "Several adb on the
+  same PC" in install-linux.md / install-windows.md. Seen on Hugo's PC:
+  Ubuntu's adb 34 and the SDK's 37 are both 1.0.41 and coexist.
 - **Wi-Fi**, port **47322**, **TLS (`wss://`)**, opt-in (see LAN default below):
   mDNS (`mdns-sd`) ↔ NsdManager. The desktop has its own long-lived self-signed
   certificate; the tablet **pins the SHA-256 of its public key (SPKI)**, not

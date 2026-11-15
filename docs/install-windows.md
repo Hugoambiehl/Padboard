@@ -99,6 +99,27 @@ on Windows 11). If nothing shows up:
    In the Device Manager, the tablet should then appear as an *ADB
    Interface* rather than an unknown device.
 
+## Several adb on the same PC
+
+Every adb program on a PC shares **one adb server** (TCP port 5037),
+started by the first one used. Several adb can live together (Padboard's
+and Android Studio's, for example) as long as they speak the same server
+version: the first line of `adb version` ends with the same number
+(`1.0.41`). Two different versions stop each other's server at every
+command, which cuts the USB connection (and the other tools' devices).
+
+- Padboard checks it: when the running server is another adb's version,
+  the *USB devices* card says so and Padboard leaves that server alone;
+  when the server keeps stopping (3 times within a minute), the card says
+  another program stops it.
+- Fix: use **one adb** everywhere. In Padboard, *Choose the adb
+  location…* and pick the same `adb` as your other tools (for Android Studio: `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe`), or
+  update them all to the same version.
+- If two tools start the server at the same moment, one of the two adb
+  processes stops with an error (harmless); the other server works, nothing
+  else is needed. Padboard waits a second before starting the server
+  itself, to make this rarer.
+
 ## Updates
 
 Padboard looks for a new version at launch and once a day (*Connections* →

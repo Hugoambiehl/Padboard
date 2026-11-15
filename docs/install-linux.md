@@ -97,6 +97,27 @@ rules for Android devices (`apt` installs them with `adb` unless
 recommended packages are turned off):
 `sudo apt install android-sdk-platform-tools-common`.
 
+### Several adb on the same PC
+
+Every adb program on a PC shares **one adb server** (TCP port 5037),
+started by the first one used. Several adb can live together (Padboard's
+and Android Studio's, for example) as long as they speak the same server
+version: the first line of `adb version` ends with the same number
+(`1.0.41`). Two different versions stop each other's server at every
+command, which cuts the USB connection (and the other tools' devices).
+
+- Padboard checks it: when the running server is another adb's version,
+  the *USB devices* card says so and Padboard leaves that server alone;
+  when the server keeps stopping (3 times within a minute), the card says
+  another program stops it.
+- Fix: use **one adb** everywhere. In Padboard, *Choose the adb
+  location…* and pick the same `adb` as your other tools (for Android Studio: `~/Android/Sdk/platform-tools/adb`), or
+  update them all to the same version.
+- If two tools start the server at the same moment, one of the two adb
+  processes stops with an error (Ubuntu may then show *Ubuntu has experienced an internal error* for `adb`: you can click *Don't send*); the other server works, nothing
+  else is needed. Padboard waits a second before starting the server
+  itself, to make this rarer.
+
 ## 5. Or connect it over Wi-Fi
 
 1. In Padboard, click **Pair a device** → **Turn on Wi-Fi**. If a firewall

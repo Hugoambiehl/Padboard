@@ -197,6 +197,15 @@ async function automatic() {
           </button>
         </div>
       </template>
+      <div
+        v-else-if="adb.state === 'conflict'"
+        class="flex flex-col gap-1 rounded-xl border border-cat-orange/40 bg-cat-orange/10 p-3 text-[#F3D2BA]"
+        data-adb-conflict
+      >
+        <p>{{ t("usbDevices.adb.conflict", { client: adb.client, server: adb.server }) }}</p>
+        <p class="text-xs opacity-90">{{ t("usbDevices.adb.conflictHint") }}</p>
+        <span class="truncate font-mono text-xs opacity-80" :title="adb.path">{{ adb.path }}</span>
+      </div>
       <p v-else-if="adb.state === 'error'" class="text-muted">
         {{ t("usbDevices.adb.error") }}
         <span class="mt-1 block font-mono text-xs opacity-80">{{ adb.detail }}</span>
@@ -239,6 +248,13 @@ async function automatic() {
           {{ t("usbDevices.automatic") }}
         </button>
       </div>
+      <p
+        v-if="usb.serverUnstable"
+        class="rounded-xl border border-cat-orange/40 bg-cat-orange/10 p-3 text-xs text-[#F3D2BA]"
+        data-adb-unstable
+      >
+        {{ t("usbDevices.adb.unstable") }}
+      </p>
       <p v-if="error" class="text-cat-red">{{ error }}</p>
     </div>
 

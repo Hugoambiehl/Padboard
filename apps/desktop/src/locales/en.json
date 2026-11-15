@@ -111,7 +111,10 @@
       "missing": "adb cannot be found. It is only needed for USB: Wi-Fi works without it. On Linux, install the adb package (sudo apt install adb), or choose its location.",
       "chosenMissing": "adb was not found at the chosen location: {path}",
       "error": "The adb server does not answer. Retrying automatically…",
-      "missingWindows": "adb cannot be found. It is only needed for USB: Wi-Fi works without it."
+      "missingWindows": "adb cannot be found. It is only needed for USB: Wi-Fi works without it.",
+      "conflict": "Another adb (version 1.0.{server}) runs the adb server, and Padboard's is version 1.0.{client}. Two different versions stop each other's server, which would cut USB (and the other adb's tools): Padboard leaves it alone.",
+      "conflictHint": "Use the same adb everywhere: point Padboard to your other tools' one (“Choose the adb location…”, for example Android Studio's), or update them to the same version. Padboard tries again by itself.",
+      "unstable": "The adb server stopped several times within a minute: another program stops it (another adb, Android Studio…). The USB connection is cut each time. Use the same adb everywhere (see the install guide, “Several adb on the same PC”)."
     },
     "choose": "Choose the adb location…",
     "chooseTitle": "adb location",

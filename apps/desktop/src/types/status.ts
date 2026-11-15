@@ -121,7 +121,9 @@ export type AdbState =
   | { state: "searching" }
   | { state: "missing"; chosen: string | null }
   | { state: "ready"; path: string; version: string | null }
-  | { state: "error"; path: string; detail: string };
+  | { state: "error"; path: string; detail: string }
+  /** The running server is another adb's version (`client` vs `server`, e.g. 41): left alone. */
+  | { state: "conflict"; path: string; client: number; server: number };
 
 export type DeviceState =
   | { state: "unauthorized" }
@@ -185,6 +187,8 @@ export interface UsbDevice {
 export interface UsbStatus {
   adb: AdbState;
   devices: UsbDevice[];
+  /** The adb server stopped 3 times within a minute: another program stops it. */
+  serverUnstable: boolean;
 }
 
 export type ActionErrorCode = "invalid" | "unsupported" | "unavailable" | "failed";

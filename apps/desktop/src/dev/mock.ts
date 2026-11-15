@@ -103,12 +103,16 @@ const status: Snapshot = {
   usb: {
     // `&adb=missing`: Windows without adb ("Installer adb", see
     // `&tools=gone` for Google having removed the pinned version).
+    // `&adb=conflict`: another adb's server; `&adb=unstable`: it keeps stopping.
     adb:
       params.get("adb") === "missing"
         ? { state: "missing", chosen: null }
-        : { state: "ready", path: "/usr/bin/adb", version: "1.0.41" },
+        : params.get("adb") === "conflict"
+          ? { state: "conflict", path: "/usr/bin/adb", client: 41, server: 40 }
+          : { state: "ready", path: "/usr/bin/adb", version: "1.0.41" },
+    serverUnstable: params.get("adb") === "unstable",
     devices:
-      params.get("adb") === "missing"
+      params.get("adb") === "missing" || params.get("adb") === "conflict"
         ? []
         : [
             {

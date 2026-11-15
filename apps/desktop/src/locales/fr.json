@@ -111,7 +111,10 @@
       "missing": "adb est introuvable. Il ne sert qu’à la connexion USB : le Wi-Fi fonctionne sans. Sous Linux, installe le paquet adb (sudo apt install adb), ou indique son emplacement.",
       "chosenMissing": "adb est introuvable à l’emplacement choisi : {path}",
       "error": "Le serveur adb ne répond pas. Nouvelle tentative automatique…",
-      "missingWindows": "adb est introuvable. Il ne sert qu’à la connexion USB : le Wi-Fi fonctionne sans."
+      "missingWindows": "adb est introuvable. Il ne sert qu’à la connexion USB : le Wi-Fi fonctionne sans.",
+      "conflict": "Un autre adb (version 1.0.{server}) fait tourner le serveur adb, et celui de Padboard est la version 1.0.{client}. Deux versions différentes s’arrêtent mutuellement le serveur, ce qui couperait l’USB (et les outils de l’autre adb) : Padboard le laisse tranquille.",
+      "conflictHint": "Utilise le même adb partout : indique à Padboard celui de tes autres outils (« Choisir l’emplacement d’adb… », par exemple celui d’Android Studio), ou mets-les à jour vers la même version. Padboard réessaie tout seul.",
+      "unstable": "Le serveur adb s’est arrêté plusieurs fois en une minute : un autre programme l’arrête (un autre adb, Android Studio…). La connexion USB est coupée à chaque fois. Utilise le même adb partout (voir la section « Several adb on the same PC » du guide d’installation)."
     },
     "choose": "Choisir l’emplacement d’adb…",
     "chooseTitle": "Emplacement d’adb",
