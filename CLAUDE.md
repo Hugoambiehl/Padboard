@@ -108,6 +108,7 @@ docs/design            # reference mockups (Main, Pairing, Editor .dc.html)
 docs/install-*.md      # user guides (Windows, Linux, tablet incl. kiosk mode and rescue)
 docs/development.md    # build, run, test (README is user-facing)
 docs/windows-test-plan.md # Windows per-action manual test plan
+docs/tablet-test-plan.md  # manual checks on the real tablet (system gestures, kiosk)
 docs/release-signing.md # release keys (tablet APK, desktop updates), outside the repo
 scripts/gen-types.sh   # typeshare -> TS + Kotlin types
 Cargo.toml             # workspace

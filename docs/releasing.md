@@ -64,7 +64,7 @@ for `apksigner`; the GitHub CLI (`gh`).
    signature.
 
 4. **Test** the builds (Windows: `docs/windows-test-plan.md`; the tablet:
-   `adb install -r padboard-X.apk`). A rejected draft is deleted
+   `adb install -r padboard-X.apk`, then `docs/tablet-test-plan.md`). A rejected draft is deleted
    (`gh release delete v0.1.0-rc.1`), never re-signed after publishing.
 
    **Antiviruses**, while the installer is not signed (Authenticode): before
@@ -116,6 +116,8 @@ After `scripts/sign-release.sh`, before publishing:
 - [ ] The `.deb` on clean Ubuntu 22.04 and 24.04 (`apt install ./…deb`
       pulls `adb`).
 - [ ] The tablet APK: `adb install -r`, then an update from the PC.
+- [ ] `docs/tablet-test-plan.md` on the real tablet (the section of the
+      release, e.g. the kiosk exit corner and Android's system gestures).
 - [ ] VirusTotal and Bitdefender's false positive form for the installer
       (step 4, *Antiviruses*).
 - [ ] For a release candidate that follows another: the real update from
