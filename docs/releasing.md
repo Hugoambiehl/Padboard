@@ -125,8 +125,15 @@ Before `scripts/release.sh`:
 - [ ] **The tray tests with a real window** (mandatory: headless, they are
       skipped because the virtual display has no tray):
       `scripts/desktop-e2e.sh --no-build e2e/tray`, on a desktop with a
-      StatusNotifier host (GNOME: AppIndicator extension), with nothing
-      skipped in the output.
+      StatusNotifier host (GNOME: AppIndicator extension). They check the
+      icon and its menu over D-Bus; the window close tests are skipped
+      (see below), nothing else.
+- [ ] **The tray by hand**, accepted while the automatic window close tests
+      do not pass with a real window, on the installed build: close the
+      window (the explanation shows the first time) → *Masquer* → the icon
+      stays and the tablet keeps working → *Ouvrir Padboard* in the tray
+      menu → the window comes back → close it again (hidden at once, no
+      explanation) → *Quitter Padboard* in the tray menu (the app exits).
 - [ ] `scripts/tablet-ui-tests.sh` (tablet UI tests on an emulator at the
       SM-T580's size, e.g. the kiosk exit corner left empty on every screen).
 - [ ] `scripts/platform-tools-pin.sh --check` (the "Installer adb" pin is
@@ -150,6 +157,19 @@ After `scripts/sign-release.sh`, before publishing:
       (`docs/windows-test-plan.md`, *Real update with an antivirus*).
 
 ## Notes
+
+- **Later: automatic window close tests.** WebKitWebDriver never finishes
+  a command whose effect hides the window (and once crashed, segfault,
+  when the session ended on a hidden window), and once the window is shown
+  again from the tray it sees no element displayed. Idea: an `e2e-control`
+  Cargo feature, built only by `desktop-e2e.sh`, active only in test mode,
+  closing the window on a signal (`SIGUSR1`: *Masquer*, `SIGUSR2`: the
+  window's close button), so no WebDriver command is pending when it
+  hides; shipped builds proven without it (a unit test compiled without
+  the feature, and the release workflow refusing binaries that contain
+  its log marker, as for `test-updates`). Until then:
+  `PADBOARD_E2E_TRAY_CLOSE=1` runs the close tests, and the checklist has
+  the manual check.
 
 - Debian sorts `0.1.0-rc.1` after `0.1.0`: installing the final `.deb` over a
   release candidate needs `sudo apt install --allow-downgrades ./Padboard_0.1.0_amd64.deb`.
