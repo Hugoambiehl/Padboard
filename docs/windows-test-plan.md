@@ -311,8 +311,73 @@ The tablet (SM-T580, LineageOS 19.1) is **in kiosk mode** and on
 
 Leave rc.1 installed and Bitdefender on; restore the sound noted in 7.0;
 delete `%TEMP%\padboard-rc1`; send the report. The real update rc.1 → rc.2
-with Bitdefender active (section 6, *Real update with an antivirus*) comes
-after rc.1 and a minimal rc.2 are published.
+with Bitdefender active: section 8.
+
+## 8. Release candidate 0.2.0-rc.2: real update from rc.1 (Bitdefender active)
+
+Same PC and same rules as section 7 (report tables, every Bitdefender
+event copied, never work around anything). Padboard **0.2.0-rc.1**
+installed from its release (section 7), Bitdefender on with no exception.
+rc.2 is **published** as a pre-release (a draft is invisible to the
+updater and to the tablet update).
+
+### 8.0 Before starting
+
+- Note: the installed version (*Settings → Apps*: 0.2.0-rc.1); Bitdefender's
+  state (screenshot); `where.exe adb`; whether Touch Portal runs; the
+  default output and microphone volume and mute states (restore them
+  exactly at the end).
+- Copy `%APPDATA%\io.github.hugoambiehl.padboard\padboard.log` aside (it
+  starts over at each launch).
+- Never press a keyboard shortcut button of the tablet.
+
+### 8.1 Update the PC from Padboard
+
+| Check | Do | Expect |
+|---|---|---|
+| Found | *Connexions* → *À propos* → *Mises à jour*, *Versions de test* on, *Rechercher* | *0.2.0-rc.2* available (header badge too) |
+| Install | *Installer* | Download, signature checked, then Padboard closes and the installer opens **as a wizard** (not silently: expected while it is unsigned); SmartScreen may ask (*More info* → *Run anyway*); follow it, *Run Padboard* ticked |
+| Bitdefender | During the download, the install and 5 min after the first launch | No detection, no quarantine, no *Advanced Threat Control* event (else: screenshot, exact name, process chain, stop) |
+| Version | *À propos*; *Settings → Apps* | *0.2.0-rc.2*; one Padboard entry (not two side by side) |
+| Kept | Profiles, buttons, paired tablets, Wi-Fi setting, *Versions de test*, adb location | Unchanged |
+| No failure notice | *Mises à jour* | No *L’installation de la version … n’a pas abouti* (`update-pending.json` cleared) |
+
+### 8.2 "Supprimer adb" next to Touch Portal
+
+Touch Portal running (its adb server up). If Padboard's downloaded copy
+was removed, *Installer adb…* first.
+
+| Check | Do | Expect |
+|---|---|---|
+| Remove | *Appareils USB* → **Supprimer adb** | The downloaded copy is gone; `padboard.log`: *adb server started by another program: left running* with Touch Portal's `adb.exe` path |
+| Touch Portal | Right after, in Touch Portal | Its Android connection still works (its server was not stopped) |
+| Put back | *Installer adb…* again if wanted | Installed without error |
+
+Report also the section 2 row *Remove, another program's server* if
+Touch Portal is not installed.
+
+### 8.3 Update the tablet from the PC
+
+The tablet on **0.2.0-rc.1**, plugged in over USB. First turn **kiosk mode
+on** again (*Appareils USB* → *Activer le mode kiosque*): rc.2's kiosk
+exit logging then follows it from the update on.
+
+| Check | Do | Expect |
+|---|---|---|
+| Offered | *Appareils USB* | *Padboard 0.2.0-rc.1* and **Mettre à jour vers 0.2.0-rc.2** |
+| Update | **Mettre à jour vers 0.2.0-rc.2** | Within a minute: *Padboard 0.2.0-rc.2*; the tablet shows Padboard again by itself (no launcher in between, kiosk) and reconnects |
+| Still kiosk | `adb shell dpm list-owners` | Padboard listed; status bar hidden, locked in |
+| Bitdefender | During the APK download (`%APPDATA%\…\updates\`) and `adb install` | No detection |
+| Logs | `adb logcat -d -s Kiosk`; `padboard.log` | No *leaving kiosk mode*; no *the tablet left kiosk mode* |
+
+Then the tablet checks of `docs/tablet-test-plan.md` (section 0.2.0-rc.2)
+can run with this PC.
+
+### 8.4 Afterwards
+
+Leave rc.2 installed and Bitdefender on; restore the sound noted in 8.0;
+send the report with both `padboard.log` files (before and after the
+update).
 
 ## Known Windows limits
 
