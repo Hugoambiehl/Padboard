@@ -57,8 +57,12 @@ else
   command -v gh >/dev/null || die "the GitHub CLI (gh) is needed"
   [[ "$(gh release view "$tag" --repo "$repo" --json isDraft -q .isDraft)" == "true" ]] \
     || die "$tag is not a draft release: a published release is never re-signed"
+  # Removed on every exit: success, error (die) or interruption. The traps
+  # come first, so a signal right after mktemp still removes the folder.
+  work=""
+  trap '[[ -z "$work" ]] || rm -rf -- "$work"' EXIT
+  trap 'exit 130' INT TERM HUP
   work="$(mktemp -d)"
-  trap 'rm -rf -- "$work"' EXIT
   gh release download "$tag" --repo "$repo" -D "$work"
 fi
 
@@ -94,11 +98,16 @@ echo "Installer: Authenticode $authenticode"
 echo "== Tablet APK"
 if [[ ! -f "$work/$apk" ]]; then
   [[ -f "$work/$unsigned" ]] || die "$unsigned is missing"
-  "$root/scripts/sign-apk.sh" "$work/$unsigned" | tee "$work/.apk-certificate"
-  tr -d ':' < "$work/.apk-certificate" | tr 'A-F' 'a-f' | grep -q "sha-256 digest $apk_certificate" \
-    || die "$apk is not signed with the release key ($apk_certificate)"
-  rm -f -- "$work/.apk-certificate"
+  "$root/scripts/sign-apk.sh" "$work/$unsigned"
 fi
+# Exactly one signer, with the release certificate (apksigner's output of
+# build-tools <= 36 and >= 37: scripts/lib/apk_certificate.py, tested).
+# shellcheck source=lib/android-build-tools.sh
+source "$root/scripts/lib/android-build-tools.sh"
+certs="$("$build_tools/apksigner" verify --print-certs "$work/$apk")" \
+  || die "$apk does not verify (apksigner)"
+python3 -I "$root/scripts/lib/apk_certificate.py" "$apk_certificate" <<<"$certs" \
+  || die "$apk is not signed with the release key only ($apk_certificate)"
 rm -f -- "$work/$unsigned"
 
 echo "== Update signatures (password of $key)"

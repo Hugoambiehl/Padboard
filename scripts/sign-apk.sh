@@ -36,9 +36,9 @@ PADBOARD_STORE_PASS="$(prop storePassword "$signing")"
 PADBOARD_KEY_PASS="$(prop keyPassword "$signing")"
 PADBOARD_KEY_PASS="${PADBOARD_KEY_PASS:-$PADBOARD_STORE_PASS}"
 
-sdk="${ANDROID_HOME:-$HOME/Android/Sdk}"
-tools="$(find "$sdk/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)"
-[[ -x "$tools/apksigner" ]] || { echo "error: apksigner not found under $sdk/build-tools" >&2; exit 1; }
+# shellcheck source=lib/android-build-tools.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/android-build-tools.sh"
+tools="$build_tools"
 
 # The APK must be aligned before signing (AGP already aligns it).
 "$tools/zipalign" -c -P 16 4 "$unsigned" || { echo "error: $unsigned is not aligned" >&2; exit 1; }
@@ -48,5 +48,7 @@ tools="$(find "$sdk/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tai
   --ks-pass env:PADBOARD_STORE_PASS --key-pass env:PADBOARD_KEY_PASS \
   --out "$signed" "$unsigned"
 rm -f "$signed.idsig"
-"$tools/apksigner" verify --print-certs "$signed" | grep -m2 -E "certificate (DN|SHA-256 digest):"
+# Every signer's DN and SHA-256 (the caller checks them: sign-release.sh).
+certs="$("$tools/apksigner" verify --print-certs "$signed")"
+grep -E "certificate (DN|SHA-256 digest):" <<<"$certs" || true
 echo "Signed: $signed"
