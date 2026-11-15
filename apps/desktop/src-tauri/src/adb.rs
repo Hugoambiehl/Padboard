@@ -38,6 +38,10 @@ const RETRY_MAX: Duration = Duration::from_secs(10);
 /// servers starting together: the second aborts, and the system may report
 /// it as a crash).
 const START_GRACE: Duration = Duration::from_secs(1);
+/// Asking a server its version: a loopback connection is accepted at once
+/// when it runs. Without one, Windows takes about 2 s to give up on a
+/// closed local port (Linux answers at once): no need to wait that long.
+const PROBE_CONNECT: Duration = Duration::from_millis(500);
 /// The server restarting this often means another program keeps stopping it.
 const RESTARTS_WINDOW: Duration = Duration::from_secs(60);
 const RESTARTS_FREQUENT: usize = 3;
@@ -543,7 +547,9 @@ async fn track_devices(port: u16) -> Result<TcpStream, ProtocolError> {
 /// The running server's version (`host:version`: 4 hex digits, e.g.
 /// `0029` for 41). Does not start a server.
 async fn server_version(port: u16) -> Result<u32, ProtocolError> {
-    let mut stream = TcpStream::connect(("127.0.0.1", port)).await?;
+    let mut stream = timeout(PROBE_CONNECT, TcpStream::connect(("127.0.0.1", port)))
+        .await
+        .map_err(|_| std::io::Error::from(std::io::ErrorKind::TimedOut))??;
     let request = "host:version";
     stream
         .write_all(format!("{:04x}{request}", request.len()).as_bytes())
@@ -1400,7 +1406,8 @@ java.lang.IllegalStateException: Trying to set the device owner, but device owne
     }
 
     async fn next_status(rx: &mut mpsc::UnboundedReceiver<UsbStatus>) -> UsbStatus {
-        timeout(Duration::from_secs(5), rx.recv())
+        // Generous: on Windows, each connection to a closed port takes ~2 s.
+        timeout(Duration::from_secs(15), rx.recv())
             .await
             .expect("no status")
             .unwrap()
