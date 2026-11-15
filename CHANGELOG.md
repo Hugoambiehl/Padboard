@@ -3,7 +3,7 @@
 Notable changes of Padboard, generated from the commit history with
 [git-cliff](https://git-cliff.org). Versions follow [Semantic Versioning](https://semver.org).
 
-## 0.2.0-rc.1 (2026-11-15)
+## 0.2.0-rc.2 (2026-11-15)
 
 ### Upgrading from 0.1.0
 
@@ -20,6 +20,8 @@ Notable changes of Padboard, generated from the commit history with
 - **desktop**: Say when a tablet's Wi-Fi session keeps dropping
 - **desktop**: Open the update wizard and say when an update did not install
 - **desktop**: Offer to download Google's adb on Windows
+- **desktop**: Detect another adb's server and a server that keeps stopping
+- **kiosk**: Report who took the tablet out of kiosk mode
 
 ### Fixes
 
@@ -32,6 +34,13 @@ Notable changes of Padboard, generated from the commit history with
 - **android**: Tell the user when an update is cut off midway
 - **android**: Pace the pieces of an update over Wi-Fi
 - **desktop**: Keep a failed update install shown after an automatic check
+- **linux**: Make the .deb depend on ca-certificates
+- **desktop**: Say that system test mode uses USB
+- **kiosk**: Move the exit gesture to an empty corner, clearer confirmation
+- **desktop**: Do not wait 2 s per probe of a missing adb server on Windows
+- **desktop**: Remove adb stops only a server started from Padboard's copy
+- **desktop**: A double-click no longer releases a tablet from kiosk mode
+- **scripts**: Tablet UI tests see a running Padboard again
 
 ## 0.1.0 (2026-11-12)
 
