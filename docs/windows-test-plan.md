@@ -222,6 +222,97 @@ Control* on, no exception for Padboard):
 3. Delete `%TEMP%\padboard-update-test`, `%TEMP%\A.exe`, `%TEMP%\B.exe`,
    `%TEMP%\v1.json`, `%TEMP%\v2.json` and `target\test-releases`.
 
+## 7. Release candidate 0.2.0-rc.1 (Bitdefender active)
+
+On Hugo's Windows PC, after `git pull`. Report: one table per step
+(check / result / remark), the screenshots taken, and every Bitdefender
+event copied as shown (detection name, process, path). **Never work around
+anything**: no Bitdefender exclusion, no protection turned off; on a
+detection, stop, note it and ask Hugo.
+
+### 7.0 Before starting
+
+- rc.1 is a **draft** pre-release: its files only download with `gh`
+  logged in to Hugo's account. So the tablet update from the PC and the
+  update check **cannot see rc.1** while it is a draft: not a defect.
+- Note: the installed Padboard version (*Settings → Apps*); Bitdefender's
+  state (real-time protection and *Advanced Threat Control* **on**, no
+  exception for Padboard: screenshot); `where.exe adb`; the default output
+  and microphone volume and mute states (restore them exactly at the end).
+- Never press a keyboard shortcut button of the tablet during these tests.
+
+### 7.1 Download and check (PowerShell, new folder)
+
+```powershell
+mkdir $env:TEMP\padboard-rc1; cd $env:TEMP\padboard-rc1
+gh release download v0.2.0-rc.1 --repo Hugoambiehl/Padboard -p "Padboard_0.2.0-rc.1_x64-setup.exe" -p "SHA256SUMS" -p "SHA256SUMS.sig"
+Get-FileHash .\Padboard_0.2.0-rc.1_x64-setup.exe
+Select-String "x64-setup.exe$" .\SHA256SUMS
+```
+
+Expect the same SHA-256 on both lines:
+`aa792befcec7a285341d39767cc1fff8e1cbd4fb723585cc6e8820d0e2ea070f`. Note
+any Bitdefender reaction to the download.
+
+### 7.2 Install by hand, Bitdefender active
+
+Quit Padboard if it runs (notification area icon → *Quit Padboard*), then
+run the installer **from the Explorer** (double click), as a user would.
+SmartScreen: *More info* → *Run anyway* (unsigned installer, expected).
+Follow the wizard, leave *Run Padboard* ticked.
+
+| Check | Expect |
+|---|---|
+| Bitdefender during and after the install, and 5 min after the first launch | No detection, no quarantine (else: screenshot of the notification and of Bitdefender's history, exact detection name, and stop) |
+| UAC | No prompt (per-user install) |
+| *Settings → Apps* | One Padboard entry, **0.2.0-rc.1** (not two installs side by side) |
+| *Connexions* → *À propos* | *Padboard version 0.2.0-rc.1*; previous configuration kept (profiles, buttons) |
+| *À propos* → *Licences* | Padboard first, then *Téléchargé à la demande, non inclus dans Padboard* (Android SDK Platform-Tools 37.0.3 · Google LLC) |
+| *Mises à jour*, *Versions de test* on, *Rechercher* | *Padboard est à jour* (rc.1 is the newest visible: expected) |
+
+### 7.3 "Installer adb", Bitdefender active
+
+No adb may be found first: if `where.exe adb` finds winget's,
+`winget uninstall Google.PlatformTools`, sign out and in, start Padboard,
+and check the *Appareils USB* card says *adb est introuvable…*.
+
+Run every row of **"Installer adb (from 0.2)"** (section 2) in order, *PATH
+first* last. Also:
+
+| Check | Expect |
+|---|---|
+| Bitdefender during the download and the first run of `adb.exe` | No detection (else: screenshot, exact name, stop) |
+| `Get-AuthenticodeSignature "$env:LOCALAPPDATA\io.github.hugoambiehl.padboard\platform-tools\*.exe","$env:LOCALAPPDATA\io.github.hugoambiehl.padboard\platform-tools\*.dll"` | `Valid`, signer `CN=Google LLC` for adb.exe, fastboot.exe, AdbWinApi.dll, AdbWinUsbApi.dll |
+| `padboard.log` (`%APPDATA%\io.github.hugoambiehl.padboard\`) | *the user accepted the Android SDK license*, then *platform-tools installed*; no error |
+| *Supprimer adb*, then *Installer adb…* again | Removed then installed again without error |
+
+*PATH first*: reinstall winget's copy if Hugo wants it
+(`winget install Google.PlatformTools`, sign out and in) and check the card
+then shows winget's adb.
+
+### 7.4 Tablet over USB
+
+The tablet (SM-T580, LineageOS 19.1) is **in kiosk mode** and on
+**0.2.0-rc.1** (updated from the Linux PC before). Do not leave kiosk mode.
+
+1. Plug it in; accept *Allow USB debugging?* if asked (new PC, new key).
+2. Section 2, steps 2 to 4.
+
+| Check | Expect |
+|---|---|
+| Driver | Recognized without Samsung's driver (Windows 11). If `adb devices` is empty: *If adb does not see the tablet* in `docs/install-windows.md`, note what was needed |
+| *Appareils USB* | *Prête : port 47321 redirigé*, *Padboard 0.2.0-rc.1*, kiosk active; no *Mettre à jour* button (same version) |
+| Tablet | The grid of the profile shown on the PC, USB pill; stays locked in kiosk mode |
+| A few non-keyboard buttons | Media, volume, microphone: the action happens and the state shows on the tablet (restore the sound exactly afterwards) |
+| Unplug, plug again | *Connexion au PC perdue* after ~1 s, reconnects by itself when plugged again |
+
+### 7.5 Afterwards
+
+Leave rc.1 installed and Bitdefender on; restore the sound noted in 7.0;
+delete `%TEMP%\padboard-rc1`; send the report. The real update rc.1 → rc.2
+with Bitdefender active (section 6, *Real update with an antivirus*) comes
+after rc.1 and a minimal rc.2 are published.
+
 ## Known Windows limits
 
 - Keys cannot be sent to elevated (administrator) windows.
