@@ -28,8 +28,11 @@ Download the latest version from the
 [releases page](https://github.com/Hugoambiehl/Padboard/releases/latest),
 then follow the guide for your system:
 
-- [Windows](docs/install-windows.md): `Padboard_<version>_x64-setup.exe`
+- [Windows](docs/install-windows.md): `Padboard_<version>_x64-setup.exe`.
+  For USB, Padboard can download Google's `adb` for you (optional, under
+  Google's license; Wi-Fi needs nothing else)
 - [Linux](docs/install-linux.md) (Ubuntu 22.04+, Debian 12+): `Padboard_<version>_amd64.deb`
+  (installs `adb` with it, from your distribution)
 - [The tablet](docs/install-tablet.md): `padboard-<version>.apk`, then USB
   or Wi-Fi, and kiosk mode
 
@@ -39,9 +42,11 @@ The desktop app looks for a new version at launch, then once a day: it
 asks GitHub for the list of Padboard releases, and sends nothing about
 you or your PC (GitHub sees the request, like any web page visit). Turn it
 off, or ask for test versions (release candidates), in the connections
-view, **About** card. On Windows, a new version installs in one click;
-the installer is checked first against a signature made by the
-maintainer for that exact version. On Linux, the app shows the new
+view, **About** card. On Windows, **Install** downloads the new version,
+checks it against a signature made by the maintainer for that exact
+version, then opens its installer. The installer is not signed for
+Windows yet: if your antivirus blocks it, see
+[the Windows guide](docs/install-windows.md#if-your-antivirus-blocks-padboard). On Linux, the app shows the new
 version and its page: install the `.deb` by hand.
 
 ### If Wi-Fi does not connect

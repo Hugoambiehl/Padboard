@@ -22,6 +22,7 @@ mod observe;
 mod paired;
 #[doc(hidden)]
 pub mod pinning;
+mod platform_tools;
 mod preferences;
 mod server;
 mod settings;
@@ -129,6 +130,12 @@ impl Backend {
             .tablet_settings
             .send_replace(screensaver.payload());
         Ok(())
+    }
+
+    /// Looks for `adb` again at once (it was just installed or removed).
+    fn rescan_adb(&self) {
+        let chosen = self.adb_path.borrow().clone();
+        self.adb_path.send_replace(chosen);
     }
 
     /// `None`: look `adb` up automatically again.
@@ -433,6 +440,68 @@ fn set_wifi_enabled(backend: tauri::State<'_, Backend>, enabled: bool) -> Result
     backend.set_wifi_enabled(enabled)
 }
 
+/// What the USB card shows about Google's Platform-Tools (Windows).
+#[tauri::command]
+fn platform_tools_info() -> platform_tools::PlatformToolsInfo {
+    platform_tools::info()
+}
+
+/// Downloads Google's Platform-Tools (Windows), once the user accepted
+/// their license in the dialog; then `adb` is found automatically.
+#[tauri::command]
+async fn install_platform_tools(
+    backend: tauri::State<'_, Backend>,
+    license_accepted: bool,
+) -> Result<platform_tools::PlatformToolsInfo, platform_tools::PlatformToolsError> {
+    use platform_tools::PlatformToolsError;
+    if !license_accepted {
+        return Err(PlatformToolsError::NotAccepted);
+    }
+    let Some(dir) = platform_tools::install_dir() else {
+        return Err(PlatformToolsError::Unsupported);
+    };
+    let Some(http) = updates::client() else {
+        return Err(PlatformToolsError::Network {
+            detail: "TLS unavailable".into(),
+        });
+    };
+    tracing::info!(
+        version = platform_tools::VERSION,
+        "the user accepted the Android SDK license: downloading platform-tools"
+    );
+    #[cfg(windows)]
+    let verify = platform_tools::verify_signature;
+    #[cfg(not(windows))]
+    let verify = |_: &std::path::Path| Err::<(), String>("Windows only".into());
+    platform_tools::install(&http, &platform_tools::Archive::pinned(), &dir, verify).await?;
+    backend.rescan_adb();
+    Ok(platform_tools::info())
+}
+
+/// Removes the downloaded Platform-Tools (their adb server stopped first).
+#[tauri::command]
+async fn remove_platform_tools(
+    backend: tauri::State<'_, Backend>,
+) -> Result<platform_tools::PlatformToolsInfo, platform_tools::PlatformToolsError> {
+    let Some(dir) = platform_tools::install_dir() else {
+        return Err(platform_tools::PlatformToolsError::Unsupported);
+    };
+    if let Some(adb) = platform_tools::installed_adb() {
+        let stopped = tokio::process::Command::new(&adb)
+            .arg("kill-server")
+            .kill_on_drop(true)
+            .output();
+        match tokio::time::timeout(std::time::Duration::from_secs(10), stopped).await {
+            Ok(Ok(_)) => {}
+            Ok(Err(e)) => tracing::warn!("adb kill-server: {e}"),
+            Err(_) => tracing::warn!("adb kill-server: no answer in 10 s"),
+        }
+    }
+    platform_tools::remove(&dir)?;
+    backend.rescan_adb();
+    Ok(platform_tools::info())
+}
+
 /// Uses this `adb` executable (`None`: find it automatically).
 #[tauri::command]
 fn set_adb_path(backend: tauri::State<'_, Backend>, path: Option<String>) -> Result<(), String> {
@@ -648,7 +717,10 @@ pub fn run() {
             check_for_updates,
             install_update,
             open_release_page,
-            open_help
+            open_help,
+            platform_tools_info,
+            install_platform_tools,
+            remove_platform_tools
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

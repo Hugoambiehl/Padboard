@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ActionOutcome, PairingView } from "./types/status";
 import type { Edit, EditOutcome, EditorState } from "./generated/types";
 import type { UpdatePreferences, UpdatesView } from "./types/updates";
+import type { PlatformToolsInfo } from "./types/platformTools";
 
 export const startPairing = () => invoke<PairingView>("start_pairing");
 export const cancelPairing = () => invoke<void>("cancel_pairing");
@@ -80,5 +81,12 @@ export const installUpdate = () => invoke<void>("install_update");
 /** The available version's page (or the releases), in the browser. */
 export const openReleasePage = () => invoke<void>("open_release_page");
 /** Pages of the user guides (the backend builds the address). */
-export type HelpTopic = "antivirus";
+export type HelpTopic = "antivirus" | "usbDriver" | "sdkLicense" | "platformTools";
 export const openHelp = (topic: HelpTopic) => invoke<void>("open_help", { topic });
+
+/** Google's Platform-Tools, downloaded on request (Windows). */
+export const platformToolsInfo = () => invoke<PlatformToolsInfo>("platform_tools_info");
+/** Rejects with a `PlatformToolsError`. */
+export const installPlatformTools = (licenseAccepted: boolean) =>
+  invoke<PlatformToolsInfo>("install_platform_tools", { licenseAccepted });
+export const removePlatformTools = () => invoke<PlatformToolsInfo>("remove_platform_tools");

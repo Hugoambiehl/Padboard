@@ -3,8 +3,9 @@
 //! at every (re)plug. The tablet then reaches the USB port at `127.0.0.1`.
 //!
 //! - `adb` comes from the setting chosen in the UI, else `PATH`, else the
-//!   Android SDK (`ANDROID_HOME`, `ANDROID_SDK_ROOT`, default SDK folders).
-//!   Downloading Platform-Tools is postponed to phase 6 (license question).
+//!   Android SDK (`ANDROID_HOME`, `ANDROID_SDK_ROOT`, default SDK folders),
+//!   else the copy downloaded by "Installer adb" on Windows
+//!   ([`crate::platform_tools`]).
 //! - Devices are tracked with the adb server protocol (`host:track-devices` on
 //!   `127.0.0.1:5037`): it pushes the device list on every change, without
 //!   polling. One-shot commands (`pm path`, `reverse`, `getprop`) run the
@@ -191,7 +192,8 @@ fn executable_name() -> &'static str {
     if cfg!(windows) { "adb.exe" } else { "adb" }
 }
 
-/// Where to find `adb`: the chosen path, else `PATH`, else the SDK folders.
+/// Where to find `adb`: the chosen path, else `PATH`, else the SDK folders,
+/// else the downloaded Platform-Tools (Windows).
 #[must_use]
 pub fn locate(chosen: Option<&Path>) -> Option<PathBuf> {
     if let Some(chosen) = chosen {
@@ -208,7 +210,10 @@ pub fn locate(chosen: Option<&Path>) -> Option<PathBuf> {
         .map(PathBuf::from)
         .chain(default_sdk_root());
     let from_sdk = sdk_roots.map(|root| root.join("platform-tools").join(name));
-    from_path.chain(from_sdk).find(|p| p.is_file())
+    from_path
+        .chain(from_sdk)
+        .chain(crate::platform_tools::installed_adb())
+        .find(|p| p.is_file())
 }
 
 fn default_sdk_root() -> Option<PathBuf> {

@@ -108,9 +108,10 @@
     "title": "Appareils USB",
     "adb": {
       "searching": "Recherche d’adb…",
-      "missing": "adb est introuvable. Installe les outils Android (paquet adb sous Ubuntu) ou indique son emplacement.",
+      "missing": "adb est introuvable. Il ne sert qu’à la connexion USB : le Wi-Fi fonctionne sans. Sous Linux, installe le paquet adb (sudo apt install adb), ou indique son emplacement.",
       "chosenMissing": "adb est introuvable à l’emplacement choisi : {path}",
-      "error": "Le serveur adb ne répond pas. Nouvelle tentative automatique…"
+      "error": "Le serveur adb ne répond pas. Nouvelle tentative automatique…",
+      "missingWindows": "adb est introuvable. Il ne sert qu’à la connexion USB : le Wi-Fi fonctionne sans."
     },
     "choose": "Choisir l’emplacement d’adb…",
     "chooseTitle": "Emplacement d’adb",
@@ -142,7 +143,8 @@
         "otherOwner": "L’application {owner} administre déjà cette tablette : le mode kiosque est impossible tant qu’elle reste propriétaire.",
         "failed": "La tablette a refusé : {detail}"
       }
-    }
+    },
+    "driverHelp": "La tablette branchée n’apparaît pas ?"
   },
   "tabletUpdate": {
     "version": "Padboard {version}",
@@ -620,6 +622,11 @@
     "ecosystem": {
       "rust": "Rust",
       "npm": "npm"
+    },
+    "downloaded": {
+      "title": "Téléchargé à la demande, non inclus dans Padboard",
+      "license": "Licence du SDK Android (non libre)",
+      "text": "Sous Windows uniquement et seulement si tu le demandes (« Installer adb », carte Appareils USB), après acceptation de la licence de Google. Facultatif : la connexion Wi-Fi n’en a pas besoin, et sous Linux adb vient du paquet libre de ta distribution (Apache-2.0)."
     }
   },
   "obs": {
@@ -702,5 +709,36 @@
     "NumpadDecimal": "Pavé .",
     "NumpadEnter": "Pavé Entrée",
     "numpad": "Pavé {n}"
+  },
+  "platformTools": {
+    "button": "Installer adb…",
+    "offer": "Pour l’USB, Padboard peut télécharger adb chez Google (outils Android Platform-Tools {version}, facultatif), ou tu peux indiquer un adb déjà installé.",
+    "title": "Installer adb (outils Android de Google)",
+    "optional": "Facultatif : adb ne sert qu’à la connexion USB. La tablette fonctionne aussi en Wi-Fi sans rien installer.",
+    "what": "Padboard va télécharger les Platform-Tools {version} depuis le site de Google (environ 8 Mo) et les placer dans son dossier ; il les utilisera ensuite automatiquement.",
+    "licenseTitle": "Ces outils ne sont pas des logiciels libres. Ils sont soumis à la licence du SDK Android de Google, que tu acceptes en les installant :",
+    "license31": "§3.1 : Google n’accorde leur usage que « pour développer des applications » pour Android ; utiliser adb pour connecter Padboard n’est pas mentionné par ce texte.",
+    "license34": "§3.4 : ils ne peuvent pas être redistribués. C’est pourquoi Padboard ne les inclut pas et les télécharge chez Google à ta demande.",
+    "notFree": "Le reste de Padboard est libre (GPL-3.0) ; sous Linux, adb vient du paquet libre de ta distribution.",
+    "notAffiliated": "Padboard n’est pas affilié à Google.",
+    "readLicense": "Lire la licence complète (site de Google)",
+    "checks": "Padboard vérifie l’empreinte SHA-256 de l’archive (figée pour cette version) et la signature « Google LLC » de chaque programme avant de les installer.",
+    "accept": "J’ai lu ce résumé et j’accepte la licence du SDK Android de Google.",
+    "cancel": "Annuler",
+    "install": "Télécharger et installer",
+    "installing": "Téléchargement et vérification…",
+    "googlePage": "Page des Platform-Tools chez Google",
+    "inUse": "Platform-Tools {version} de Google, téléchargés par Padboard.",
+    "remove": "Supprimer adb",
+    "removeHint": "Supprime les outils téléchargés par Padboard (la connexion USB s’arrête).",
+    "error": {
+      "unsupported": "Ce téléchargement n’est proposé que sous Windows.",
+      "notAccepted": "La licence n’a pas été acceptée : rien n’a été téléchargé.",
+      "unavailable": "Google ne propose plus la version {version} que Padboard sait vérifier. Installe adb toi-même (page des Platform-Tools, ou winget install Google.PlatformTools) puis indique son emplacement ; une prochaine version de Padboard proposera la version à jour.",
+      "network": "Téléchargement impossible : {detail}",
+      "checksum": "Le fichier téléchargé n’est pas celui attendu (empreinte SHA-256 différente) : rien n’a été installé.",
+      "signature": "{file} n’est pas signé par Google LLC : rien n’a été installé.",
+      "install": "Installation impossible : {detail}"
+    }
   }
 }

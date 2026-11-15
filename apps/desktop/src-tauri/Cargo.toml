@@ -57,6 +57,7 @@ gethostname = "1.1.0"
 sys-locale = "0.3.2"
 uuid = { version = "1.26.1", features = ["v4"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+zip = { version = "9.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # Is a tray host running (StatusNotifierWatcher)? Same zbus as padboard-actions.
@@ -64,7 +65,7 @@ zbus = { version = "5.19.0", default-features = false, features = ["blocking-api
 
 [target.'cfg(windows)'.dependencies]
 # Dark tray menu (uxtheme's SetPreferredAppMode, see tray.rs).
-windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_System_LibraryLoader"] }
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_System_LibraryLoader", "Win32_Security_WinTrust", "Win32_Security_Cryptography", "Win32_Security_Cryptography_Catalog", "Win32_Security_Cryptography_Sip"] }
 # In-app updates (NSIS). Not on Linux: the .deb is updated by hand. 2.12 is
 # the last one for tauri 2.11 (and Rust 1.88); needs `requireSignedVersion`.
 tauri-plugin-updater = { version = "~2.12", default-features = false, features = ["rustls-tls", "system-proxy"] }

@@ -52,16 +52,33 @@ $r = New-Object IO.StreamReader($s); $r.ReadToEnd(); $r.Close()
 
 ## 2. Tablet over USB
 
-1. Install adb (Google Platform-Tools, under the Android SDK license, not a
-   free one; see phase 6): `winget install Google.PlatformTools`, then sign
-   out and back in so Padboard sees it in `PATH`, or point Padboard to
-   `adb.exe` (*Connexions* → *Appareils USB* → *Choisir l'emplacement d'adb…*).
-2. Plug the tablet. Windows Update normally installs the Samsung ADB
-   interface driver; if `adb devices` lists nothing, install Samsung's *Android
-   USB Driver for Windows*.
+1. Get adb: either *Installer adb…* (next table, from 0.2), or
+   `winget install Google.PlatformTools` then sign out and back in so
+   Padboard sees it in `PATH`, or point Padboard to `adb.exe` (*Connexions*
+   → *Appareils USB* → *Choisir l'emplacement d'adb…*). Google's
+   Platform-Tools are not free software (Android SDK license).
+2. Plug the tablet. Windows 11 recognizes the SM-T580 under LineageOS by
+   itself; Samsung's *Android USB Driver for Windows* only if `adb devices`
+   lists nothing (`docs/install-windows.md`, *If adb does not see the tablet*).
 3. Accept the *Allow USB debugging* prompt on the tablet (new PC = new key).
 4. *Connexions* → *Appareils USB* should say *Prête : port 47321 redirigé*,
    and the tablet connects by itself (pill: *USB*).
+
+### Installer adb (from 0.2)
+
+The button shows only while no adb is found: first remove the winget copy
+(`winget uninstall Google.PlatformTools`, then sign out and back in), or
+use another Windows account. Normal mode (not test mode: adb is off there).
+
+| Check | Do | Expect |
+|---|---|---|
+| Offered | *Connexions* → *Appareils USB* | *adb est introuvable. Il ne sert qu'à la connexion USB : le Wi-Fi fonctionne sans.*, the offer text and **Installer adb…** |
+| Honest dialog | **Installer adb…** | Says optional; §3.1 and §3.4 summed up; *Padboard n'est pas affilié à Google*; *Lire la licence complète* opens developer.android.com/studio/terms; **Télécharger et installer** disabled until the box is ticked |
+| Install | Tick, **Télécharger et installer** | Within seconds: the card shows `…\AppData\Local\io.github.hugoambiehl.padboard\platform-tools\adb.exe` and *Platform-Tools 37.0.3 de Google, téléchargés par Padboard.*; the tablet connects over USB; `padboard.log` holds *the user accepted the Android SDK license* and *platform-tools installed* |
+| Signatures | In PowerShell: `Get-AuthenticodeSignature "$env:LOCALAPPDATA\io.github.hugoambiehl.padboard\platform-tools\*.exe"` | *Valid*, signer *CN=Google LLC* for each |
+| PATH first | `winget install Google.PlatformTools`, sign out and in, start Padboard | The card shows the winget `adb.exe` (an `adb` in `PATH` wins) |
+| Remove | Back to the downloaded copy (uninstall winget's), **Supprimer adb** | The folder is gone, the offer is back, the USB connection stops; no error |
+| Licences | *À propos* → *Licences* | *Téléchargé à la demande, non inclus dans Padboard: Android SDK Platform-Tools 37.0.3 · Google LLC* |
 
 ## 3. Tablet over Wi-Fi
 

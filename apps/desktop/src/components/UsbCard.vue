@@ -1,10 +1,19 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Cable, Download, FolderOpen, Lock, RotateCcw } from "lucide-vue-next";
+import { Cable, CircleHelp, Download, FolderOpen, Lock, RotateCcw, Trash2 } from "lucide-vue-next";
 import BaseCard from "./BaseCard.vue";
-import { enableKiosk, setAdbPath, updateUsbTablet } from "../commands";
+import PlatformToolsDialog from "./PlatformToolsDialog.vue";
+import {
+  enableKiosk,
+  openHelp,
+  platformToolsInfo,
+  removePlatformTools,
+  setAdbPath,
+  updateUsbTablet,
+} from "../commands";
+import type { PlatformToolsInfo } from "../types/platformTools";
 import type { DeviceState, UsbStatus } from "../types/status";
 import { kioskErrorMessage } from "../usb/kiosk";
 import { devMismatch, needsUpdate, usbUpdateErrorMessage } from "../usb/update";
@@ -102,6 +111,52 @@ async function choose() {
   }
 }
 
+/** Google's Platform-Tools, offered on Windows when adb is missing. */
+const tools = ref<PlatformToolsInfo | null>(null);
+const toolsDialog = ref(false);
+const removing = ref(false);
+onMounted(async () => {
+  try {
+    tools.value = await platformToolsInfo();
+  } catch {
+    tools.value = null;
+  }
+});
+const offerTools = computed(
+  () => tools.value?.offered === true && adb.value.state === "missing" && !chosenMissing.value,
+);
+/** adb in use is the copy Padboard downloaded. */
+const usingTools = computed(
+  () =>
+    tools.value?.installed != null &&
+    adb.value.state !== "missing" &&
+    adb.value.state !== "searching" &&
+    adb.value.path === tools.value.installed,
+);
+
+function toolsInstalled(info: PlatformToolsInfo) {
+  tools.value = info;
+  toolsDialog.value = false;
+}
+
+async function chooseInstead() {
+  toolsDialog.value = false;
+  await choose();
+}
+
+async function removeTools() {
+  if (removing.value) return;
+  removing.value = true;
+  error.value = null;
+  try {
+    tools.value = await removePlatformTools();
+  } catch (e) {
+    error.value = typeof e === "object" && e && "detail" in e ? String(e.detail) : String(e);
+  } finally {
+    removing.value = false;
+  }
+}
+
 async function automatic() {
   error.value = null;
   try {
@@ -122,9 +177,25 @@ async function automatic() {
           {{
             chosenMissing
               ? t("usbDevices.adb.chosenMissing", { path: chosenMissing })
-              : t("usbDevices.adb.missing")
+              : tools?.offered
+                ? t("usbDevices.adb.missingWindows")
+                : t("usbDevices.adb.missing")
           }}
         </p>
+        <div v-if="offerTools" class="flex flex-col gap-2" data-platform-tools-offer>
+          <p class="text-xs text-muted">
+            {{ t("platformTools.offer", { version: tools!.version }) }}
+          </p>
+          <button
+            type="button"
+            class="flex items-center gap-1.5 self-start rounded-lg bg-accent px-2.5 py-1.5 text-xs font-medium text-[#0E0F12] transition-opacity hover:opacity-90"
+            data-platform-tools-open
+            @click="toolsDialog = true"
+          >
+            <Download :size="14" aria-hidden="true" />
+            {{ t("platformTools.button") }}
+          </button>
+        </div>
       </template>
       <p v-else-if="adb.state === 'error'" class="text-muted">
         {{ t("usbDevices.adb.error") }}
@@ -133,6 +204,9 @@ async function automatic() {
       <p v-else class="flex flex-col text-muted">
         <span>{{ adb.version ?? "adb" }}</span>
         <span class="truncate font-mono text-xs" :title="adb.path">{{ adb.path }}</span>
+        <span v-if="usingTools" class="text-xs" data-platform-tools-installed>
+          {{ t("platformTools.inUse", { version: tools!.version }) }}
+        </span>
       </p>
       <div class="flex flex-wrap gap-2">
         <button
@@ -142,6 +216,18 @@ async function automatic() {
         >
           <FolderOpen :size="14" aria-hidden="true" />
           {{ t("usbDevices.choose") }}
+        </button>
+        <button
+          v-if="usingTools"
+          type="button"
+          class="flex items-center gap-1.5 rounded-lg border border-line-2 bg-surface-2 px-2.5 py-1.5 text-xs transition-colors hover:bg-surface-active disabled:cursor-wait disabled:opacity-50"
+          :disabled="removing"
+          :title="t('platformTools.removeHint')"
+          data-platform-tools-remove
+          @click="removeTools"
+        >
+          <Trash2 :size="14" aria-hidden="true" />
+          {{ t("platformTools.remove") }}
         </button>
         <button
           v-if="chosenMissing"
@@ -161,6 +247,16 @@ async function automatic() {
       <p v-if="usb.devices.length === 0" class="text-sm text-muted">
         {{ adb.state === "ready" ? t("usbDevices.none") : t("usbDevices.noneWithoutAdb") }}
       </p>
+      <button
+        v-if="usb.devices.length === 0 && adb.state === 'ready' && tools?.offered"
+        type="button"
+        class="flex items-center gap-1.5 self-start text-xs text-muted-2 hover:text-fg hover:underline"
+        data-usb-driver-help
+        @click="openHelp('usbDriver')"
+      >
+        <CircleHelp :size="13" aria-hidden="true" />
+        {{ t("usbDevices.driverHelp") }}
+      </button>
       <ul v-else class="flex flex-col gap-2">
         <li
           v-for="device in usb.devices"
@@ -266,5 +362,12 @@ async function automatic() {
         </li>
       </ul>
     </div>
+    <PlatformToolsDialog
+      v-if="toolsDialog && tools"
+      :version="tools.version"
+      @close="toolsDialog = false"
+      @installed="toolsInstalled"
+      @choose="chooseInstead"
+    />
   </BaseCard>
 </template>

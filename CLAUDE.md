@@ -6,6 +6,14 @@ tablet. Public, open source repo (since v0.1.0).
 
 **Absolute rule: only free and open-source tools, libraries and APIs.** No paid API,
 nothing that requires approval, no Google Play Services / Firebase / ML Kit.
+**One exception, decided by Hugo for v0.2**: on Windows, "Installer adb"
+downloads Google's Platform-Tools (not free, Android SDK License) on the
+user's request, after an honest acceptance dialog (link to the license,
+§3.1 and §3.4 summed up, "Padboard n'est pas affilié à Google"). Never
+bundled or redistributed, always optional (Wi-Fi works without adb),
+version + SHA-256 pinned in the code and every `.exe`/`.dll` checked for a
+valid "Google LLC" Authenticode signature; listed in the app's
+"Licences" dialog as downloaded on request. No other exception.
 
 ## Targets
 
@@ -46,9 +54,17 @@ Same WebSocket protocol over two transports:
   risk, documented in SECURITY.md: any local process can connect to loopback too,
   so on a PC shared between several user accounts another account could send
   keys into the session.
-- **`adb`**: from PATH or a location chosen in the settings. Downloading
-  Platform-Tools automatically is **postponed to phase 6**: Google's binaries
-  come under the Android SDK license, not a free license (to discuss then).
+- **`adb`**: a location chosen in the settings, else `PATH`, else the
+  Android SDK folders, else the copy downloaded by "Installer adb"
+  (Windows, `platform_tools/`: Platform-Tools pinned in `mod.rs`, bumped
+  with `scripts/platform-tools-pin.sh`; Authenticode check in
+  `authenticode.rs`, Windows-only, cross-checked by CI's Windows job;
+  extracted to `%LOCALAPPDATA%\io.github.hugoambiehl.padboard\platform-tools`;
+  a 4xx from Google = `unavailable`, the UI then offers the manual
+  choice). Linux: the `.deb` depends on the distribution's free `adb`
+  package (`bundle.linux.deb.depends`), which recommends the udev rules.
+  Windows drivers: none needed for the SM-T580 on Windows 11; Samsung's
+  driver is documented as a fallback (`help.rs` links the guides).
 - **Wi-Fi**, port **47322**, **TLS (`wss://`)**, opt-in (see LAN default below):
   mDNS (`mdns-sd`) ↔ NsdManager. The desktop has its own long-lived self-signed
   certificate; the tablet **pins the SHA-256 of its public key (SPKI)**, not

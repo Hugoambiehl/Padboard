@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { ChevronDown, Scale, Search, X } from "lucide-vue-next";
+import { ChevronDown, ExternalLink, Scale, Search, X } from "lucide-vue-next";
+import { openHelp, platformToolsInfo } from "../commands";
 import { filterPackages, loadLicenses, type Licenses } from "../licenses";
 
 const emit = defineEmits<{ close: [] }>();
@@ -10,6 +11,8 @@ const { t } = useI18n();
 const dialog = ref<HTMLDialogElement | null>(null);
 const licenses = ref<Licenses | null>(null);
 const loaded = ref(false);
+/** The version of Google's Platform-Tools "Installer adb" downloads. */
+const toolsVersion = ref<string | null>(null);
 const query = ref("");
 /** Expanded rows ("project" or "<ecosystem>:<name>@<version>"): texts are only rendered when open. */
 const open = reactive(new Set<string>());
@@ -25,6 +28,9 @@ function toggle(key: string) {
 
 onMounted(async () => {
   dialog.value?.showModal();
+  platformToolsInfo()
+    .then((info) => (toolsVersion.value = info.version))
+    .catch(() => {});
   try {
     licenses.value = await loadLicenses();
   } finally {
@@ -86,6 +92,30 @@ onMounted(async () => {
             >{{ licenses.project.text }}</pre>
         </div>
 
+        <!-- Not part of Padboard: downloaded from Google on request (Windows). -->
+        <div
+          class="flex flex-col gap-1.5 rounded-xl border border-cat-orange/30 bg-cat-orange/5 px-3 py-2.5"
+          data-licenses-downloaded
+        >
+          <p class="text-xs font-medium text-muted-2">{{ t("licenses.downloaded.title") }}</p>
+          <p class="flex items-center gap-3 text-sm">
+            <span class="flex-1">
+              Android SDK Platform-Tools
+              <span v-if="toolsVersion" class="text-muted">{{ toolsVersion }}</span>
+              <span class="text-muted"> · Google LLC</span>
+            </span>
+            <span class="text-xs text-muted-2">{{ t("licenses.downloaded.license") }}</span>
+          </p>
+          <p class="text-xs text-muted">{{ t("licenses.downloaded.text") }}</p>
+          <button
+            type="button"
+            class="flex items-center gap-1.5 self-start text-xs text-accent hover:underline"
+            @click="openHelp('sdkLicense')"
+          >
+            <ExternalLink :size="13" aria-hidden="true" />
+            {{ t("platformTools.readLicense") }}
+          </button>
+        </div>
         <label class="relative flex items-center">
           <Search
             :size="16"

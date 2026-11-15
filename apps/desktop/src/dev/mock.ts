@@ -6,6 +6,8 @@ import type { EditorState } from "../generated/types";
 import type { Snapshot } from "../types/status";
 import fixture from "./fixture-config.json";
 
+const params = new URLSearchParams(location.search);
+
 const editor: EditorState = {
   config: fixture as EditorState["config"],
   canUndo: true,
@@ -99,16 +101,24 @@ const status: Snapshot = {
         ]
       : [],
   usb: {
-    adb: { state: "ready", path: "/usr/bin/adb", version: "1.0.41" },
-    devices: [
-      {
-        serial: "R52N10ABCDE",
-        model: "SM-T580",
-        state: { state: "ready" },
-        kiosk: { state: "off" },
-        app: { name: "0.1.0", code: 10099 },
-      },
-    ],
+    // `&adb=missing`: Windows without adb ("Installer adb", see
+    // `&tools=gone` for Google having removed the pinned version).
+    adb:
+      params.get("adb") === "missing"
+        ? { state: "missing", chosen: null }
+        : { state: "ready", path: "/usr/bin/adb", version: "1.0.41" },
+    devices:
+      params.get("adb") === "missing"
+        ? []
+        : [
+            {
+              serial: "R52N10ABCDE",
+              model: "SM-T580",
+              state: { state: "ready" },
+              kiosk: { state: "off" },
+              app: { name: "0.1.0", code: 10099 },
+            },
+          ],
   },
   activity: [],
 };
@@ -208,6 +218,22 @@ export function install() {
           return "0.1.0";
         case "get_updates":
           return updates();
+        case "platform_tools_info":
+          return { offered: params.has("adb"), version: "37.0.3", installed: null };
+        case "install_platform_tools":
+          return new Promise((resolve, reject) =>
+            setTimeout(
+              () =>
+                params.get("tools") === "gone"
+                  ? reject({ code: "unavailable", status: 404 })
+                  : resolve({
+                      offered: true,
+                      version: "37.0.3",
+                      installed: "C:\\platform-tools\\adb.exe",
+                    }),
+              1200,
+            ),
+          );
         case "update_usb_tablet":
           return new Promise((resolve) => setTimeout(() => resolve("0.2.0"), 1500));
         default:

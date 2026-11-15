@@ -108,9 +108,10 @@
     "title": "USB devices",
     "adb": {
       "searching": "Looking for adb…",
-      "missing": "adb was not found. Install the Android platform tools (the adb package on Ubuntu) or choose its location.",
+      "missing": "adb cannot be found. It is only needed for USB: Wi-Fi works without it. On Linux, install the adb package (sudo apt install adb), or choose its location.",
       "chosenMissing": "adb was not found at the chosen location: {path}",
-      "error": "The adb server does not answer. Retrying automatically…"
+      "error": "The adb server does not answer. Retrying automatically…",
+      "missingWindows": "adb cannot be found. It is only needed for USB: Wi-Fi works without it."
     },
     "choose": "Choose the adb location…",
     "chooseTitle": "adb location",
@@ -142,7 +143,8 @@
         "otherOwner": "The app {owner} already manages this tablet: kiosk mode is not possible while it stays the owner.",
         "failed": "The tablet refused: {detail}"
       }
-    }
+    },
+    "driverHelp": "The plugged tablet does not show up?"
   },
   "tabletUpdate": {
     "version": "Padboard {version}",
@@ -620,6 +622,11 @@
     "ecosystem": {
       "rust": "Rust",
       "npm": "npm"
+    },
+    "downloaded": {
+      "title": "Downloaded on request, not included in Padboard",
+      "license": "Android SDK License (not free)",
+      "text": "On Windows only, and only when you ask for it (“Install adb”, USB devices card), after you accept Google's license. Optional: Wi-Fi does not need it, and on Linux adb comes from your distribution's free package (Apache-2.0)."
     }
   },
   "obs": {
@@ -702,5 +709,36 @@
     "NumpadDecimal": "Numpad .",
     "NumpadEnter": "Numpad Enter",
     "numpad": "Numpad {n}"
+  },
+  "platformTools": {
+    "button": "Install adb…",
+    "offer": "For USB, Padboard can download adb from Google (Android Platform-Tools {version}, optional), or you can choose an adb already installed.",
+    "title": "Install adb (Google's Android tools)",
+    "optional": "Optional: adb is only needed for USB. The tablet also works over Wi-Fi without installing anything.",
+    "what": "Padboard will download Platform-Tools {version} from Google's site (about 8 MB) into its own folder, then use them automatically.",
+    "licenseTitle": "These tools are not free software. They come under Google's Android SDK License Agreement, which you accept by installing them:",
+    "license31": "§3.1: Google grants their use only “to develop applications” for Android; using adb to connect Padboard is not mentioned by this text.",
+    "license34": "§3.4: they may not be redistributed. That is why Padboard does not include them and downloads them from Google when you ask.",
+    "notFree": "The rest of Padboard is free software (GPL-3.0); on Linux, adb comes from your distribution's free package.",
+    "notAffiliated": "Padboard is not affiliated with Google.",
+    "readLicense": "Read the full license (Google's site)",
+    "checks": "Padboard checks the archive's SHA-256 (pinned for this version) and the “Google LLC” signature of each program before installing them.",
+    "accept": "I have read this summary and I accept Google's Android SDK License Agreement.",
+    "cancel": "Cancel",
+    "install": "Download and install",
+    "installing": "Downloading and checking…",
+    "googlePage": "Google's Platform-Tools page",
+    "inUse": "Google's Platform-Tools {version}, downloaded by Padboard.",
+    "remove": "Remove adb",
+    "removeHint": "Removes the tools Padboard downloaded (the USB connection stops).",
+    "error": {
+      "unsupported": "This download is only offered on Windows.",
+      "notAccepted": "The license was not accepted: nothing was downloaded.",
+      "unavailable": "Google no longer offers version {version}, the one Padboard can check. Install adb yourself (Platform-Tools page, or winget install Google.PlatformTools), then choose its location; a next version of Padboard will offer the current one.",
+      "network": "Download failed: {detail}",
+      "checksum": "The downloaded file is not the expected one (different SHA-256): nothing was installed.",
+      "signature": "{file} is not signed by Google LLC: nothing was installed.",
+      "install": "Cannot install: {detail}"
+    }
   }
 }
