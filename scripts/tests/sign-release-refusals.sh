@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # Local test of scripts/sign-release.sh's refusals (needs the Android SDK
-# build-tools; not in CI): an APK signed with another key than the release
-# key is refused before anything else, nothing is uploaded, and the
-# temporary folder is removed, after an error as after an interruption.
+# build-tools; not in CI): the update key's password missing (end of
+# input), empty or wrong stops with a clear error before anything is
+# signed; an APK signed with another key than the release key is refused;
+# nothing is uploaded, and the temporary folder is removed, after an error
+# as after an interruption.
 #
 #   scripts/tests/sign-release-refusals.sh
 #
 # Nothing real is used: a fake `gh` serves a fake draft (it never contacts
 # GitHub and fails on any upload), the APK is signed with the Android debug
-# key (~/.android/debug.keystore), never with ~/.padboard-signing.
+# key (~/.android/debug.keystore) and the update key is a test key made
+# here, never the keys of ~/.padboard-signing.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -53,30 +56,55 @@ storeFile=$HOME/.android/debug.keystore
 keyAlias=androiddebugkey
 storePassword=android
 EOF
-touch "$test_dir/updater.key"
+# A test update key, with a password like the real one.
+(cd "$root/apps/desktop" && npx --no-install tauri signer generate --ci -p test-password -w "$test_dir/updater.key" >/dev/null)
 
 command=(env PATH="$test_dir/bin:$PATH" TMPDIR="$test_dir/tmp"
   PADBOARD_SIGNING="$test_dir/signing.properties"
   PADBOARD_UPDATER_KEY="$test_dir/updater.key"
   "$root/scripts/sign-release.sh" "$version")
-run() { "${command[@]}" </dev/null; }
+run() { "${command[@]}"; } # stdin: the password typed
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
+# The script's temporary folders (mktemp: tmp.*) still there. Node's own
+# cache (node-compile-cache, from the Tauri CLI) is not the script's.
+leftover() { compgen -G "$test_dir/tmp/tmp.*" || true; }
+
+# refused <stdin> <expected message> <case>
+refused() {
+  if run <<<"$1" > "$test_dir/out" 2>&1; then
+    cat "$test_dir/out"; fail "$3: accepted"
+  fi
+  grep -q -- "$2" "$test_dir/out" || { cat "$test_dir/out"; fail "$3: no message \"$2\""; }
+  ! compgen -G "$test_dir/draft/*.sig" > /dev/null || fail "$3: something was signed in the draft folder"
+  [[ -z "$(leftover)" ]] || fail "$3: temporary folder left: $(leftover)"
+  [[ ! -e "$test_dir/unexpected" ]] || fail "$3: unexpected gh calls: $(cat "$test_dir/unexpected")"
+  echo "ok: $3: $(grep -m1 '^error:' "$test_dir/out")"
+}
+
+echo "== The update key's password"
+if run </dev/null > "$test_dir/out" 2>&1; then cat "$test_dir/out"; fail "end of input: accepted"; fi
+grep -q "no password entered" "$test_dir/out" || { cat "$test_dir/out"; fail "end of input: silent"; }
+[[ -z "$(leftover)" ]] || fail "end of input: temporary folder left: $(leftover)"
+echo "ok: end of input: $(grep -m1 '^error:' "$test_dir/out")"
+refused "" "empty password" "empty password"
+refused "not-the-password" "wrong password" "wrong password"
+
 
 echo "== An APK signed with another key is refused"
-if run > "$test_dir/out" 2>&1; then
+if run <<<"test-password" > "$test_dir/out" 2>&1; then
   cat "$test_dir/out"
   fail "sign-release.sh accepted an APK signed with the debug key"
 fi
 grep -q "is not signed with the release key only" "$test_dir/out" || { cat "$test_dir/out"; fail "not refused for the certificate"; }
 grep -q "signed with 5c10537c" "$test_dir/out" || { cat "$test_dir/out"; fail "the debug certificate was not read (apksigner output format?)"; }
-[[ -z "$(ls -A "$test_dir/tmp")" ]] || fail "temporary folder left after the error: $(ls "$test_dir/tmp")"
+[[ -z "$(leftover)" ]] || fail "temporary folder left after the error: $(leftover)"
 [[ ! -e "$test_dir/unexpected" ]] || fail "unexpected gh calls: $(cat "$test_dir/unexpected")"
 echo "ok: refused ($(grep -m1 'signed with' "$test_dir/out" | sed 's/^error: //')), nothing uploaded, no temporary folder left"
 
 echo "== Interrupted: the temporary folder is removed too"
 # exec: $! is sign-release.sh itself, not a subshell around it.
-(exec "${command[@]}" </dev/null > "$test_dir/out-int" 2>&1) &
+(exec "${command[@]}" <<<"test-password" > "$test_dir/out-int" 2>&1) &
 pid=$!
 # Wait until it works on the downloaded draft (the files are in its
 # temporary folder), then interrupt it.
@@ -87,6 +115,6 @@ done
 compgen -G "$test_dir/tmp/*/SHA256SUMS" > /dev/null || fail "the draft was never downloaded"
 kill -TERM "$pid" 2>/dev/null || true
 wait "$pid" 2>/dev/null || true
-[[ -z "$(ls -A "$test_dir/tmp")" ]] || fail "temporary folder left after an interruption: $(ls "$test_dir/tmp")"
+[[ -z "$(leftover)" ]] || fail "temporary folder left after an interruption: $(leftover)"
 echo "ok: no temporary folder left"
 echo "All refusal tests passed."

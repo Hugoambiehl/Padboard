@@ -95,6 +95,35 @@ if grep -qiE '^\s*(-\s*)?uses:\s*signpath/' "$root/.github/workflows/release.yml
 fi
 echo "Installer: Authenticode $authenticode"
 
+# The update key's password, asked and checked before anything is signed:
+# end of input (Ctrl+D), an empty or a wrong password stop here, clearly.
+echo "== Password of the update key ($key)"
+probe="$work/.key-probe"
+echo probe > "$probe"
+probe_sign() { # password: signs the probe with it, quietly
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$1" tauri signer sign -f "$key" "$probe" </dev/null >/dev/null 2>&1
+}
+if probe_sign ""; then
+  rm -f -- "$probe" "$probe.sig"
+  die "$key has no password: generate it again with one (docs/release-signing.md)"
+fi
+if ! read -rsp "Password: " TAURI_SIGNING_PRIVATE_KEY_PASSWORD; then
+  echo >&2
+  rm -f -- "$probe" "$probe.sig"
+  die "no password entered (end of input, Ctrl+D?): nothing signed, nothing uploaded"
+fi
+echo
+if [[ -z "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]]; then
+  rm -f -- "$probe" "$probe.sig"
+  die "empty password: the update key has one (nothing signed, nothing uploaded)"
+fi
+if ! probe_sign "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"; then
+  rm -f -- "$probe" "$probe.sig"
+  die "wrong password for $key: nothing signed, nothing uploaded"
+fi
+rm -f -- "$probe" "$probe.sig"
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+
 echo "== Tablet APK"
 if [[ ! -f "$work/$apk" ]]; then
   [[ -f "$work/$unsigned" ]] || die "$unsigned is missing"
@@ -110,18 +139,17 @@ python3 -I "$root/scripts/lib/apk_certificate.py" "$apk_certificate" <<<"$certs"
   || die "$apk is not signed with the release key only ($apk_certificate)"
 rm -f -- "$work/$unsigned"
 
-echo "== Update signatures (password of $key)"
-probe="$work/.key-probe"
-echo probe > "$probe"
-if TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" tauri signer sign -f "$key" "$probe" </dev/null >/dev/null 2>&1; then
-  rm -f -- "$probe" "$probe.sig"
-  die "$key has no password: generate it again with one (docs/release-signing.md)"
-fi
-rm -f -- "$probe" "$probe.sig"
-read -rsp "Password: " TAURI_SIGNING_PRIVATE_KEY_PASSWORD
-echo
-export TAURI_SIGNING_PRIVATE_KEY_PASSWORD
-tauri signer sign --app-version "$version" -f "$key" "$work/$installer" >/dev/null
+echo "== Update signatures"
+sign_update() { # file: signed for $version with the update key, or a clear error
+  local errors="$work/.sign-errors"
+  if ! tauri signer sign --app-version "$version" -f "$key" "$1" >/dev/null 2>"$errors"; then
+    sed 's/^/  /' "$errors" >&2
+    rm -f -- "$errors"
+    die "cannot sign $(basename "$1") with $key (nothing uploaded)"
+  fi
+  rm -f -- "$errors"
+}
+sign_update "$work/$installer"
 
 python3 -I - "$work" "$version" "$installer" "$repo" <<'EOF'
 import datetime, json, os, sys
@@ -148,7 +176,7 @@ EOF
   find . -maxdepth 1 -type f ! -name 'SHA256SUMS*' ! -name '.*' -printf '%f\n' | sort \
     | xargs -d '\n' sha256sum -- > SHA256SUMS
 )
-tauri signer sign --app-version "$version" -f "$key" "$work/SHA256SUMS" >/dev/null
+sign_update "$work/SHA256SUMS"
 unset TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 
 echo "== Checking with the app's code"
