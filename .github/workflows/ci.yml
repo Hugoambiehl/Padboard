@@ -193,6 +193,13 @@ jobs:
       - name: Version
         run: scripts/check-version.sh
 
+      # The release scripts' own checks (e.g. the APK signer parsed from
+      # apksigner's output, scripts/lib/apk_certificate.py).
+      - name: Release script tests
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest discover -s scripts/tests -v
+
   android:
     name: Android
     runs-on: ubuntu-24.04
