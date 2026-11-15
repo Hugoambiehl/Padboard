@@ -131,6 +131,10 @@ pub enum CommandError {
 struct Inner {
     preferences: UpdatePreferences,
     status: UpdateStatus,
+    /// The version whose install just failed: an automatic check finding
+    /// it again leaves the failure shown (only "Rechercher" offers it
+    /// again).
+    failed_install: Option<String>,
 }
 
 type Notify = Box<dyn Fn(UpdatesView) + Send + Sync>;
@@ -196,6 +200,7 @@ impl Updates {
             inner: Mutex::new(Inner {
                 preferences,
                 status,
+                failed_install: None,
             }),
             notify,
             http,
@@ -260,7 +265,7 @@ impl Updates {
             return Err(CommandError::Busy);
         }
         let this = self.clone();
-        tauri::async_runtime::spawn(async move { this.check().await });
+        tauri::async_runtime::spawn(async move { this.check(Check::Manual).await });
         Ok(())
     }
 
@@ -293,7 +298,7 @@ impl Updates {
                 .preferences
                 .check;
             if enabled && !self.busy() {
-                self.check().await;
+                self.check(Check::Automatic).await;
             }
             if !woken {
                 wait = CHECK_EVERY;
@@ -302,8 +307,12 @@ impl Updates {
     }
 
     /// Asks GitHub for the releases and reports the newest above this one.
-    async fn check(&self) {
+    /// An automatic check that finds the version whose install just failed
+    /// leaves the failure shown: it must not turn back into "available"
+    /// behind the user's back.
+    async fn check(&self, kind: Check) {
         let Some(http) = &self.0.http else { return };
+        let before = self.status();
         self.set_status(UpdateStatus::Checking);
         let prereleases = self
             .0
@@ -335,7 +344,34 @@ impl Updates {
                 }
             }
         };
+        let status = {
+            let mut inner = self.0.inner.lock().unwrap_or_else(PoisonError::into_inner);
+            match (&status, kind) {
+                (UpdateStatus::Available { version, .. }, Check::Automatic)
+                    if inner.failed_install.as_ref() == Some(version)
+                        && matches!(before, UpdateStatus::Failed { .. }) =>
+                {
+                    tracing::info!(%version, "its install failed: the failure stays shown");
+                    before
+                }
+                _ => {
+                    inner.failed_install = None;
+                    status
+                }
+            }
+        };
         self.set_status(status);
+    }
+
+    /// The install of `version` failed with `error`.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    fn install_failed(&self, version: &str, error: UpdateError) {
+        self.0
+            .inner
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .failed_install = Some(version.to_owned());
+        self.set_status(UpdateStatus::Failed { error });
     }
 
     /// Downloads and installs the available update (Windows): the app exits
@@ -357,7 +393,7 @@ impl Updates {
             let app = app.clone();
             tauri::async_runtime::spawn(async move {
                 if let Err(error) = windows::install(&this, &app, &version, before_exit).await {
-                    this.set_status(UpdateStatus::Failed { error });
+                    this.install_failed(&version, error);
                 }
             });
             Ok(())
@@ -368,6 +404,15 @@ impl Updates {
             Err(CommandError::NotInstallable)
         }
     }
+}
+
+/// Who asked for a check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Check {
+    /// At launch, daily, or after the preferences changed.
+    Automatic,
+    /// "Rechercher".
+    Manual,
 }
 
 impl Updates {
@@ -569,7 +614,7 @@ mod tests {
         )
         .await;
         let (updates, _rx) = service(url);
-        updates.check().await;
+        updates.check(Check::Manual).await;
         assert_eq!(
             updates.view().status,
             UpdateStatus::Available {
@@ -582,7 +627,7 @@ mod tests {
             check: true,
             prereleases: true,
         });
-        updates.check().await;
+        updates.check(Check::Manual).await;
         assert_eq!(
             updates.view().status,
             UpdateStatus::Available {
@@ -596,7 +641,7 @@ mod tests {
     async fn up_to_date_and_failures() {
         let (url, _) = serve(r#"[{"tag_name":"v0.0.1","assets":[]}]"#).await;
         let (updates, _rx) = service(url);
-        updates.check().await;
+        updates.check(Check::Manual).await;
         assert!(matches!(
             updates.view().status,
             UpdateStatus::UpToDate { .. }
@@ -604,7 +649,7 @@ mod tests {
 
         let (url, _) = serve("not json").await;
         let (updates, _rx) = service(url);
-        updates.check().await;
+        updates.check(Check::Manual).await;
         assert_eq!(
             updates.view().status,
             UpdateStatus::Failed {
@@ -623,7 +668,7 @@ mod tests {
             Box::new(|_| {}),
         );
         assert!(matches!(updates.check_now(), Err(CommandError::Off)));
-        updates.check().await;
+        updates.check(Check::Manual).await;
         tokio::time::timeout(Duration::from_millis(50), updates.clone().run())
             .await
             .expect("run returns at once when off");
@@ -656,6 +701,59 @@ mod tests {
         .unwrap();
         assert_eq!(hits.load(std::sync::atomic::Ordering::SeqCst), 1);
         assert!(rx.try_iter().count() >= 3);
+    }
+
+    /// "Installer" clicked before the first automatic check, and refused:
+    /// that check must not replace the refusal with "available".
+    #[tokio::test]
+    async fn a_failed_install_stays_shown_after_an_automatic_check() {
+        let (url, _) = serve(
+            r#"[{"tag_name":"v99.0.0","draft":false,"prerelease":false,"assets":[{"name":"latest.json"}]}]"#,
+        )
+        .await;
+        let (updates, _rx) = service(url);
+        updates.check(Check::Manual).await;
+        updates.install_failed("99.0.0", UpdateError::Signature);
+        let refused = UpdateStatus::Failed {
+            error: UpdateError::Signature,
+        };
+
+        updates.check(Check::Automatic).await;
+        assert_eq!(updates.view().status, refused);
+        updates.check(Check::Automatic).await;
+        assert_eq!(updates.view().status, refused);
+
+        // "Rechercher" offers it again (the user may retry).
+        updates.check(Check::Manual).await;
+        assert_eq!(
+            updates.view().status,
+            UpdateStatus::Available {
+                version: "99.0.0".into(),
+                installable: cfg!(windows),
+            }
+        );
+        // Forgotten then: the next automatic check reports it normally.
+        updates.check(Check::Automatic).await;
+        assert!(matches!(
+            updates.view().status,
+            UpdateStatus::Available { .. }
+        ));
+    }
+
+    /// A newer release than the refused one is reported.
+    #[tokio::test]
+    async fn a_newer_release_than_the_failed_one_is_reported() {
+        let (url, _) = serve(
+            r#"[{"tag_name":"v99.0.1","draft":false,"prerelease":false,"assets":[{"name":"latest.json"}]}]"#,
+        )
+        .await;
+        let (updates, _rx) = service(url);
+        updates.install_failed("99.0.0", UpdateError::Signature);
+        updates.check(Check::Automatic).await;
+        assert!(matches!(
+            &updates.view().status,
+            UpdateStatus::Available { version, .. } if version == "99.0.1"
+        ));
     }
 
     #[test]
