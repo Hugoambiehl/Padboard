@@ -36,7 +36,8 @@ if adb devices | grep -q "^$serial"; then
   echo "error: $serial is already running" >&2
   exit 2
 fi
-if pgrep -x padboard-desktop > /dev/null; then
+# The kernel keeps 15 characters of a process name.
+if pgrep -x padboard-deskto > /dev/null; then
   echo "note: Padboard runs on this PC: it will see the emulator like a tablet (adb reverse)." >&2
   echo "      The tests never start the app's connection, so nothing more happens." >&2
 fi
