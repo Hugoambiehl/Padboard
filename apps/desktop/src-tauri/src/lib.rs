@@ -487,19 +487,37 @@ async fn remove_platform_tools(
         return Err(platform_tools::PlatformToolsError::Unsupported);
     };
     if let Some(adb) = platform_tools::installed_adb() {
-        let stopped = tokio::process::Command::new(&adb)
-            .arg("kill-server")
-            .kill_on_drop(true)
-            .output();
-        match tokio::time::timeout(std::time::Duration::from_secs(10), stopped).await {
-            Ok(Ok(_)) => {}
-            Ok(Err(e)) => tracing::warn!("adb kill-server: {e}"),
-            Err(_) => tracing::warn!("adb kill-server: no answer in 10 s"),
+        // Only our own copy's server: another program's adb (Touch Portal…)
+        // uses the same port and keeps running.
+        let port = adb::Config::new(0).server_port;
+        match platform_tools::server_owner(port) {
+            Some(owner) if platform_tools::same_program(&owner, &adb) => {
+                stop_adb_server(&adb).await
+            }
+            Some(owner) => tracing::info!(
+                owner = %owner.display(),
+                "adb server started by another program: left running"
+            ),
+            None => tracing::info!("no adb server of ours to stop"),
         }
     }
     platform_tools::remove(&dir)?;
     backend.rescan_adb();
     Ok(platform_tools::info())
+}
+
+/// `adb kill-server` with our copy (its server must be stopped before its
+/// folder can be removed: Windows locks a running program's file).
+async fn stop_adb_server(adb: &Path) {
+    let stopped = tokio::process::Command::new(adb)
+        .arg("kill-server")
+        .kill_on_drop(true)
+        .output();
+    match tokio::time::timeout(std::time::Duration::from_secs(10), stopped).await {
+        Ok(Ok(_)) => tracing::info!("our adb server stopped"),
+        Ok(Err(e)) => tracing::warn!("adb kill-server: {e}"),
+        Err(_) => tracing::warn!("adb kill-server: no answer in 10 s"),
+    }
 }
 
 /// Uses this `adb` executable (`None`: find it automatically).

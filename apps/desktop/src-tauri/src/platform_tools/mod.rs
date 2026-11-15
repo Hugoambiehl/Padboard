@@ -18,6 +18,9 @@
 
 #[cfg(windows)]
 mod authenticode;
+mod server_owner;
+
+pub use server_owner::{same_program, server_owner};
 
 use std::io::Read as _;
 use std::path::{Path, PathBuf};

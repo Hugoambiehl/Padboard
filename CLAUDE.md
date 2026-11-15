@@ -63,8 +63,14 @@ Same WebSocket protocol over two transports:
   a 4xx from Google = `unavailable`, the UI then offers the manual
   choice). Linux: the `.deb` depends on the distribution's free `adb`
   package (`bundle.linux.deb.depends`), which recommends the udev rules.
-  Windows drivers: none needed for the SM-T580 on Windows 11; Samsung's
-  driver is documented as a fallback (`help.rs` links the guides).
+  Windows drivers: not known whether Windows 11 needs one for the SM-T580
+  (the test PC had Samsung's driver, installed by something else): the
+  docs never claim Windows does without, Samsung's driver is the
+  documented fallback (`help.rs` links the guides). "Supprimer adb" stops
+  the adb server only if its process (`platform_tools/server_owner.rs`:
+  listener of port 5037, its executable) is our copy's `adb.exe`:
+  another program's server (Touch Portal's adb 28.0.3, same protocol 41)
+  keeps running.
   **Several adb on one PC** (adb.rs): they share one server (port 5037);
   different server versions (`adb version` "1.0.N") stop each other's
   server. Before any command Padboard asks the server its version
@@ -315,7 +321,9 @@ SM-T580, always measure in release builds.
   The LineageOS taskbar is turned off by the same PC command
   (`enable_taskbar`, a LineageOS setting the app cannot write). Leaving it
   always removes the device owner (`clearDeviceOwnerApp`): from the PC
-  (`tablet:command exit_kiosk`, "Libérer la tablette") or by holding the
+  (`tablet:command exit_kiosk`, "Libérer la tablette": two clicks, the
+  second at least 1 s after the first, `releaseClick` in `usb/kiosk.ts`,
+  so a double-click only arms it) or by holding the
   bottom-left corner (`KIOSK_EXIT_CORNER`, 40 dp) 5 s on any screen
   (touches observed, never consumed), then confirming (red button armed
   after 2 s; cancel by default, closes alone after 30 s). Every screen

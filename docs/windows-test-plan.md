@@ -57,9 +57,9 @@ $r = New-Object IO.StreamReader($s); $r.ReadToEnd(); $r.Close()
    Padboard sees it in `PATH`, or point Padboard to `adb.exe` (*Connexions*
    → *Appareils USB* → *Choisir l'emplacement d'adb…*). Google's
    Platform-Tools are not free software (Android SDK license).
-2. Plug the tablet. Windows 11 recognizes the SM-T580 under LineageOS by
-   itself; Samsung's *Android USB Driver for Windows* only if `adb devices`
-   lists nothing (`docs/install-windows.md`, *If adb does not see the tablet*).
+2. Plug the tablet. Windows may already have a driver for it (Windows
+   Update, or installed by another program); Samsung's *Android USB Driver
+   for Windows* only if `adb devices` lists nothing (`docs/install-windows.md`, *If adb does not see the tablet*).
 3. Accept the *Allow USB debugging* prompt on the tablet (new PC = new key).
 4. *Connexions* → *Appareils USB* should say *Prête : port 47321 redirigé*,
    and the tablet connects by itself (pill: *USB*).
@@ -77,7 +77,8 @@ use another Windows account. Normal mode (not test mode: adb is off there).
 | Install | Tick, **Télécharger et installer** | Within seconds: the card shows `…\AppData\Local\io.github.hugoambiehl.padboard\platform-tools\adb.exe` and *Platform-Tools 37.0.3 de Google, téléchargés par Padboard.*; the tablet connects over USB; `padboard.log` holds *the user accepted the Android SDK license* and *platform-tools installed* |
 | Signatures | In PowerShell: `Get-AuthenticodeSignature "$env:LOCALAPPDATA\io.github.hugoambiehl.padboard\platform-tools\*.exe"` | *Valid*, signer *CN=Google LLC* for each |
 | PATH first | `winget install Google.PlatformTools`, sign out and in, start Padboard | The card shows the winget `adb.exe` (an `adb` in `PATH` wins) |
-| Remove | Back to the downloaded copy (uninstall winget's), **Supprimer adb** | The folder is gone, the offer is back, the USB connection stops; no error |
+| Remove | Back to the downloaded copy (uninstall winget's), **Supprimer adb** | The folder is gone, the offer is back, the USB connection stops; no error; `padboard.log`: *our adb server stopped* |
+| Remove, another program's server | Install again; stop the server (`…\platform-tools\adb.exe kill-server`), start another adb's (Touch Portal's, or any adb in another folder: `<that adb> start-server`), wait for the card to be ready, **Supprimer adb** | The folder is gone; the other server still runs: `<that adb> devices` answers at once, without *daemon started*; `padboard.log`: *adb server started by another program: left running* with its path (from 0.2.0-rc.2; rc.1 stopped it) |
 | Licences | *À propos* → *Licences* | *Téléchargé à la demande, non inclus dans Padboard: Android SDK Platform-Tools 37.0.3 · Google LLC* |
 
 ## 3. Tablet over Wi-Fi
@@ -284,7 +285,7 @@ first* last. Also:
 | Bitdefender during the download and the first run of `adb.exe` | No detection (else: screenshot, exact name, stop) |
 | `Get-AuthenticodeSignature "$env:LOCALAPPDATA\io.github.hugoambiehl.padboard\platform-tools\*.exe","$env:LOCALAPPDATA\io.github.hugoambiehl.padboard\platform-tools\*.dll"` | `Valid`, signer `CN=Google LLC` for adb.exe, fastboot.exe, AdbWinApi.dll, AdbWinUsbApi.dll |
 | `padboard.log` (`%APPDATA%\io.github.hugoambiehl.padboard\`) | *the user accepted the Android SDK license*, then *platform-tools installed*; no error |
-| *Supprimer adb*, then *Installer adb…* again | Removed then installed again without error |
+| *Supprimer adb*, then *Installer adb…* again | Removed then installed again without error; another program's adb server (Touch Portal) keeps running (from 0.2.0-rc.2) |
 
 *PATH first*: reinstall winget's copy if Hugo wants it
 (`winget install Google.PlatformTools`, sign out and in) and check the card
@@ -300,7 +301,7 @@ The tablet (SM-T580, LineageOS 19.1) is **in kiosk mode** and on
 
 | Check | Expect |
 |---|---|
-| Driver | Recognized without Samsung's driver (Windows 11). If `adb devices` is empty: *If adb does not see the tablet* in `docs/install-windows.md`, note what was needed |
+| Driver | Recognized. Note which driver Windows uses (Device Manager → the tablet → *Driver*: Samsung's or Microsoft's). If `adb devices` is empty: *If adb does not see the tablet* in `docs/install-windows.md`, note what was needed |
 | *Appareils USB* | *Prête : port 47321 redirigé*, *Padboard 0.2.0-rc.1*, kiosk active; no *Mettre à jour* button (same version) |
 | Tablet | The grid of the profile shown on the PC, USB pill; stays locked in kiosk mode |
 | A few non-keyboard buttons | Media, volume, microphone: the action happens and the state shows on the tablet (restore the sound exactly afterwards) |

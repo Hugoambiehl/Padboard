@@ -40,7 +40,10 @@ USB is optional: over Wi-Fi (section 3) you need nothing else.
      it, Padboard downloads a fixed version from Google (about 8 MB),
      checks its SHA-256 and the *Google LLC* signature of every program,
      and puts it in `%LOCALAPPDATA%\io.github.hugoambiehl.padboard\platform-tools\`.
-     *Remove adb* deletes it. If Google no longer offers that version,
+     *Remove adb* deletes it, after stopping its adb server, only if that
+     server was started from this copy: another program's adb server
+     (Touch Portal, Android Studio…) keeps running. If Google no longer
+     offers that version,
      Padboard says so: use the other way.
    - **By yourself**: `winget install Google.PlatformTools` (or the zip from
      [Google's page](https://developer.android.com/tools/releases/platform-tools)),
@@ -49,8 +52,8 @@ USB is optional: over Wi-Fi (section 3) you need nothing else.
      in the `PATH` is used before the one Padboard downloaded.
 2. On the tablet, turn on **USB debugging** (see the
    [tablet guide](install-tablet.md#usb-debugging)).
-3. Plug the tablet in. Windows 10 and 11 usually recognize it by themselves
-   (no driver to install); otherwise see
+3. Plug the tablet in. If Windows already has a suitable driver, nothing
+   is needed; otherwise see
    [If adb does not see the tablet](#if-adb-does-not-see-the-tablet).
 4. Accept the *Allow USB debugging?* prompt on the tablet.
 5. *Connections* → *USB devices* reads *Ready: port 47321 redirected* and the
@@ -82,9 +85,10 @@ WebSocket server*, then copy the port and the password into Padboard:
 ## If adb does not see the tablet
 
 Plugged in with USB debugging on, the tablet should appear in *USB
-devices* (and in `adb devices`). Windows normally installs a generic
-driver by itself (checked with a Galaxy Tab A 10.1 under LineageOS 19.1
-on Windows 11). If nothing shows up:
+devices* (and in `adb devices`). Whether Windows needs a driver for that
+depends on the PC: it may already have one (from Windows Update, or
+installed by another program; the PC Padboard was tested on had
+Samsung's). If nothing shows up:
 
 1. Try another cable (some only charge) and another USB port, and unlock
    the tablet: the *Allow USB debugging?* prompt only shows on an unlocked
