@@ -526,7 +526,19 @@ As 9.0, plus:
 | Padboard running | *Désinstaller avant d'installer*, *Suivant* | The installer asks to close Padboard (OK / Cancel). *Annuler*: back on the same page, nothing uninstalled. Then *Suivant* again, *OK*: Padboard closes |
 | No deletion offered | (continued) | rc.3's uninstaller **shows no confirmation page and no *Supprimer les données de l'application***: only a short progress window that closes by itself, then the install. If the checkbox shows anyway: leave it **unticked**, finish, and report a) as failed |
 | Kept | rc.4 starts | Profiles, preferences, *Versions de test*, paired tablets kept (the tablet reconnects without a PIN: same PC identity and key); Start menu and desktop shortcuts and a taskbar pin kept; one entry in *Settings → Apps*; the `Run` value still there |
-| Bitdefender | During the install and 5 min after | No detection, no quarantine, no ATC event, no new firewall rule |
+| Bitdefender (`/P` uninstall) | Bitdefender active, update rc.3 → rc.4 by double-click | **No ATC detection, no quarantine, no new firewall rule during the install and 5 min after** |
+
+The installer now runs the old `uninstall.exe` with `/P` (no window), a
+child process started without a visible window: close to the pattern ATC
+took in 9.2 (`A.exe /S` started by a script). If ATC reacts: report it,
+restart the PC, reinstall rc.4 by hand (*If your antivirus blocks
+Padboard*, `install-windows.md`), and the fallback for rc.5 is to drop
+`/P` and keep `/UPDATE` in `src-tauri/windows/installer.nsi`. The
+uninstaller's window then shows; its data is still never deleted
+(`/UPDATE` skips it). Uninstallers from rc.4 on hide the *Supprimer les
+données de l'application* checkbox in that mode, but those of 0.1.0 to
+rc.3 (Tauri's own) still **show it, without effect**. The template's
+comments and its test change with it.
 
 ### 10.2 Start with the session (b)
 
