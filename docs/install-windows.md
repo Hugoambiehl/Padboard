@@ -142,6 +142,13 @@ Explorer on it. Then:
 2. run the selected file, `Padboard_<version>_x64-setup.exe`, and follow
    its steps as for the first install. Your configuration is kept.
 
+If the installer offers to uninstall the previous version and that
+step shows **Delete the application data** (*Supprimer les données de
+l'application*), leave it **unticked**: ticked, it erases your
+configuration (the PC's identity, its Wi-Fi key, the paired tablets, the
+profiles). Installers from 0.2.0-rc.4 on uninstall the previous version
+as an update and no longer show it; an older installer still does.
+
 Padboard does not start the installer itself: it has no code signing
 certificate (none for now), and started by Padboard an unsigned installer
 looks suspicious to some antivirus programs (see below). If you do not
@@ -170,6 +177,18 @@ it (see *Updates*), but if it happens:
   (below), then add a **temporary** Bitdefender exception for the
   installer file only, run it, and **remove the exception** right after.
   Never add an exception for a file whose SHA-256 is wrong.
+- **Padboard no longer finds updates, or no longer starts with
+  Windows**: after such a detection, Bitdefender silently adds firewall
+  rules that block `padboard-desktop.exe` (by its path: they survive a
+  reinstall), so the update check fails (*error sending request* in
+  `padboard.log`) with nothing shown; it may also remove Padboard's start
+  with the session. In Bitdefender: *Protection* → *Firewall* →
+  *Rules*, delete the rules for Padboard (`padboard-desktop.exe`). Then
+  in Padboard: *Connections* → *Startup*, turn *Start Padboard when I
+  sign in* back on if it is off. (From 0.2.0-rc.4, once it is on,
+  Padboard writes its start entry again by itself when it finds it gone;
+  if you turned Padboard off in the Task Manager's *Startup apps*, it
+  stays off.)
 - **Check the file**: in PowerShell, `Get-FileHash` on the installer must
   print the SHA-256 listed in the release's `SHA256SUMS`. If it differs,
   delete the file and do not run it.

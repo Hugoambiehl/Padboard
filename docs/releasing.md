@@ -9,7 +9,7 @@ one version.
 
 | File | Built by | Notes |
 |---|---|---|
-| `Padboard_X_x64-setup.exe` | release workflow (Windows runner) | NSIS installer, English or French from the Windows language. **Not signed** (no Authenticode certificate: SignPath Foundation declined for now): SmartScreen asks for confirmation. |
+| `Padboard_X_x64-setup.exe` | release workflow (Windows runner) | NSIS installer, English or French from the Windows language, from Padboard's template (`src-tauri/windows/installer.nsi`, see *Notes*). **Not signed** (no Authenticode certificate: SignPath Foundation declined for now): SmartScreen asks for confirmation. |
 | `Padboard_X_amd64.deb` | release workflow (Ubuntu 22.04) | Ubuntu 22.04+ / Debian 12+. |
 | `padboard-X.apk` | release workflow, **signed on the maintainer’s PC** | The workflow attaches `padboard-X-unsigned.apk`; `scripts/sign-release.sh` signs it and replaces it. The keys never leave that PC (`docs/release-signing.md`). |
 | `Padboard_X_x64-setup.exe.sig`, `latest.json` | `scripts/sign-release.sh` | The in-app updater (Windows) reads `latest.json` and checks the installer against this signature, made for version X. |
@@ -166,6 +166,19 @@ After `scripts/sign-release.sh`, before publishing:
       (`docs/windows-test-plan.md`, *Real update with an antivirus*).
 
 ## Notes
+
+- **The NSIS template follows the Tauri CLI.** `apps/desktop/src-tauri/
+  windows/installer.nsi` is Tauri's `installer.nsi` of the CLI in
+  `package-lock.json` (its `; Base:` line), with Padboard's changes
+  marked `; Padboard:`: an installed version is always uninstalled as an
+  update (`/UPDATE /P`: never *Delete the application data*, the autostart
+  `Run` value and the shortcuts kept), after asking to close Padboard.
+  When `@tauri-apps/cli` is upgraded, `scripts/tests/test_nsis_template.py`
+  fails (CI): take the new version's
+  `crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi` (tag
+  `tauri-cli-vX`), apply the marked changes again, update the `; Base:`
+  line, and check an update by hand on Windows (*Désinstaller avant
+  d'installer*: no checkbox, configuration kept).
 
 - **Later: automatic window close tests.** WebKitWebDriver never finishes
   a command whose effect hides the window (and once crashed, segfault,

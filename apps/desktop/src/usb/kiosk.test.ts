@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fr from "../locales/fr.json";
-import { kioskErrorMessage, RELEASE_ARM_MS, releaseClick } from "./kiosk";
+import { kioskActiveKey, kioskErrorMessage, RELEASE_ARM_MS, releaseClick } from "./kiosk";
 
 function text(key: string): unknown {
   return key
@@ -59,5 +59,24 @@ describe("releaseClick", () => {
       arm: { id: 8, at: 5000 },
       confirmed: false,
     });
+  });
+});
+
+describe("kioskActiveKey", () => {
+  it("describes the gesture of the version on the tablet", () => {
+    // 0.1.0 and 0.2.0-rc.1: top-right corner.
+    expect(kioskActiveKey({ name: "0.1.0", code: 10099 })).toBe("usbDevices.kiosk.activeTopRight");
+    expect(kioskActiveKey({ name: "0.2.0-rc.1", code: 20001 })).toBe(
+      "usbDevices.kiosk.activeTopRight",
+    );
+    // From 0.2.0-rc.2: bottom-left corner.
+    for (const code of [20002, 20003, 20099, 30001]) {
+      expect(kioskActiveKey({ name: null, code })).toBe("usbDevices.kiosk.active");
+    }
+    // Development versions and unknown versions: the current gesture.
+    expect(kioskActiveKey({ name: "0.2.0-dev", code: 20000 })).toBe("usbDevices.kiosk.active");
+    expect(kioskActiveKey(null)).toBe("usbDevices.kiosk.active");
+    expect(text("usbDevices.kiosk.activeTopRight")).toContain("en haut à droite");
+    expect(text("usbDevices.kiosk.active")).toContain("en bas à gauche");
   });
 });

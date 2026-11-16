@@ -136,6 +136,7 @@
       "enabling": "Activation…",
       "hint": "Padboard devient propriétaire de la tablette : verrouillé à l’écran, écran d’accueil, sans barre d’état ni écran de verrouillage. Impossible si la tablette a des comptes.",
       "active": "Mode kiosque actif. Pour le quitter : « Libérer la tablette » dans Tablettes connectées, ou appui de 5 s dans le coin en bas à gauche de l’écran de la tablette.",
+      "activeTopRight": "Mode kiosque actif. Pour le quitter : « Libérer la tablette » dans Tablettes connectées, ou appui de 5 s dans le coin en haut à droite de l’écran de la tablette (sa version actuelle ; après la mise à jour, ce sera le coin en bas à gauche).",
       "otherOwner": "Mode kiosque impossible : l’application {owner} administre déjà cette tablette.",
       "error": {
         "testMode": "Le mode test n’utilise pas adb.",
@@ -619,6 +620,7 @@
     "ready": "La version {version} est téléchargée et vérifiée.",
     "readyHint": "Ferme Padboard, puis lance ce fichier :",
     "readyQuitHint": "« Quitter Padboard » le ferme vraiment (fermer la fenêtre le laisse tourner près de l’horloge).",
+    "readyKeepData": "Si l’installeur propose de désinstaller l’ancienne version, laisse « Supprimer les données de l’application » décochée : sinon tes profils, appairages et réglages sont effacés.",
     "showFile": "Afficher le fichier",
     "quit": "Quitter Padboard"
   },

@@ -215,7 +215,9 @@ Control* on, no exception for Padboard):
 3. In Padboard N: *Rechercher*, *Télécharger*: the Explorer opens on the
    installer in *Downloads*; *Quitter Padboard*, run the file, follow the
    wizard. (Up to 0.2.0-rc.2, Padboard started the installer itself: never
-   use *Installer* in those versions, see section 8.)
+   use *Installer* in those versions, see section 8.) The local test
+   releases above cannot replace this step on such a PC: the silent
+   `A.exe /S` is itself taken by Bitdefender ATC (section 9.2).
 4. Expect: no detection, Padboard N+1 starts, configuration kept. Note any
    Bitdefender event (name, process chain) and report it as a false
    positive (`docs/install-windows.md`).
@@ -430,17 +432,29 @@ left Padboard broken, restart the PC first.
 | Bitdefender | During the install and 5 min after | No detection, no quarantine, no ATC event |
 | Silent retry | Restart the PC; Padboard starts with the session if that is on (else start it at once) | No update error shown even if the network comes up late; `padboard.log`: either *no update* / *update available*, or *automatic update check failed (not shown)* followed by *next update check in 5 min* |
 
-### 9.2 The new update path, from rc.3 (local test releases)
+### 9.2 The new update path, from rc.3: postponed to 0.2.0
 
-Section 6 with the installers built from the **v0.2.0-rc.3** tag (versions
-of the config files: A = `0.2.0-rc.3`, B = `0.2.0-rc.4`; the variables
-accordingly), **Bitdefender active, no exception**. All of section 6's
-checks, plus:
+**Not run with local test releases** (decided 2026-11-16): with
+Bitdefender active, section 6's `A.exe /S` started from PowerShell was
+taken by ATC (`Atc4.Detection`, 19:50): the test installer, the installed
+`padboard-desktop.exe`, `uninstall.exe` and both shortcuts quarantined,
+the whole process chain killed, a firewall block rule added for each
+executable. A locally built, unsigned installer run silently by a script
+is the pattern ATC takes; section 6 stays for PCs without such an
+antivirus.
+
+Run instead **when 0.2.0 is published**, with the real update from the
+official **rc.4** (section 10 installs it; Bitdefender active, no
+exception, *Versions de test* on):
 
 | Check | Do | Expect |
 |---|---|---|
-| Not started by Padboard | *Télécharger* | The Explorer opens on the installer; no installer process starts until you run it; **no Bitdefender event** during the download and while Padboard runs |
-| Run by the user | *Quitter Padboard*, double-click the file | Installs like a manual install: no detection, B starts |
+| Found | *Rechercher* | *0.2.0* available (badge) |
+| Not started by Padboard | *Télécharger* | Downloaded and checked; the Explorer opens on `Padboard_0.2.0_x64-setup.exe` in *Downloads*; no installer process starts until you run it; **no Bitdefender event** during the download and while Padboard runs |
+| Show again | Close the Explorer, *Afficher le fichier* | The Explorer opens again on the file |
+| Run by the user | *Quitter Padboard* (in the card), double-click the file; previous version found: **Désinstaller avant d'installer** | Wizard, no detection; rc.4 is uninstalled as an update (no confirmation, no *Supprimer les données de l'application*; if it shows anyway, leave it **unticked** and report it); 0.2.0 starts; profiles, preferences, *Versions de test* kept; one entry in *Settings → Apps* |
+| No failure notice | *Mises à jour* | No *L’installation de la version … n’a pas abouti* |
+| Firewall | Bitdefender's firewall rules | No new rule for `padboard-desktop.exe` |
 
 ### 9.3 USB, adb and tablet
 
@@ -452,6 +466,92 @@ the PC, kiosk on first, to **0.2.0-rc.3**), unchanged.
 Reinstall the official rc.3 if section 6 replaced it (*Afterwards* of
 section 6); restore the sound; send the report with the `padboard.log`
 files.
+
+### 9.5 Results (reported 2026-11-16)
+
+| Check | Result | Remark |
+|---|---|---|
+| 9.1 rc.2 → rc.3 by hand | OK | Tray, silent retry after a restart, single instance OK |
+| 9.2 | Postponed | To the real update to 0.2.0, from rc.4 (see 9.2) |
+| 9.3 (8.2, 8.3) | OK | "Supprimer adb" next to Touch Portal; kiosk on, then tablet updated from the PC in 4 s; the new exit gesture (bottom-left corner) tried by finger |
+
+Found during this round, fixed or documented in rc.4 (section 10):
+
+1. After an ATC detection, Bitdefender silently adds **firewall rules**
+   blocking `%LOCALAPPDATA%\Padboard\padboard-desktop.exe`: by path, so
+   they survive a reinstall, and the update check fails (*error sending
+   request*) with nothing shown. Documented (`install-windows.md`).
+2. The **autostart `Run` value** (`HKCU\…\Run\Padboard`) was gone after
+   the remediation. Tauri's uninstaller also removes it when the next
+   installer runs it as a plain uninstall (*Désinstaller avant
+   d'installer*). rc.4 records the choice and writes the value again at
+   launch.
+3. During an update by double-click, the old version's uninstall step
+   offered **Supprimer les données de l'application**: easy to tick by
+   mistake, and the whole configuration is lost (PC identity, TLS key,
+   pairings, profiles). From rc.4 the installer runs it as an update
+   (`/UPDATE /P`, `src-tauri/windows/installer.nsi`).
+4. The PC described the **new exit gesture** while the connected tablet
+   still had the old version. rc.4 describes the gesture of the version
+   installed on the tablet.
+5. The installer showed NSIS's **default images** (the blue computer).
+   rc.4 has Padboard's (`scripts/icons.mjs`).
+
+## 10. Release candidate 0.2.0-rc.4: update from rc.3 (Bitdefender active)
+
+Same PC and rules as sections 7 to 9. rc.4 is **published** as a
+pre-release. The update is the new path of rc.3: Padboard downloads and
+shows the installer, you run it.
+
+### 10.0 Before starting
+
+As 9.0, plus:
+
+- In Bitdefender (*Protection* → *Firewall* → *Rules*): note then delete
+  the rules for `padboard-desktop.exe` left by section 9.2's detection
+  (`install-windows.md`, *If your antivirus blocks Padboard*).
+- Note the autostart state, to restore it at the end:
+  `Get-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Run | Select-Object Padboard`,
+  and Padboard's line in *Task Manager* → *Startup apps*.
+- In rc.3: *Connexions* → *Démarrage*, *Lancer Padboard à l'ouverture de
+  session* **on** (for 10.1's checks).
+
+### 10.1 rc.3 → rc.4 (a: no data deletion offered)
+
+| Check | Do | Expect |
+|---|---|---|
+| Found | In rc.3: *Versions de test* on, *Rechercher* | *0.2.0-rc.4* available (badge); no *error sending request* in `padboard.log` once the firewall rules are gone |
+| Shown | *Télécharger* | The Explorer opens on `Padboard_0.2.0-rc.4_x64-setup.exe` in *Downloads*; `Get-FileHash` = `SHA256SUMS`; no Bitdefender event |
+| Images (d) | Double-click the file **while rc.3 still runs** | Welcome and finish pages: Padboard's dark sidebar (violet icon, coloured tiles); other pages: Padboard's header. No blue computer |
+| Padboard running | *Désinstaller avant d'installer*, *Suivant* | The installer asks to close Padboard (OK / Cancel). *Annuler*: back on the same page, nothing uninstalled. Then *Suivant* again, *OK*: Padboard closes |
+| No deletion offered | (continued) | rc.3's uninstaller **shows no confirmation page and no *Supprimer les données de l'application***: only a short progress window that closes by itself, then the install. If the checkbox shows anyway: leave it **unticked**, finish, and report a) as failed |
+| Kept | rc.4 starts | Profiles, preferences, *Versions de test*, paired tablets kept (the tablet reconnects without a PIN: same PC identity and key); Start menu and desktop shortcuts and a taskbar pin kept; one entry in *Settings → Apps*; the `Run` value still there |
+| Bitdefender | During the install and 5 min after | No detection, no quarantine, no ATC event, no new firewall rule |
+
+### 10.2 Start with the session (b)
+
+Quit Padboard (tray → *Quitter Padboard*) before each registry change.
+
+| Check | Do | Expect |
+|---|---|---|
+| Choice recorded | First launch of rc.4 (10.1) | `padboard.log`: *start with the session: choice recorded from the entry* `on=true` (once; later launches: *entry refreshed*) |
+| Written again | `Remove-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name Padboard`, start Padboard | `padboard.log`: *the entry had disappeared (removed by another program), written again*; the value is back: `"…\padboard-desktop.exe" --hidden`; *Démarrage* on |
+| Task Manager respected | *Task Manager* → *Startup apps* → Padboard **Disabled**; quit; remove the `Run` value again; start Padboard | The value is written again (log as above), but Padboard **stays Disabled** in the Task Manager; restart the PC: Padboard does not start. Then set it back to **Enabled** |
+| Turned off | *Démarrage* off, quit, start Padboard | No `Run` value, nothing written again |
+| Restart | *Démarrage* on, restart the PC | Padboard starts hidden in the tray |
+
+### 10.3 Tablet (c)
+
+| Check | Do | Expect |
+|---|---|---|
+| Gesture text | Tablet in kiosk mode on rc.3, USB card | *… coin en bas à gauche …* (rc.2 and later). With a tablet still on 0.1.0 or rc.1, if one is at hand: *… coin en haut à droite … (sa version actuelle …)* |
+| Update | 8.3 to **0.2.0-rc.4** | Updated from the PC; the text is unchanged (bottom-left) |
+
+### 10.4 Afterwards
+
+Restore the autostart state noted in 10.0 (and the Task Manager line),
+the sound, then send the report with the `padboard.log` files. rc.4 stays
+installed: 9.2 runs from it when 0.2.0 is published.
 
 ## Known Windows limits
 

@@ -15,7 +15,7 @@ import {
 } from "../commands";
 import type { PlatformToolsInfo } from "../types/platformTools";
 import type { DeviceState, UsbStatus } from "../types/status";
-import { kioskErrorMessage } from "../usb/kiosk";
+import { kioskActiveKey, kioskErrorMessage } from "../usb/kiosk";
 import { devMismatch, needsUpdate, usbUpdateErrorMessage } from "../usb/update";
 
 const props = defineProps<{
@@ -346,7 +346,7 @@ async function automatic() {
                 data-kiosk="on"
               >
                 <Lock :size="12" class="mt-0.5 shrink-0" aria-hidden="true" />
-                {{ t("usbDevices.kiosk.active") }}
+                {{ t(kioskActiveKey(device.app)) }}
               </span>
               <span
                 v-else-if="device.kiosk.state === 'otherOwner'"

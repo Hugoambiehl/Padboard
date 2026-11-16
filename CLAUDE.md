@@ -218,6 +218,13 @@ SM-T580, always measure in release builds.
   typeshare output.
 - **Tauri versions**: the `tauri` crate and the `@tauri-apps/*` npm packages must
   stay on the same minor (currently `~2.11` on both sides); bump them together.
+  The NSIS installer uses our template (`src-tauri/windows/installer.nsi`:
+  Tauri's own of the CLI in use, `; Base:` line checked by
+  `scripts/tests/test_nsis_template.py`, changes marked `; Padboard:`):
+  the installed version is always uninstalled with `/UPDATE /P` (Tauri's
+  plain uninstall offered "Delete the application data" during an update,
+  and removed the `Run` value). A CLI bump means re-applying them
+  (`docs/releasing.md`). Header and sidebar BMPs come from `icons.mjs`.
   Tauri plugins follow their own versions but require a minimum `@tauri-apps/api`:
   `tauri-plugin-dialog` / `@tauri-apps/plugin-dialog` stay on `~2.7` (2.8 needs 2.12).
 - **Desktop dev launch**: `scripts/desktop-dev.sh`. It strips the GTK/GIO
@@ -334,7 +341,9 @@ SM-T580, always measure in release builds.
   `tablet:status`; who left it (`KioskExitOrigin`: gesture / PC) is
   logged on the tablet, kept on disk (`KioskExits`) and sent once in the
   next `tablet:status` (`kioskLeft`, optional field), logged by the PC.
-  The PC's USB row reads the
+  The PC's USB row describes the gesture of the version installed on
+  the tablet (`usb/kiosk.ts` `kioskActiveKey`: top-right below rc.2,
+  versionCode 20002). The PC's USB row reads the
   device owner with `dpm list-owners` (on detection, after "Activer", on
   every `tablet:status`): already Padboard = success, another owner = a
   clear refusal (codes in `adb::KioskError`, translated by the UI).
@@ -550,7 +559,13 @@ SM-T580, always measure in release builds.
   mode). "Démarrage" card: start with the session (`autostart.rs`: the
   `auto-launch` crate with the program path quoted by us, since neither it
   nor the Tauri plugin quote it; entry with `--hidden`, off by default,
-  rewritten at launch when on; simulated in test mode). The log file is
+  rewritten at launch when on; simulated in test mode). The choice is
+  kept in `preferences.json` (`autostart`; absent = recorded from the
+  entry at the next launch): a `Run` value gone while it is on (Bitdefender
+  ATC remediation, Tauri's uninstaller) is written again at launch and
+  logged, the value only, never `StartupApproved` (auto-launch's `enable`
+  marks it enabled), so a Task Manager "Disabled" stays; on Linux a
+  missing `.desktop` file turns the choice off (GNOME removes it). The log file is
   opened in setup, after the single instance check (a second launch must
   not truncate the running instance's log). The tooltip the icon is
   created with names it in Windows settings: fixed "Padboard", the status

@@ -47,6 +47,9 @@
     "copyright": "Copyright (C) 2026 Padboard contributors. GPL-3.0-or-later.",
     "windows": {
       "nsis": {
+        "template": "windows/installer.nsi",
+        "headerImage": "icons/nsis-header.bmp",
+        "sidebarImage": "icons/nsis-sidebar.bmp",
         "languages": [
           "English",
           "French"

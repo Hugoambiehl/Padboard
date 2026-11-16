@@ -115,6 +115,7 @@ describe("desktop updates", () => {
     const saved = join(app.dir, "config", "downloads", INSTALLER);
     expect(await app.session.text(await app.session.find("[data-updates-file]"))).toBe(saved);
     await app.session.find(`//p[normalize-space(.)=${literal(t("updates.readyHint"))}]`);
+    await app.session.find(`//p[normalize-space(.)=${literal(t("updates.readyKeepData"))}]`);
     // The file is the release's, saved whole, in the test directory.
     expect(await readFile(saved)).toEqual(await readFile(join(FIXTURES, INSTALLER)));
     const log = await app.log();

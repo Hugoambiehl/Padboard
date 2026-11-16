@@ -136,6 +136,7 @@
       "enabling": "Turning on…",
       "hint": "Padboard becomes the tablet's owner: locked on screen, home screen, no status bar or lock screen. Not possible if the tablet has accounts.",
       "active": "Kiosk mode on. To leave it: \"Release the tablet\" in Connected tablets, or hold the bottom-left corner of the tablet's screen for 5 s.",
+      "activeTopRight": "Kiosk mode on. To leave it: \"Release the tablet\" in Connected tablets, or hold the top-right corner of the tablet's screen for 5 s (its current version; once updated, it will be the bottom-left corner).",
       "otherOwner": "Kiosk mode not possible: the app {owner} already manages this tablet.",
       "error": {
         "testMode": "Test mode does not use adb.",
@@ -619,6 +620,7 @@
     "ready": "Version {version} is downloaded and checked.",
     "readyHint": "Close Padboard, then run this file:",
     "readyQuitHint": "“Quit Padboard” really closes it (closing the window keeps it running near the clock).",
+    "readyKeepData": "If the installer offers to uninstall the previous version, leave “Delete the application data” unticked: otherwise your profiles, pairings and settings are erased.",
     "showFile": "Show the file",
     "quit": "Quit Padboard"
   },

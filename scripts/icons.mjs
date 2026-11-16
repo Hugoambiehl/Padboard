@@ -10,12 +10,16 @@
 //   foreground inside the safe zone) and its monochrome layer (Android 13+
 //   themed icons), as vector drawables, and the whole icon as a drawable
 //   for the app's own header badge (ic_padboard.xml);
-// - store listing icon (fastlane/metadata/android/<locale>/images/icon.png).
+// - store listing icon (fastlane/metadata/android/<locale>/images/icon.png);
+// - Windows installer (NSIS) images, 24-bit BMPs at the sizes NSIS asks
+//   for: the header (150×57, also the uninstaller's) and the sidebar of
+//   the welcome and finish pages (164×314).
 //
 // At 32 px and below the "pressed" halo is under a pixel wide and only
 // blurs the tile: those sizes use the source without it (SMALL_MAX).
 // PNGs are rendered by `tauri icon` (resvg), from apps/desktop's npm deps.
 import { execFileSync } from "node:child_process";
+import { inflateSync } from "node:zlib";
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -103,6 +107,129 @@ function ico(images) {
     offset += data.length;
   });
   return Buffer.concat([header, ...images.map(([, data]) => data)]);
+}
+
+// ─── Windows installer (NSIS) ───────────────────────────────────────────
+// `tauri icon` renders squares: each image is drawn in the corner of a
+// square canvas, then cropped. Dark background, the icon, and a grid of
+// tiles in the category colours (the tablet's grid).
+const inner = source.replace(/^[\s\S]*?<svg\b[^>]*>/, "").replace(/<\/svg>\s*$/, "");
+const BACKGROUND = "#0E0F12";
+const CATEGORIES = ["#8B7CFF", "#5AA9FF", "#3DD6B5", "#FF9F5A", "#FF6FAE", "#FF5C5C", "#A3ABBD"];
+
+/** The icon at (x, y), `size` wide. */
+const icon = (x, y, size) =>
+  `<svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="0 0 256 256">${inner}</svg>`;
+
+/** A tile: the category colour at 16 % behind a small square of it. */
+function tile(x, y, size, color) {
+  const dot = size * 0.36;
+  const o = (size - dot) / 2;
+  return (
+    `<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="${size * 0.28}" fill="${color}" fill-opacity="0.16"/>` +
+    `<rect x="${x + o}" y="${y + o}" width="${dot}" height="${dot}" rx="${dot * 0.3}" fill="${color}"/>`
+  );
+}
+
+/** `width`×`height` image drawn by `body`, as a BMP. */
+function installerImage(width, height, body) {
+  const side = Math.max(width, height);
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${side} ${side}">` +
+    `<rect width="${width}" height="${height}" fill="${BACKGROUND}"/>${body}</svg>`;
+  const { pixels, width: w } = decodePng(render(svg, [side])[side]);
+  return bmp(width, height, (x, y) => pixels.subarray((y * w + x) * 4, (y * w + x) * 4 + 3));
+}
+
+const sidebarTiles = [];
+for (let row = 0; row < 3; row++) {
+  for (let col = 0; col < 3; col++) {
+    const i = row * 3 + col;
+    sidebarTiles.push(tile(18 + col * 46, 176 + row * 46, 36, CATEGORIES[i % CATEGORIES.length]));
+  }
+}
+writeFileSync(
+  join(icons, "nsis-sidebar.bmp"),
+  installerImage(164, 314, icon(34, 44, 96) + sidebarTiles.join("")),
+);
+writeFileSync(
+  join(icons, "nsis-header.bmp"),
+  installerImage(
+    150,
+    57,
+    icon(8, 8, 41) + [1, 2, 3].map((c, i) => tile(62 + i * 28, 17, 23, CATEGORIES[c])).join(""),
+  ),
+);
+
+/** RGBA pixels of a PNG as `tauri icon` writes it (8-bit RGBA, not interlaced). */
+function decodePng(data) {
+  let pos = 8;
+  let width = 0;
+  let height = 0;
+  const idat = [];
+  while (pos < data.length) {
+    const length = data.readUInt32BE(pos);
+    const type = data.toString("latin1", pos + 4, pos + 8);
+    const chunk = data.subarray(pos + 8, pos + 8 + length);
+    if (type === "IHDR") {
+      width = chunk.readUInt32BE(0);
+      height = chunk.readUInt32BE(4);
+      if (chunk[8] !== 8 || chunk[9] !== 6 || chunk[12] !== 0) {
+        throw new Error("expected an 8-bit RGBA, non-interlaced PNG");
+      }
+    } else if (type === "IDAT") idat.push(chunk);
+    pos += 12 + length;
+  }
+  const raw = inflateSync(Buffer.concat(idat));
+  const stride = width * 4;
+  const pixels = Buffer.alloc(stride * height);
+  for (let y = 0; y < height; y++) {
+    const filter = raw[y * (stride + 1)];
+    for (let i = 0; i < stride; i++) {
+      const value = raw[y * (stride + 1) + 1 + i];
+      const a = i >= 4 ? pixels[y * stride + i - 4] : 0;
+      const b = y > 0 ? pixels[(y - 1) * stride + i] : 0;
+      const c = i >= 4 && y > 0 ? pixels[(y - 1) * stride + i - 4] : 0;
+      let predicted = 0;
+      if (filter === 1) predicted = a;
+      else if (filter === 2) predicted = b;
+      else if (filter === 3) predicted = (a + b) >> 1;
+      else if (filter === 4) {
+        const p = a + b - c;
+        const pa = Math.abs(p - a);
+        const pb = Math.abs(p - b);
+        const pc = Math.abs(p - c);
+        predicted = pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+      }
+      pixels[y * stride + i] = (value + predicted) & 0xff;
+    }
+  }
+  return { pixels, width };
+}
+
+/** A 24-bit BMP (bottom-up rows, padded to 4 bytes); `rgb(x, y)` gives each pixel. */
+function bmp(width, height, rgb) {
+  const row = Math.ceil((width * 3) / 4) * 4;
+  const out = Buffer.alloc(54 + row * height);
+  out.write("BM", 0, "latin1");
+  out.writeUInt32LE(out.length, 2);
+  out.writeUInt32LE(54, 10);
+  out.writeUInt32LE(40, 14);
+  out.writeInt32LE(width, 18);
+  out.writeInt32LE(height, 22);
+  out.writeUInt16LE(1, 26);
+  out.writeUInt16LE(24, 28);
+  out.writeUInt32LE(row * height, 34);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const [r, g, b] = rgb(x, y);
+      const at = 54 + (height - 1 - y) * row + x * 3;
+      out[at] = b;
+      out[at + 1] = g;
+      out[at + 2] = r;
+    }
+  }
+  return out;
 }
 
 // Favicon: drawn small in a tab, so without the halo.

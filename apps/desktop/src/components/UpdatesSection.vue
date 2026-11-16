@@ -113,6 +113,7 @@ function save(change: Partial<UpdatePreferences>) {
         {{ status.file }}
       </p>
       <p class="text-xs text-muted">{{ t("updates.readyQuitHint") }}</p>
+      <p class="text-xs text-muted" data-updates-keep-data>{{ t("updates.readyKeepData") }}</p>
     </div>
     <p v-if="status?.state === 'notInstalled'" class="text-xs text-muted">
       {{ t("updates.notInstalledHint") }}

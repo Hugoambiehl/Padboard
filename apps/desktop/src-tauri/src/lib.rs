@@ -198,7 +198,17 @@ fn get_autostart(backend: tauri::State<'_, Backend>) -> Result<bool, String> {
 #[tauri::command]
 fn set_autostart(backend: tauri::State<'_, Backend>, enabled: bool) -> Result<(), String> {
     tracing::info!(enabled, "start with the session");
-    backend.autostart.set(enabled)
+    backend.autostart.set(enabled)?;
+    // Remembered, so an entry removed by another program is written again.
+    let mut preferences = backend
+        .preferences
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    preferences.autostart = Some(enabled);
+    backend
+        .config
+        .save(&*preferences)
+        .map_err(|e| e.to_string())
 }
 
 /// The updates card: this version, the choices, what was found.
@@ -763,7 +773,7 @@ pub fn run() {
             }
             tracing::info!(dir = %config.root().display(), "config directory");
             let identity = Identity::load_or_create(&config);
-            let preferences: Preferences = config.load_or_init(Preferences::default);
+            let mut preferences: Preferences = config.load_or_init(Preferences::default);
             let wifi_enabled = settings.wifi_forced.unwrap_or(preferences.lan_enabled);
             let (tls, tls_error) = match TlsIdentity::load_or_create(&config) {
                 Ok(tls) => (Some(tls), None),
@@ -989,7 +999,12 @@ pub fn run() {
             tauri::async_runtime::spawn(updates.clone().run());
 
             let apks = Arc::new(updates::tablet::Apks::new(config.root().join("updates")));
-            autostart.refresh();
+            if let Some(chosen) = autostart.at_launch(preferences.autostart) {
+                preferences.autostart = Some(chosen);
+                if let Err(e) = config.save(&preferences) {
+                    tracing::warn!("cannot save the start with the session choice: {e}");
+                }
+            }
             app.manage(Backend {
                 config,
                 settings: settings.clone(),

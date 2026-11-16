@@ -2932,6 +2932,7 @@ dependencies = [
  "typeshare",
  "uuid",
  "windows 0.62.2",
+ "windows-registry",
  "zbus",
  "zip",
 ]

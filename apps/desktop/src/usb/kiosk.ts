@@ -1,5 +1,5 @@
 // Kiosk mode from the USB card: what a refusal says (codes from adb.rs).
-import type { KioskError } from "../types/status";
+import type { AppVersion, KioskError } from "../types/status";
 
 /** i18n key and parameters for a refusal of `enable_kiosk`. */
 export function kioskErrorMessage(error: unknown): { key: string; params: Record<string, string> } {
@@ -44,4 +44,20 @@ export function releaseClick(
   if (arm?.id !== id) return { arm: { id, at: now }, confirmed: false };
   if (now - arm.at < RELEASE_ARM_MS) return { arm, confirmed: false };
   return { arm: null, confirmed: true };
+}
+
+/**
+ * First tablet `versionCode` whose exit gesture is in the bottom-left
+ * corner (0.2.0-rc.2); 0.1.0 and 0.2.0-rc.1 use the top-right one.
+ */
+export const BOTTOM_LEFT_CORNER_FROM = 20002;
+
+/**
+ * i18n key of the "kiosk mode on" text, for the gesture of the version
+ * installed on the tablet. A development version (`versionCode` ending in
+ * 00) and an unknown one get the current gesture.
+ */
+export function kioskActiveKey(app: AppVersion | null): string {
+  const old = app != null && app.code < BOTTOM_LEFT_CORNER_FROM && app.code % 100 !== 0;
+  return old ? "usbDevices.kiosk.activeTopRight" : "usbDevices.kiosk.active";
 }

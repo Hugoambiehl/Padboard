@@ -25,6 +25,10 @@ pub struct Preferences {
     /// Looking for new versions (on by default).
     #[serde(default)]
     pub updates: crate::updates::UpdatePreferences,
+    /// Start with the session, as chosen in Padboard; `None` = saved by a
+    /// version that did not record it (the entry tells, `autostart.rs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub autostart: Option<bool>,
 }
 
 /// Shortest and longest screensaver delays accepted.
@@ -96,6 +100,7 @@ mod tests {
                 check: false,
                 prereleases: true,
             },
+            autostart: Some(true),
         };
         config.save(&changed).unwrap();
         assert_eq!(config.load::<Preferences>().unwrap(), Some(changed));
@@ -117,5 +122,7 @@ mod tests {
         // Saved before updates existed: they are looked for.
         assert!(prefs.updates.check);
         assert!(!prefs.updates.prereleases);
+        // Saved before the choice was recorded.
+        assert_eq!(prefs.autostart, None);
     }
 }
