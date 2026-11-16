@@ -3,7 +3,7 @@
 Notable changes of Padboard, generated from the commit history with
 [git-cliff](https://git-cliff.org). Versions follow [Semantic Versioning](https://semver.org).
 
-## 0.2.0-rc.2 (2026-11-15)
+## 0.2.0-rc.3 (2026-11-16)
 
 ### Upgrading from 0.1.0
 
@@ -41,6 +41,7 @@ Notable changes of Padboard, generated from the commit history with
 - **desktop**: Remove adb stops only a server started from Padboard's copy
 - **desktop**: A double-click no longer releases a tablet from kiosk mode
 - **scripts**: Tablet UI tests see a running Padboard again
+- **updates**: Never start an unsigned Windows installer from Padboard
 
 ## 0.1.0 (2026-11-12)
 
