@@ -64,7 +64,9 @@ cd "$ROOT/apps/desktop"
 if ((build)); then
   # The "Licences" dialog (e2e/about) needs the generated list.
   "$ROOT/scripts/licenses.sh"
-  npm run tauri build -- --debug --no-bundle
+  # `test-updates`: e2e/updates reads its releases from a local server
+  # (only when PADBOARD_TEST_RELEASES is set; never in shipped builds).
+  npm run tauri build -- --debug --no-bundle --features test-updates
   cargo build -p padboard-desktop --example fake-tablet
 fi
 

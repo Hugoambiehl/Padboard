@@ -16,7 +16,7 @@ const { updates } = useUpdates();
 /** The version to offer in the header, once one is found. */
 const newVersion = computed(() => {
   const status = updates.value?.status;
-  return status?.state === "available" ? status.version : null;
+  return status?.state === "available" || status?.state === "ready" ? status.version : null;
 });
 
 const clients = computed(() => snapshot.value?.clients ?? []);

@@ -17,7 +17,7 @@
 //! wins: two adb servers of different versions fight over the port).
 
 #[cfg(windows)]
-mod authenticode;
+pub(crate) mod authenticode;
 mod server_owner;
 
 pub use server_owner::{same_program, server_owner};

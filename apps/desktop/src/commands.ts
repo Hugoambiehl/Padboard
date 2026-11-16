@@ -76,8 +76,11 @@ export const getUpdates = () => invoke<UpdatesView>("get_updates");
 export const setUpdatePreferences = (preferences: UpdatePreferences) =>
   invoke<void>("set_update_preferences", { preferences });
 export const checkForUpdates = () => invoke<void>("check_for_updates");
-/** Downloads, checks and installs the update (Windows); the app then restarts. */
+/** Downloads and checks the update's installer (Windows), then shows it in
+ * the Explorer (or starts it, once installers are signed). */
 export const installUpdate = () => invoke<void>("install_update");
+/** Shows the downloaded installer in the Explorer again. */
+export const showUpdateInstaller = () => invoke<void>("show_update_installer");
 /** The available version's page (or the releases), in the browser. */
 export const openReleasePage = () => invoke<void>("open_release_page");
 /** Pages of the user guides (the backend builds the address). */

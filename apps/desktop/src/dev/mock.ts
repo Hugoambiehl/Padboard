@@ -162,21 +162,27 @@ const presets = [
   { id: "mute", group: "media", color: "violet", icon: "VolumeX", action: hk("AudioVolumeMute") },
 ];
 
-/** `&update=available|linux|downloading|failed|notInstalled` previews the updates card. */
+/** `&update=available|linux|downloading|failed|notInstalled|ready` previews the updates card. */
 function updates() {
   const preview = new URLSearchParams(location.search).get("update");
   const status =
     preview === "available"
-      ? { state: "available", version: "0.2.0", installable: true }
+      ? { state: "available", version: "0.2.0", installable: true, startsInstaller: false }
       : preview === "linux"
-        ? { state: "available", version: "0.2.0", installable: false }
+        ? { state: "available", version: "0.2.0", installable: false, startsInstaller: false }
         : preview === "downloading"
           ? { state: "downloading", version: "0.2.0", received: 6_000_000, total: 9_000_000 }
           : preview === "failed"
             ? { state: "failed", error: "signature" }
             : preview === "notInstalled"
               ? { state: "notInstalled", version: "0.2.0" }
-              : { state: "upToDate", checkedAt: Date.now() };
+              : preview === "ready"
+                ? {
+                    state: "ready",
+                    version: "0.2.0",
+                    file: "C:\\Users\\Hugo\\Downloads\\Padboard_0.2.0_x64-setup.exe",
+                  }
+                : { state: "upToDate", checkedAt: Date.now() };
   return { current: "0.1.0", preferences: { check: true, prereleases: false }, status };
 }
 

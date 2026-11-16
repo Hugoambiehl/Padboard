@@ -596,9 +596,10 @@
     "downloadingPercent": "Téléchargement de la version {version}… {percent} %",
     "installing": "L’installeur de la version {version} s’ouvre : suis ses étapes, Padboard se ferme en attendant.",
     "error": {
-      "network": "Impossible de joindre GitHub. Nouvel essai demain, ou avec « Rechercher ».",
+      "network": "Impossible de joindre GitHub. Réessaie avec « Rechercher ».",
       "signature": "Le fichier téléchargé n’est pas signé pour cette version : mise à jour refusée.",
-      "install": "Impossible de lancer l’installeur."
+      "install": "Impossible de lancer l’installeur.",
+      "storage": "Impossible d’enregistrer l’installeur téléchargé."
     },
     "install": "Installer",
     "notes": "Notes de version",
@@ -612,7 +613,14 @@
     "wizard": "L’installeur de Padboard s’ouvrira : il suffit de suivre ses étapes.",
     "notInstalled": "L’installation de la version {version} n’a pas abouti.",
     "notInstalledHint": "L’installeur a été fermé avant la fin, ou ton antivirus l’a bloqué. Tu peux réessayer avec « Rechercher », ou installer la version à la main depuis sa page.",
-    "help": "Que faire ?"
+    "help": "Que faire ?",
+    "download": "Télécharger",
+    "downloadHint": "Padboard télécharge l’installeur et vérifie sa signature, puis te le montre dans l’Explorateur : tu le lanceras toi-même.",
+    "ready": "La version {version} est téléchargée et vérifiée.",
+    "readyHint": "Ferme Padboard, puis lance ce fichier :",
+    "readyQuitHint": "« Quitter Padboard » le ferme vraiment (fermer la fenêtre le laisse tourner près de l’horloge).",
+    "showFile": "Afficher le fichier",
+    "quit": "Quitter Padboard"
   },
   "licenses": {
     "title": "Licences",

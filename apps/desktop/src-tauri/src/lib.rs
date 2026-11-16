@@ -232,8 +232,10 @@ fn check_for_updates(backend: tauri::State<'_, Backend>) -> Result<(), String> {
     backend.updates.check_now().map_err(|e| e.to_string())
 }
 
-/// Downloads, checks and installs the available version (Windows); the app
-/// exits once the installer runs, pending edits saved first.
+/// Downloads and checks the available version's installer (Windows), then
+/// shows it in the Explorer for the user to run; the app starts it itself
+/// (and exits, pending edits saved first) only when it is validly signed
+/// by the trusted publisher (`updates::installer`).
 #[tauri::command]
 fn install_update(app: tauri::AppHandle, backend: tauri::State<'_, Backend>) -> Result<(), String> {
     let handle = app.clone();
@@ -246,6 +248,12 @@ fn install_update(app: tauri::AppHandle, backend: tauri::State<'_, Backend>) -> 
             tracing::info!("exiting for the update");
         })
         .map_err(|e| e.to_string())
+}
+
+/// Shows the downloaded installer in the Explorer again.
+#[tauri::command]
+fn show_update_installer(backend: tauri::State<'_, Backend>) -> Result<(), String> {
+    backend.updates.show_installer()
 }
 
 /// Opens the user guide's page about `topic` in the browser.
@@ -734,6 +742,7 @@ pub fn run() {
             set_update_preferences,
             check_for_updates,
             install_update,
+            show_update_installer,
             open_release_page,
             open_help,
             platform_tools_info,
@@ -962,6 +971,15 @@ pub fn run() {
                 preferences.updates,
                 test_mode.is_some(),
                 config.root(),
+                // The installer goes where the user finds it; in test mode,
+                // into the test directory (never the real Downloads).
+                match &test_mode {
+                    Some(_) => config.root().join("downloads"),
+                    None => app
+                        .path()
+                        .download_dir()
+                        .unwrap_or_else(|_| config.root().join("updates")),
+                },
                 Box::new(move |view| {
                     if let Err(e) = updates_handle.emit(UPDATES_EVENT, view) {
                         tracing::warn!("cannot emit the updates: {e}");

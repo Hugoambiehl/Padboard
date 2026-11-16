@@ -69,16 +69,19 @@ for `apksigner`; the GitHub CLI (`gh`).
 
    **Antiviruses**, while the installer is not signed (Authenticode): before
    publishing, upload the signed draft's `Padboard_X_x64-setup.exe` to
-   [VirusTotal](https://www.virustotal.com) (below) and, if Bitdefender
-   detects it there or on Windows, submit it as a false positive
+   [VirusTotal](https://www.virustotal.com) (below), and **submit every
+   installer to Bitdefender**
    ([bitdefender.com/submit](https://www.bitdefender.com/submit),
-   category *False Positive*, detection name if any, e.g. `Atc4.Detection`),
-   so the first users do not meet a detection. Bitdefender's *Advanced
-   Threat Control* quarantined a test installer started by the updater (see
-   `docs/install-windows.md`, *If your antivirus blocks Padboard*). That is
-   why the updater opens the installer as a wizard (`installMode`
-   `basicUi` in `tauri.conf.json`) instead of the passive mode: go back to
-   `passive` once SignPath signs the installer.
+   category *False Positive*; detection name if any, e.g. `Atc4.Detection`),
+   even when VirusTotal shows it clean: Bitdefender detects it only by
+   behaviour (ATC), which VirusTotal does not run. Bitdefender's *Advanced
+   Threat Control* quarantined the 0.2.0-rc.2 installer started by Padboard
+   rc.1, and Padboard with it (`docs/windows-test-plan.md`, 8.5): since
+   rc.3 Padboard never starts an installer that is not validly signed by
+   `TRUSTED_PUBLISHER` (`updates/installer.rs`, empty until SignPath), it
+   shows it in the Explorer. Once SignPath signs: set that constant to the
+   certificate's name as Windows shows it, and go back from `basicUi` to
+   `passive` (`installMode` in `tauri.conf.json`).
 
    **VirusTotal**, step by step:
 
@@ -150,8 +153,10 @@ After `scripts/sign-release.sh`, before publishing:
 - [ ] `docs/tablet-test-plan.md` on the real tablet (the section of the
       release, e.g. the kiosk exit corner and Android's system gestures).
 - [ ] VirusTotal (step 4: Bitdefender and Microsoft undetected, at most a
-      lone heuristic such as SecureAge's) and Bitdefender's false positive
-      form for the installer if it detected anything.
+      lone heuristic such as SecureAge's).
+- [ ] While the installer is unsigned: **the installer submitted to
+      Bitdefender** as a false positive (step 4), every release and
+      release candidate, detected or not.
 - [ ] For a release candidate that follows another: the real update from
       the previous one, with Bitdefender active
       (`docs/windows-test-plan.md`, *Real update with an antivirus*).

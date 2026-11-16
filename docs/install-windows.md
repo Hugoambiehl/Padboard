@@ -127,37 +127,56 @@ command, which cuts the USB connection (and the other tools' devices).
 ## Updates
 
 Padboard looks for a new version at launch and once a day (*Connections* →
-*About* → *Updates*; only the list of releases is asked from GitHub). When
-one is available, **Install** downloads it, checks its signature, then opens
-Padboard's installer: follow its steps as for the first install (Padboard
-closes meanwhile and your edits are saved first). While the installer is not
-signed, it opens as a regular wizard rather than installing silently.
+*About* → *Updates*; only the list of releases is asked from GitHub). If
+the network is not ready yet (just after the PC starts), it tries again
+after 5 minutes, then 30 minutes, without showing an error.
 
-If the install does not finish (wizard closed, or blocked by an antivirus),
-Padboard says so at its next launch: try again with *Check now*, or install
-the version by hand from its release page.
+When a version is available, **Download** fetches its installer, checks
+it (signed by the maintainer for this version, and listed in the release's
+signed `SHA256SUMS`), saves it in your **Downloads** folder and opens the
+Explorer on it. Then:
+
+1. quit Padboard with **Quit Padboard** (closing the window only hides it
+   near the clock);
+2. run the selected file, `Padboard_<version>_x64-setup.exe`, and follow
+   its steps as for the first install. Your configuration is kept.
+
+Padboard does not start the installer itself while it is not signed with
+a code signing certificate: started by Padboard, an unsigned installer
+looks suspicious to some antivirus programs (see below). If you do not
+run it, Padboard offers the same file again at its next launch.
 
 ## If your antivirus blocks Padboard
 
 The installer is not signed yet (a code signing certificate is on its way),
-so an antivirus may take it for a threat, mostly when it is started by an
-update: Bitdefender's *Advanced Threat Control* (`Atc4.Detection`) has
-quarantined a test installer that way. The files of a release are the ones
-listed in its `SHA256SUMS`, signed by the maintainer.
+so an antivirus may take it for a threat. With **Bitdefender**, seen on
+0.2.0-rc.2: started by Padboard, the installer was stopped by *Advanced
+Threat Control* (`Atc4.Detection`), and Padboard itself was quarantined.
+The same installer run by hand installed fine. Padboard no longer starts
+it (see *Updates*), but if it happens:
 
-1. **Check the file**: in PowerShell, `Get-FileHash` on the installer must
-   print the SHA-256 listed in the release's `SHA256SUMS`. If it differs,
-   delete the file and do not run it.
-2. **Report the false positive** to your antivirus' maker, with the
-   installer and the name of the detection. Bitdefender:
-   [bitdefender.com/submit](https://www.bitdefender.com/submit), category
-   *False Positive*; confirmed false alarms are usually fixed within hours.
-   You can also [open an issue](https://github.com/Hugoambiehl/Padboard/issues)
-   so the maintainer reports it too.
-3. **Meanwhile**, install by hand: download the installer from the release
-   page and run it (section 1). If it was quarantined, restore it from the
-   antivirus' quarantine only if its SHA-256 is right, and add an exception
-   for it.
+- **The install fails** with *Error opening file for writing*
+  (*Erreur lors de l'ouverture du fichier en écriture*) on
+  `padboard-desktop.exe`, or **Padboard disappeared** (its shortcut no
+  longer works):
+  1. **restart the PC** (Bitdefender keeps blocking the installer until
+     then, without a message);
+  2. run the installer again (double-click). Your profiles and settings
+     are kept.
+- **Still blocked after a restart** (last resort): check the file first
+  (below), then add a **temporary** Bitdefender exception for the
+  installer file only, run it, and **remove the exception** right after.
+  Never add an exception for a file whose SHA-256 is wrong.
+- **Check the file**: in PowerShell, `Get-FileHash` on the installer must
+  print the SHA-256 listed in the release's `SHA256SUMS`. If it differs,
+  delete the file and do not run it.
+- **Report the false positive** to Bitdefender with the installer and the
+  name of the detection:
+  [bitdefender.com/submit](https://www.bitdefender.com/submit), category
+  *False Positive*; confirmed false alarms are usually fixed within hours.
+  Other antivirus programs have similar forms. You can also
+  [open an issue](https://github.com/Hugoambiehl/Padboard/issues) so the
+  maintainer reports it too.
 
 ## Good to know
 

@@ -73,14 +73,16 @@ export class App {
     usbPort: number,
     /** UI language (PADBOARD_LOCALE); `t()` reads the French texts. */
     private readonly locale: "fr" | "en",
+    /** More environment for the app (test releases…). */
+    private readonly env: Record<string, string> = {},
   ) {
     this.usbPort = usbPort;
   }
 
   /** A fresh test directory, then tauri-driver, then the app. */
-  static async start(locale: "fr" | "en" = "fr"): Promise<App> {
+  static async start(locale: "fr" | "en" = "fr", env: Record<string, string> = {}): Promise<App> {
     const dir = await mkdtemp(join(tmpdir(), "padboard-e2e-"));
-    const app = new App(dir, await freePort(), locale);
+    const app = new App(dir, await freePort(), locale, env);
     try {
       await app.startDriver();
       await app.open();
@@ -105,6 +107,7 @@ export class App {
       PADBOARD_LOCALE: this.locale,
       PADBOARD_PORT: String(this.usbPort),
       PADBOARD_LOG: process.env.PADBOARD_LOG ?? "warn,padboard_desktop_lib=info",
+      ...this.env,
     };
     // The app logs to <test dir>/app.log (test mode).
     this.driver = spawn("tauri-driver", args, { env, stdio: ["ignore", "ignore", "inherit"] });

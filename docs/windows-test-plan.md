@@ -133,7 +133,8 @@ a cable unplug/replug, and after the PC wakes from sleep.
 
 ## 6. In-app update (from 0.2)
 
-Tests the real update (download, signature, NSIS install, restart) against
+Tests the real update (download, signature, installer shown in the
+Explorer, install run by hand, restart) against
 **local test releases**: nothing is published. Two test installers of
 different versions are built with the `test-updates` feature (test builds
 only: the release workflow refuses it) and served from this PC. They
@@ -187,15 +188,19 @@ shortcut.) The window title must read **Padboard (mode test)**.
 | Check | Do | Expect |
 |---|---|---|
 | Found | *Connexions* → *À propos* → *Mises à jour*: turn on **Versions de test**, then *Rechercher* | *La version 0.2.0-rc.2 est disponible.*, the header shows *Mise à jour 0.2.0-rc.2*; the server window shows `GET /api/releases` |
-| Edits kept | Rename a button in the editor, then at once *Installer* | Padboard closes and the installer's **wizard** opens (not passive while it is not signed), **no UAC prompt**; follow it to the end and leave *Run Padboard* ticked: Padboard starts, title still *Padboard (mode test)* (else close it at once and note it), the renamed button is there; *Settings → Apps → Installed apps*: Padboard **0.2.0-rc.2**; the test dir's `app.log` holds *installing the update, the app exits* |
+| Shown, not started | Rename a button in the editor, then *Télécharger* | *La version 0.2.0-rc.2 est téléchargée et vérifiée.*, *Ferme Padboard, puis lance ce fichier :* and the path (test mode: `%TEMP%\padboard-update-test\config\downloads\Padboard_0.2.0-rc.2_x64-setup.exe`); the **Explorer opens with that file selected**; Padboard keeps running, **no installer starts by itself**; `app.log`: *installer downloaded and checked*, *the installer is not started by Padboard* |
+| Show again | Close the Explorer, *Afficher le fichier* | The Explorer opens again on the file |
+| Edits kept | *Quitter Padboard* (in the card), then double-click the file | The installer's **wizard**, **no UAC prompt**; follow it to the end and leave *Run Padboard* ticked: Padboard starts, title still *Padboard (mode test)* (else close it at once and note it), the renamed button is there; *Settings → Apps → Installed apps*: Padboard **0.2.0-rc.2** |
 | Up to date | Restart version B with the same variables but `PADBOARD_TEST_APP_VERSION = '0.2.0-rc.2'`, *Rechercher* | *Padboard est à jour* (never an older or the same version) |
-| Tampered installer | Reinstall A (`& $env:TEMP\A.exe /S`), start it as above; in Git Bash append a byte to the served installer: `printf x >> target/test-releases/releases/download/v0.2.0-rc.2/Padboard_0.2.0-rc.2_x64-setup.exe`; *Rechercher*, *Installer* | *Le fichier téléchargé n’est pas signé pour cette version : mise à jour refusée.*, nothing installed (still 0.2.0-rc.1) |
-| Forged version | `scripts/test-releases.sh add 0.2.0-rc.2 --installer "$TEMP/B.exe"` again; then make a fake 9.9.9 that points to it: `mkdir -p target/test-releases/releases/download/v9.9.9 && sed 's/"version": "0.2.0-rc.2"/"version": "9.9.9"/' target/test-releases/releases/download/v0.2.0-rc.2/latest.json > target/test-releases/releases/download/v9.9.9/latest.json && scripts/test-releases.sh remove 0.0.0`; *Rechercher*, *Installer* | 9.9.9 is offered, but installing it is refused (*pas signé pour cette version*): the signature says 0.2.0-rc.2 |
+| Tampered installer | Reinstall A (`& $env:TEMP\A.exe /S`), delete the test dir's `config\downloads`, start A as above; in Git Bash append a byte to the served installer: `printf x >> target/test-releases/releases/download/v0.2.0-rc.2/Padboard_0.2.0-rc.2_x64-setup.exe`; *Rechercher*, *Télécharger* | *Le fichier téléchargé n’est pas signé pour cette version : mise à jour refusée.*, no file in `config\downloads`, no Explorer |
+| Forged version | `scripts/test-releases.sh add 0.2.0-rc.2 --installer "$TEMP/B.exe"` again; then make a fake 9.9.9 from its files: `cp -r target/test-releases/releases/download/v0.2.0-rc.2 target/test-releases/releases/download/v9.9.9 && cd target/test-releases/releases/download/v9.9.9 && for f in Padboard_0.2.0-rc.2_x64-setup.exe*; do mv "$f" "${f/0.2.0-rc.2/9.9.9}"; done && cd - && scripts/test-releases.sh remove 0.0.0`; *Rechercher*, *Télécharger* | 9.9.9 is offered, but the download is refused (*pas signé pour cette version*): the signatures say 0.2.0-rc.2 and another file name |
 | Stable channel | Turn **Versions de test** off, *Rechercher* | *Padboard est à jour* (the test releases are release candidates; 9.9.9 too is refused: remove it first with `scripts/test-releases.sh remove 9.9.9`) |
 | Automatic check off | Turn *Rechercher automatiquement* off, quit, start again, wait 30 s | No `GET /api/releases` in the server window |
 | Automatic check on | Turn it on | One `GET /api/releases` at once |
-| Refusal kept | Tampered installer as above, then *Installer* within 10 s of the launch | The refusal stays shown after the automatic check (10 s after launch) |
-| Not installed | Reinstall A, start it, *Installer*, then **cancel** the wizard; start A again (same variables) | *L’installation de la version 0.2.0-rc.2 n’a pas abouti.*, with *Que faire ?* (opens *If your antivirus blocks Padboard*) and *Voir la version*; it stays after the automatic check; the next launch no longer shows it |
+| Refusal kept | Tampered installer as above, then *Télécharger* within 10 s of the launch | The refusal stays shown after the automatic check (10 s after launch) |
+| Still ready | Reinstall A, start it, *Télécharger*, then *Quitter Padboard* **without** running the file; start A again (same variables) | *La version 0.2.0-rc.2 est téléchargée et vérifiée.* with the same file and *Afficher le fichier* (no Explorer opened by itself at launch); it stays after the automatic check |
+| Not installed | Same, but delete the downloaded file before starting A again | *L’installation de la version 0.2.0-rc.2 n’a pas abouti.*, with *Que faire ?* (opens *If your antivirus blocks Padboard*) and *Voir la version*; the next launch no longer shows it |
+| Network down at launch | Stop the server (Ctrl+C), start A, wait 20 s; start the server again | No error shown (*Pas encore vérifié.*); `app.log`: *automatic update check failed (not shown)* then *next update check in 5 min*; 5 min later one `GET /api/releases` and the update is offered |
 
 ### Real update with an antivirus (each release candidate)
 
@@ -207,11 +212,13 @@ Control* on, no exception for Padboard):
 1. Install release candidate N from its GitHub release (installer
    downloaded with the browser), turn on *Versions de test*.
 2. Publish release candidate N+1 (for v0.2.0: rc.1 then a minimal rc.2).
-3. In Padboard N: *Rechercher*, *Installer*, follow the wizard.
+3. In Padboard N: *Rechercher*, *Télécharger*: the Explorer opens on the
+   installer in *Downloads*; *Quitter Padboard*, run the file, follow the
+   wizard. (Up to 0.2.0-rc.2, Padboard started the installer itself: never
+   use *Installer* in those versions, see section 8.)
 4. Expect: no detection, Padboard N+1 starts, configuration kept. Note any
    Bitdefender event (name, process chain) and report it as a false
-   positive (`docs/install-windows.md`); if the updater's install is
-   flagged while a manual install is not, see `docs/releasing.md`.
+   positive (`docs/install-windows.md`).
 
 ### Afterwards
 
@@ -378,6 +385,73 @@ can run with this PC.
 Leave rc.2 installed and Bitdefender on; restore the sound noted in 8.0;
 send the report with both `padboard.log` files (before and after the
 update).
+
+### 8.5 Results (reported 2026-11-16): the in-app install fails
+
+Bitdefender active, *Advanced Threat Defense* on, no exception for
+Padboard.
+
+| Check | Result | Remark |
+|---|---|---|
+| 8.1 Found | OK | *Versions de test* + *Rechercher*: rc.2 offered, header badge |
+| 8.1 Install | **FAIL** | rc.1 started the checked installer (SHA-256 `767172bd…151e`) at 23:00:09; 28 s later Bitdefender ATC classified it `Atc4.Detection` and quarantined 9 files: the installer, rc.1's `padboard-desktop.exe`, `preferences.json`, `update-pending.json`, 3 Microsoft `IdentityCache` files and WebView2's `Crashpad\settings.dat`. The wizard never showed (even in `basicUi`) |
+| Manual install right after | **FAIL** ×3 | Double-click on the same installer: NSIS *Erreur lors de l'ouverture du fichier en écriture : …\padboard-desktop.exe*, no file created, no handle, no notification, no quarantine. A PowerShell write test in the same folder passed at the same time: the installer was blocked, not the folder |
+| After a PC restart | OK | The same installer, by hand, installed with no exception; profiles and preferences kept |
+| First launch after the restart | Issue | The update check failed (*error sending request*, network not ready yet) and the next one was 24 h later |
+| VirusTotal (rc.2 installer) | 1/71 | SecureAge only; Bitdefender does not detect it statically, only by behaviour (ATC) when Padboard starts it |
+
+Conclusion: a Bitdefender user could lose Padboard without any message.
+From rc.3 Padboard never starts an unsigned installer: it downloads and
+checks it, then shows it in the Explorer (section 9); a failed automatic
+check is retried after 5 then 30 minutes, silently. 8.2 and 8.3 were not
+reported in this round: run them in section 9.
+
+## 9. Release candidate 0.2.0-rc.3: update from rc.2 (Bitdefender active)
+
+Same PC and rules as sections 7 and 8. rc.3 is **published** as a
+pre-release. **rc.2 still has the old *Installer* button, which starts the
+installer itself (the failure of 8.5): never click it.** So the update to
+rc.3 is made by hand once, and the new path (Explorer) is checked from rc.3
+itself, with local test releases (section 6) until rc.4 exists.
+
+### 9.0 Before starting
+
+As 8.0 (version: 0.2.0-rc.2 or whatever is installed; Bitdefender state;
+`where.exe adb`; Touch Portal; sound; copy `padboard.log` aside). If 8.5
+left Padboard broken, restart the PC first.
+
+### 9.1 rc.2 → rc.3 by hand
+
+| Check | Do | Expect |
+|---|---|---|
+| Found | In rc.2: *Mises à jour*, *Versions de test* on, *Rechercher* | *0.2.0-rc.3* available (badge). **Do not click *Installer*** |
+| Download | *Voir la version*: download `Padboard_0.2.0-rc.3_x64-setup.exe` with the browser; `Get-FileHash` | Same SHA-256 as in the release's `SHA256SUMS` |
+| Install | Tray → *Quitter Padboard*, then double-click the installer | Wizard, no detection; Padboard 0.2.0-rc.3 starts; profiles, tablets, preferences kept; one entry in *Settings → Apps* |
+| Bitdefender | During the install and 5 min after | No detection, no quarantine, no ATC event |
+| Silent retry | Restart the PC; Padboard starts with the session if that is on (else start it at once) | No update error shown even if the network comes up late; `padboard.log`: either *no update* / *update available*, or *automatic update check failed (not shown)* followed by *next update check in 5 min* |
+
+### 9.2 The new update path, from rc.3 (local test releases)
+
+Section 6 with the installers built from the **v0.2.0-rc.3** tag (versions
+of the config files: A = `0.2.0-rc.3`, B = `0.2.0-rc.4`; the variables
+accordingly), **Bitdefender active, no exception**. All of section 6's
+checks, plus:
+
+| Check | Do | Expect |
+|---|---|---|
+| Not started by Padboard | *Télécharger* | The Explorer opens on the installer; no installer process starts until you run it; **no Bitdefender event** during the download and while Padboard runs |
+| Run by the user | *Quitter Padboard*, double-click the file | Installs like a manual install: no detection, B starts |
+
+### 9.3 USB, adb and tablet
+
+8.2 ("Supprimer adb" next to Touch Portal) and 8.3 (tablet update from
+the PC, kiosk on first, to **0.2.0-rc.3**), unchanged.
+
+### 9.4 Afterwards
+
+Reinstall the official rc.3 if section 6 replaced it (*Afterwards* of
+section 6); restore the sound; send the report with the `padboard.log`
+files.
 
 ## Known Windows limits
 

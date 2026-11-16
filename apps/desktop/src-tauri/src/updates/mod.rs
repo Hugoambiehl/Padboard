@@ -1,14 +1,22 @@
-//! Updates: the desktop app's own (`tauri-plugin-updater` on Windows, a
-//! notice with the release page on Linux, where the `.deb` is updated by
-//! hand) and, later, the tablets' (the APK of the same release, pushed by
-//! this PC). Everything downloaded is checked against signatures made on the
-//! maintainer's PC ([`signing`]).
+//! Updates: the desktop app's own (Windows: the installer downloaded,
+//! checked and shown to the user, [`installer`]; Linux: a notice with the
+//! release page, the `.deb` is updated by hand) and the tablets' (the APK
+//! of the same release, pushed by this PC). Everything downloaded is
+//! checked against signatures made on the maintainer's PC ([`signing`]).
+//!
+//! **Never start an unsigned Windows installer from Padboard**: Bitdefender
+//! quarantined Padboard itself when it did (rc.1 → rc.2). Only an installer
+//! with a valid Authenticode signature by [`installer::TRUSTED_PUBLISHER`]
+//! (empty until SignPath signs the releases) is started by the app.
 //!
 //! The check runs a few seconds after launch, then once a day, unless the
-//! user turned it off ("Mises à jour" card). It only asks GitHub for the
-//! list of releases: nothing about this PC is sent.
+//! user turned it off ("Mises à jour" card); a network failure of an
+//! automatic check is retried after 5 then 30 minutes, and only logged.
+//! It only asks GitHub for the list of releases: nothing about this PC is
+//! sent.
 
 pub mod assets;
+pub mod installer;
 pub mod release;
 pub mod signing;
 pub mod source;
@@ -27,10 +35,14 @@ use self::source::Source;
 /// First check after launch (the app settles first), then daily.
 const FIRST_CHECK: Duration = Duration::from_secs(10);
 const CHECK_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
+/// After an automatic check failed on the network (at launch the network
+/// may not be up yet): tries again after these, then back to daily.
+const RETRY_AFTER: [Duration; 2] = [Duration::from_secs(5 * 60), Duration::from_secs(30 * 60)];
 /// Releases looked at (the newest first).
 const RELEASES_LISTED: u32 = 30;
-/// Written just before the installer starts, with the version it installs;
-/// read at the next launch to tell whether the install happened.
+/// Written once the installer is ready (shown to the user, or started), with
+/// the version and the file; read at the next launch to tell whether the
+/// install happened.
 const PENDING_INSTALL: &str = "update-pending.json";
 
 /// The user's choices, persisted in `preferences.json`.
@@ -72,6 +84,8 @@ pub enum UpdateError {
     Signature,
     /// The installer could not be started.
     Install,
+    /// The checked installer could not be saved.
+    Storage,
 }
 
 /// Where the updater is.
@@ -92,11 +106,14 @@ pub enum UpdateStatus {
     UpToDate {
         checked_at: u64,
     },
-    /// `installable`: this PC installs it in one click (Windows, release
-    /// signed for the updater); otherwise the release page.
+    /// `installable`: this PC downloads and checks the installer (Windows,
+    /// release signed for the updater); otherwise the release page.
+    /// `starts_installer`: Padboard starts it itself (a build that trusts
+    /// a code signing publisher, Windows); otherwise it is shown.
     Available {
         version: String,
         installable: bool,
+        starts_installer: bool,
     },
     Downloading {
         version: String,
@@ -114,6 +131,12 @@ pub enum UpdateStatus {
     /// older version: cancelled, or blocked (an antivirus, typically).
     NotInstalled {
         version: String,
+    },
+    /// The checked installer of `version` is saved at `file` and was shown
+    /// in the Explorer: the user quits Padboard and runs it.
+    Ready {
+        version: String,
+        file: String,
     },
 }
 
@@ -170,17 +193,21 @@ struct Shared {
     wake: tokio::sync::Notify,
     /// Where [`PENDING_INSTALL`] is kept (`None`: nowhere, in tests).
     dir: Option<PathBuf>,
+    /// Where the installer is saved (Downloads; the test dir in test mode).
+    downloads: PathBuf,
 }
 
 impl Updates {
     /// Updates from [`Source::current`]. Off in test mode (except with a test
     /// source) and without a key. `notify` gets every change. `dir` keeps
-    /// the install under way across the restart (the config dir).
+    /// the install under way across the restart (the config dir);
+    /// `downloads` gets the installer.
     #[must_use]
     pub fn new(
         preferences: UpdatePreferences,
         test_mode: bool,
         dir: &Path,
+        downloads: PathBuf,
         notify: Notify,
     ) -> Self {
         let source = Source::current();
@@ -191,14 +218,22 @@ impl Updates {
         } else {
             None
         };
-        let updates = Self::with_source(preferences, off, source, Some(dir.to_owned()), notify);
+        let updates = Self::with_source(
+            preferences,
+            off,
+            source,
+            Some(dir.to_owned()),
+            downloads,
+            notify,
+        );
         updates.after_restart();
         updates
     }
 
-    /// Reads (and forgets) the install started before this launch: still
-    /// the older version means it did not happen, which is shown until
-    /// "Rechercher" or a newer release.
+    /// Reads (and forgets) the install prepared before this launch: still
+    /// the older version means it did not happen. The installer still there
+    /// is offered again ([`UpdateStatus::Ready`]), else the failure is shown,
+    /// until "Rechercher" or a newer release.
     fn after_restart(&self) {
         let Some(path) = self.pending_path() else {
             return;
@@ -211,21 +246,37 @@ impl Updates {
         }
         let pending = serde_json::from_str::<PendingInstall>(&text)
             .ok()
-            .and_then(|p| Version::parse(&p.version).ok());
+            .and_then(|p| Some((Version::parse(&p.version).ok()?, p.file)));
         match pending {
-            Some(version) if version > self.0.current => {
-                tracing::warn!(%version, "the update started before this launch was not installed");
+            Some((version, file)) if version > self.0.current => {
                 let version = version.to_string();
-                if !matches!(self.status(), UpdateStatus::Off { .. }) {
-                    self.0
-                        .inner
-                        .lock()
-                        .unwrap_or_else(PoisonError::into_inner)
-                        .failed_install = Some(version.clone());
-                    self.set_status(UpdateStatus::NotInstalled { version });
+                if matches!(self.status(), UpdateStatus::Off { .. }) {
+                    return;
                 }
+                let status = match file.filter(|f| Path::new(f).is_file()) {
+                    Some(file) => {
+                        tracing::info!(%version, file, "update not installed yet, its installer is ready");
+                        self.installing(&version, Some(&file));
+                        UpdateStatus::Ready {
+                            version: version.clone(),
+                            file,
+                        }
+                    }
+                    None => {
+                        tracing::warn!(%version, "the update prepared before this launch was not installed");
+                        UpdateStatus::NotInstalled {
+                            version: version.clone(),
+                        }
+                    }
+                };
+                self.0
+                    .inner
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .failed_install = Some(version);
+                self.set_status(status);
             }
-            Some(version) => tracing::info!(%version, "update installed"),
+            Some((version, _)) => tracing::info!(%version, "update installed"),
             None => tracing::warn!("unreadable {PENDING_INSTALL}, ignored"),
         }
     }
@@ -234,14 +285,15 @@ impl Updates {
         self.0.dir.as_ref().map(|dir| dir.join(PENDING_INSTALL))
     }
 
-    /// Notes that the installer of `version` is about to start.
-    #[cfg_attr(not(windows), allow(dead_code))]
-    fn installing(&self, version: &str) {
+    /// Notes that the installer of `version` (saved at `file`) is ready or
+    /// about to start.
+    fn installing(&self, version: &str, file: Option<&str>) {
         let Some(path) = self.pending_path() else {
             return;
         };
         let text = serde_json::to_string(&PendingInstall {
             version: version.to_owned(),
+            file: file.map(str::to_owned),
         })
         .unwrap_or_default();
         if let Err(e) = std::fs::write(&path, text) {
@@ -254,6 +306,7 @@ impl Updates {
         off: Option<OffReason>,
         source: Source,
         dir: Option<PathBuf>,
+        downloads: PathBuf,
         notify: Notify,
     ) -> Self {
         let http = if off.is_none() { client() } else { None };
@@ -279,6 +332,7 @@ impl Updates {
             http,
             wake: tokio::sync::Notify::new(),
             dir,
+            downloads,
         }))
     }
 
@@ -353,12 +407,14 @@ impl Updates {
     }
 
     /// Checks once at launch then daily while the check is on; also when
-    /// woken by [`Updates::set_preferences`].
+    /// woken by [`Updates::set_preferences`]. A network failure is tried
+    /// again sooner ([`RETRY_AFTER`]).
     pub async fn run(self) {
         if self.0.http.is_none() {
             return;
         }
         let mut wait = FIRST_CHECK;
+        let mut failures = 0;
         loop {
             let woken = tokio::select! {
                 () = tokio::time::sleep(wait) => false,
@@ -372,9 +428,12 @@ impl Updates {
                 .preferences
                 .check;
             if enabled && !self.busy() {
-                self.check(Check::Automatic).await;
-            }
-            if !woken {
+                let reached = self.check(Check::Automatic).await;
+                (wait, failures) = next_check(reached, failures);
+                if !reached {
+                    tracing::info!(failures, "next update check in {} min", wait.as_secs() / 60);
+                }
+            } else if !woken {
                 wait = CHECK_EVERY;
             }
         }
@@ -382,10 +441,14 @@ impl Updates {
 
     /// Asks GitHub for the releases and reports the newest above this one.
     /// An automatic check that finds the version whose install just failed
-    /// leaves the failure shown: it must not turn back into "available"
-    /// behind the user's back.
-    async fn check(&self, kind: Check) {
-        let Some(http) = &self.0.http else { return };
+    /// (or whose installer is ready) leaves that shown: it must not turn
+    /// back into "available" behind the user's back. An automatic check
+    /// that cannot reach GitHub shows nothing (logged only). `false`: GitHub
+    /// could not be reached.
+    async fn check(&self, kind: Check) -> bool {
+        let Some(http) = &self.0.http else {
+            return false;
+        };
         let before = self.status();
         self.set_status(UpdateStatus::Checking);
         let prereleases = self
@@ -401,7 +464,9 @@ impl Updates {
                     tracing::info!(version = %newer.version, "update available");
                     UpdateStatus::Available {
                         version: newer.version.to_string(),
-                        installable: cfg!(windows) && newer.has_manifest,
+                        // Test sources: the same path on Linux, for tests.
+                        installable: (cfg!(windows) || self.0.source.test) && newer.has_manifest,
+                        starts_installer: cfg!(windows) && !installer::TRUSTED_PUBLISHER.is_empty(),
                     }
                 }
                 None => {
@@ -411,11 +476,17 @@ impl Updates {
                     }
                 }
             },
+            Err(e) if kind == Check::Automatic => {
+                tracing::warn!("automatic update check failed (not shown): {e}");
+                self.set_status(before);
+                return false;
+            }
             Err(e) => {
                 tracing::warn!("update check failed: {e}");
-                UpdateStatus::Failed {
+                self.set_status(UpdateStatus::Failed {
                     error: UpdateError::Network,
-                }
+                });
+                return false;
             }
         };
         let status = {
@@ -425,10 +496,12 @@ impl Updates {
                     if inner.failed_install.as_ref() == Some(version)
                         && matches!(
                             before,
-                            UpdateStatus::Failed { .. } | UpdateStatus::NotInstalled { .. }
+                            UpdateStatus::Failed { .. }
+                                | UpdateStatus::NotInstalled { .. }
+                                | UpdateStatus::Ready { .. }
                         ) =>
                 {
-                    tracing::info!(%version, "its install failed: the failure stays shown");
+                    tracing::info!(%version, "already downloaded or failed: left as shown");
                     before
                 }
                 _ => {
@@ -438,10 +511,10 @@ impl Updates {
             }
         };
         self.set_status(status);
+        true
     }
 
     /// The install of `version` failed with `error`.
-    #[cfg_attr(not(windows), allow(dead_code))]
     fn install_failed(&self, version: &str, error: UpdateError) {
         self.0
             .inner
@@ -451,12 +524,15 @@ impl Updates {
         self.set_status(UpdateStatus::Failed { error });
     }
 
-    /// Downloads and installs the available update (Windows): the app exits
-    /// once the installer has started; `before_exit` saves what must be.
+    /// Downloads and checks the available update's installer, saves it,
+    /// then shows it in the Explorer for the user to run once Padboard is
+    /// closed ([`UpdateStatus::Ready`]). Only an installer validly signed by
+    /// [`installer::TRUSTED_PUBLISHER`] is started by Padboard (Windows):
+    /// the app then exits once it runs, `before_exit` saving what must be.
     ///
     /// # Errors
-    /// Nothing installable, or busy. Failures of the install itself are
-    /// reported in the status.
+    /// Nothing installable, or busy. Failures of the download or the
+    /// install are reported in the status.
     #[cfg_attr(not(windows), allow(clippy::needless_pass_by_value))]
     pub fn install<R: tauri::Runtime>(
         &self,
@@ -464,22 +540,107 @@ impl Updates {
         before_exit: impl Fn() + Send + Sync + 'static,
     ) -> Result<(), CommandError> {
         let version = self.installable_version()?;
-        #[cfg(windows)]
-        {
-            let this = self.clone();
-            let app = app.clone();
-            tauri::async_runtime::spawn(async move {
-                if let Err(error) = windows::install(&this, &app, &version, before_exit).await {
-                    this.install_failed(&version, error);
+        let this = self.clone();
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            let (file, bytes) = match this.download_installer(&version).await {
+                Ok(downloaded) => downloaded,
+                Err(error) => return this.install_failed(&version, error),
+            };
+            let launch = installer::decide(&installer::signer(&file), installer::TRUSTED_PUBLISHER);
+            #[cfg(windows)]
+            if launch == installer::Launch::Start {
+                // The file checked by Windows is still the one checked here.
+                if std::fs::read(&file).is_ok_and(|on_disk| on_disk == bytes) {
+                    if let Err(error) =
+                        windows::start(&this, &app, &version, &file, bytes, before_exit).await
+                    {
+                        this.install_failed(&version, error);
+                    }
+                    return;
                 }
+                tracing::warn!("the installer changed on disk: not started");
+            }
+            let _ = (&app, &bytes, &before_exit);
+            if let installer::Launch::Show { why } = &launch {
+                tracing::info!(why, "the installer is not started by Padboard");
+            }
+            this.ready(&version, &file);
+        });
+        Ok(())
+    }
+
+    /// The installer of `version`, downloaded and checked, saved in
+    /// [`Shared::downloads`]: its path and the checked bytes (the start
+    /// path compares them with the file Windows checked).
+    async fn download_installer(&self, version: &str) -> Result<(PathBuf, Vec<u8>), UpdateError> {
+        let http = self.0.http.as_ref().ok_or(UpdateError::Network)?;
+        let key = self.0.source.key().ok_or(UpdateError::Signature)?;
+        self.set_status(UpdateStatus::Downloading {
+            version: version.to_owned(),
+            received: 0,
+            total: None,
+        });
+        let progress = |received, total| {
+            self.set_status(UpdateStatus::Downloading {
+                version: version.to_owned(),
+                received,
+                total,
             });
-            Ok(())
+        };
+        installer::Download {
+            http,
+            key: &key,
+            releases_url: &self.0.source.releases_url,
+            version,
+            dir: &self.0.downloads,
         }
-        #[cfg(not(windows))]
-        {
-            let _ = (app, version, before_exit);
-            Err(CommandError::NotInstallable)
+        .run(progress)
+        .await
+    }
+
+    /// The checked installer of `version` waits at `file`: shown in the
+    /// Explorer, remembered across launches, kept shown by automatic checks.
+    fn ready(&self, version: &str, file: &Path) {
+        let file_text = file.display().to_string();
+        self.installing(version, Some(&file_text));
+        self.0
+            .inner
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .failed_install = Some(version.to_owned());
+        self.set_status(UpdateStatus::Ready {
+            version: version.to_owned(),
+            file: file_text,
+        });
+        if let Err(e) = installer::show(file) {
+            tracing::warn!("cannot open the file manager on {}: {e}", file.display());
         }
+    }
+
+    /// Shows the ready installer in the Explorer again ("Afficher le
+    /// fichier"). The path is the backend's, never the UI's.
+    ///
+    /// # Errors
+    /// No installer is ready, or the file manager could not be opened.
+    pub fn show_installer(&self) -> Result<(), String> {
+        let UpdateStatus::Ready { file, .. } = self.status() else {
+            return Err("no installer ready".into());
+        };
+        installer::show(Path::new(&file))
+    }
+}
+
+/// When to check next after an automatic check (`reached`: GitHub answered)
+/// and how many failures in a row that makes: 5 min, then 30 min, then the
+/// daily cycle again.
+fn next_check(reached: bool, failures: usize) -> (Duration, usize) {
+    if reached {
+        return (CHECK_EVERY, 0);
+    }
+    match RETRY_AFTER.get(failures) {
+        Some(&wait) => (wait, failures + 1),
+        None => (CHECK_EVERY, 0),
     }
 }
 
@@ -487,6 +648,9 @@ impl Updates {
 #[derive(Debug, Serialize, Deserialize)]
 struct PendingInstall {
     version: String,
+    /// The checked installer (absent in files of 0.2.0-rc.2 and older).
+    #[serde(default)]
+    file: Option<String>,
 }
 
 /// Who asked for a check.
@@ -507,7 +671,8 @@ impl Updates {
             UpdateStatus::Available { version, .. }
             | UpdateStatus::Downloading { version, .. }
             | UpdateStatus::Installing { version }
-            | UpdateStatus::NotInstalled { version } => self.0.source.page(Some(&version)),
+            | UpdateStatus::NotInstalled { version }
+            | UpdateStatus::Ready { version, .. } => self.0.source.page(Some(&version)),
             _ => self.0.source.page(None),
         }
     }
@@ -518,6 +683,7 @@ impl Updates {
             UpdateStatus::Available {
                 version,
                 installable: true,
+                ..
             } => Ok(version),
             _ if self.busy() => Err(CommandError::Busy),
             _ => Err(CommandError::NotInstallable),
@@ -525,16 +691,24 @@ impl Updates {
     }
 }
 
+/// Starting a trusted installer: `tauri-plugin-updater` runs it (with its
+/// own arguments) and exits the app. Only reached once
+/// [`installer::TRUSTED_PUBLISHER`] is set and Windows validated the
+/// signature.
 #[cfg(windows)]
 mod windows {
+    use std::path::Path;
+
     use tauri_plugin_updater::UpdaterExt as _;
 
     use super::{UpdateError, UpdateStatus, Updates, assets};
 
-    pub(super) async fn install<R: tauri::Runtime>(
+    pub(super) async fn start<R: tauri::Runtime>(
         updates: &Updates,
         app: &tauri::AppHandle<R>,
         version: &str,
+        file: &Path,
+        bytes: Vec<u8>,
         before_exit: impl Fn() + Send + Sync + 'static,
     ) -> Result<(), UpdateError> {
         let manifest =
@@ -543,11 +717,6 @@ mod windows {
             tracing::warn!("update: {e}");
             UpdateError::Network
         };
-        updates.set_status(UpdateStatus::Downloading {
-            version: version.to_owned(),
-            received: 0,
-            total: None,
-        });
         let updater = app
             .updater_builder()
             .endpoints(vec![manifest.parse().map_err(|_| UpdateError::Network)?])
@@ -559,40 +728,17 @@ mod windows {
         let Some(update) = updater.check().await.map_err(network)? else {
             return Err(UpdateError::Network);
         };
-        let mut received = 0u64;
-        let progress = updates.clone();
-        let announced = update.version.clone();
-        let bytes = update
-            .download(
-                |chunk, total| {
-                    received += chunk as u64;
-                    progress.set_status(UpdateStatus::Downloading {
-                        version: announced.clone(),
-                        received,
-                        total,
-                    });
-                },
-                || {},
-            )
-            .await
-            .map_err(|e| {
-                tracing::error!("update refused: {e}");
-                match e {
-                    tauri_plugin_updater::Error::Minisign(_)
-                    | tauri_plugin_updater::Error::SignatureUtf8(_)
-                    | tauri_plugin_updater::Error::Base64(_)
-                    | tauri_plugin_updater::Error::MissingSignedVersion
-                    | tauri_plugin_updater::Error::SignedVersionMismatch { .. } => {
-                        UpdateError::Signature
-                    }
-                    _ => UpdateError::Network,
-                }
-            })?;
+        if update.version != version {
+            tracing::error!(announced = %update.version, version, "the manifest announces another version");
+            return Err(UpdateError::Signature);
+        }
         updates.set_status(UpdateStatus::Installing {
-            version: update.version.clone(),
+            version: version.to_owned(),
         });
-        tracing::info!(version = %update.version, "installing the update, the app exits");
-        updates.installing(&update.version);
+        tracing::info!(version, "starting the signed installer, the app exits");
+        updates.installing(version, Some(&file.display().to_string()));
+        // `bytes` were checked by us (minisign, SHA256SUMS) and by Windows
+        // (Authenticode, on the same content).
         update.install(bytes).map_err(|e| {
             tracing::error!("cannot start the installer: {e}");
             UpdateError::Install
@@ -685,6 +831,7 @@ mod tests {
             None,
             source(api_url),
             None,
+            std::env::temp_dir(),
             Box::new(move |view| {
                 let _ = tx.send(view);
             }),
@@ -705,7 +852,9 @@ mod tests {
             updates.view().status,
             UpdateStatus::Available {
                 version: "99.0.0".into(),
-                installable: cfg!(windows),
+                // A test source: installable on Linux too.
+                installable: true,
+                starts_installer: false,
             }
         );
 
@@ -719,6 +868,7 @@ mod tests {
             UpdateStatus::Available {
                 version: "99.1.0-rc.1".into(),
                 installable: false,
+                starts_installer: false,
             }
         );
     }
@@ -752,6 +902,7 @@ mod tests {
             Some(OffReason::TestMode),
             source(url),
             None,
+            std::env::temp_dir(),
             Box::new(|_| {}),
         );
         assert!(matches!(updates.check_now(), Err(CommandError::Off)));
@@ -816,7 +967,9 @@ mod tests {
             updates.view().status,
             UpdateStatus::Available {
                 version: "99.0.0".into(),
-                installable: cfg!(windows),
+                // A test source: installable on Linux too.
+                installable: true,
+                starts_installer: false,
             }
         );
         // Forgotten then: the next automatic check reports it normally.
@@ -851,6 +1004,7 @@ mod tests {
             None,
             source,
             Some(dir.to_owned()),
+            dir.join("downloads"),
             Box::new(|_| {}),
         );
         updates.after_restart();
@@ -863,7 +1017,7 @@ mod tests {
     fn an_install_that_did_not_happen_is_reported_once() {
         let tmp = tempfile::tempdir().unwrap();
         let first = restarted(tmp.path(), "0.2.0-rc.1");
-        first.installing("0.2.0-rc.2");
+        first.installing("0.2.0-rc.2", None);
 
         let after = restarted(tmp.path(), "0.2.0-rc.1");
         assert_eq!(
@@ -883,7 +1037,7 @@ mod tests {
     #[test]
     fn an_install_that_happened_is_silent() {
         let tmp = tempfile::tempdir().unwrap();
-        restarted(tmp.path(), "0.2.0-rc.1").installing("0.2.0-rc.2");
+        restarted(tmp.path(), "0.2.0-rc.1").installing("0.2.0-rc.2", None);
         assert_eq!(
             restarted(tmp.path(), "0.2.0-rc.2").view().status,
             UpdateStatus::Idle
@@ -923,6 +1077,7 @@ mod tests {
             Some(OffReason::NoKey),
             source(String::new()),
             None,
+            std::env::temp_dir(),
             Box::new(|_| {}),
         );
         assert!(matches!(
@@ -932,6 +1087,7 @@ mod tests {
         updates.set_status(UpdateStatus::Available {
             version: "9.0.0".into(),
             installable: false,
+            starts_installer: false,
         });
         assert!(matches!(
             updates.installable_version(),
@@ -949,6 +1105,7 @@ mod tests {
         updates.set_status(UpdateStatus::Available {
             version: "9.0.0".into(),
             installable: true,
+            starts_installer: false,
         });
         assert_eq!(updates.installable_version().unwrap(), "9.0.0");
     }
@@ -960,6 +1117,197 @@ mod tests {
             UpdatePreferences {
                 check: true,
                 prereleases: false
+            }
+        );
+    }
+
+    #[test]
+    fn a_network_failure_is_retried_after_5_then_30_minutes() {
+        let mut failures = 0;
+        let mut waits = Vec::new();
+        for _ in 0..4 {
+            let wait;
+            (wait, failures) = next_check(false, failures);
+            waits.push(wait.as_secs() / 60);
+        }
+        // Then the daily cycle, and the count starts again.
+        assert_eq!(waits, [5, 30, 24 * 60, 5]);
+        assert_eq!(next_check(true, 1), (CHECK_EVERY, 0));
+        assert_eq!(next_check(true, 0), (CHECK_EVERY, 0));
+    }
+
+    /// The network is not up yet at launch: nothing is shown; "Rechercher"
+    /// says it.
+    #[tokio::test]
+    async fn an_automatic_check_that_fails_shows_nothing() {
+        let (updates, _rx) = service("http://127.0.0.1:9/releases".into());
+        assert!(!updates.check(Check::Automatic).await);
+        assert_eq!(updates.view().status, UpdateStatus::Idle);
+
+        let (url, _) = serve(r#"[{"tag_name":"v0.0.1","assets":[]}]"#).await;
+        let (updates, _rx) = service(url);
+        assert!(updates.check(Check::Automatic).await);
+        let checked = updates.view().status;
+        assert!(matches!(checked, UpdateStatus::UpToDate { .. }));
+        // An unreachable GitHub later keeps "up to date" shown.
+        let mut source = source("http://127.0.0.1:9/releases".into());
+        source.version = "0.0.1".into();
+        let (tx, _rx) = mpsc::channel();
+        let offline = Updates::with_source(
+            UpdatePreferences::default(),
+            None,
+            source,
+            None,
+            std::env::temp_dir(),
+            Box::new(move |view| {
+                let _ = tx.send(view);
+            }),
+        );
+        offline.set_status(checked.clone());
+        assert!(!offline.check(Check::Automatic).await);
+        assert_eq!(offline.view().status, checked);
+        assert!(!offline.check(Check::Manual).await);
+        assert_eq!(
+            offline.view().status,
+            UpdateStatus::Failed {
+                error: UpdateError::Network
+            }
+        );
+    }
+
+    /// Serves the installer fixtures of 1.2.3 and a list announcing it.
+    async fn release_server() -> String {
+        let files: Vec<(String, Vec<u8>)> = [
+            "Padboard_1.2.3_x64-setup.exe",
+            "Padboard_1.2.3_x64-setup.exe.sig",
+            "SHA256SUMS",
+            "SHA256SUMS.sig",
+        ]
+        .into_iter()
+        .map(|name| {
+            let path = format!(
+                "{}/src/updates/fixtures/installer/{name}",
+                env!("CARGO_MANIFEST_DIR")
+            );
+            (
+                format!("/releases/download/v1.2.3/{name}"),
+                std::fs::read(path).unwrap(),
+            )
+        })
+        .chain([(
+            "/api/releases".to_owned(),
+            br#"[{"tag_name":"v1.2.3","assets":[{"name":"latest.json"}]}]"#.to_vec(),
+        )])
+        .collect();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            while let Ok((mut socket, _)) = listener.accept().await {
+                let mut buffer = vec![0u8; 4096];
+                let n = socket.read(&mut buffer).await.unwrap_or(0);
+                let request = String::from_utf8_lossy(&buffer[..n]).into_owned();
+                let path = request.split(' ').nth(1).unwrap_or_default();
+                let path = path.split('?').next().unwrap_or_default();
+                let body = files
+                    .iter()
+                    .find(|(p, _)| p == path)
+                    .map(|(_, b)| b.clone());
+                let (status, body) = body.map_or(("404 Not Found", Vec::new()), |b| ("200 OK", b));
+                let head = format!(
+                    "HTTP/1.1 {status}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = socket.write_all(head.as_bytes()).await;
+                let _ = socket.write_all(&body).await;
+            }
+        });
+        base
+    }
+
+    fn test_release_updates(base: &str, dir: &Path) -> Updates {
+        let updates = Updates::with_source(
+            UpdatePreferences::default(),
+            None,
+            Source {
+                api_url: format!("{base}/api/releases"),
+                releases_url: format!("{base}/releases"),
+                key_text: include_str!("fixtures/installer/test-key.pub").to_owned(),
+                version: "1.2.2".into(),
+                test: true,
+            },
+            Some(dir.to_owned()),
+            dir.join("downloads"),
+            Box::new(|_| {}),
+        );
+        updates.after_restart();
+        updates
+    }
+
+    /// The whole path of a Windows update without a trusted signature:
+    /// downloaded, checked, saved, shown (never started), and still offered
+    /// after a restart.
+    #[tokio::test]
+    async fn the_checked_installer_is_shown_not_started() {
+        let base = release_server().await;
+        let tmp = tempfile::tempdir().unwrap();
+        let updates = test_release_updates(&base, tmp.path());
+        assert!(updates.show_installer().is_err());
+        updates.check(Check::Manual).await;
+        assert_eq!(updates.installable_version().unwrap(), "1.2.3");
+
+        let (file, bytes) = updates.download_installer("1.2.3").await.unwrap();
+        assert_eq!(
+            file,
+            tmp.path().join("downloads/Padboard_1.2.3_x64-setup.exe")
+        );
+        assert_eq!(
+            installer::decide(&installer::signer(&file), installer::TRUSTED_PUBLISHER),
+            installer::Launch::Show {
+                why: "no trusted publisher in this build".into()
+            }
+        );
+        updates.ready("1.2.3", &file);
+        let ready = UpdateStatus::Ready {
+            version: "1.2.3".into(),
+            file: file.display().to_string(),
+        };
+        assert_eq!(updates.view().status, ready);
+        assert_eq!(std::fs::read(&file).unwrap(), bytes);
+        assert!(updates.show_installer().is_ok());
+        assert!(updates.release_page().ends_with("/releases/tag/v1.2.3"));
+
+        // The automatic check leaves it; "Rechercher" offers it again.
+        updates.check(Check::Automatic).await;
+        assert_eq!(updates.view().status, ready);
+
+        // Padboard restarted, not updated yet: the installer is offered again.
+        let after = test_release_updates(&base, tmp.path());
+        assert_eq!(after.view().status, ready);
+        after.check(Check::Automatic).await;
+        assert_eq!(after.view().status, ready);
+        // The file is gone: the update did not happen, said so.
+        std::fs::remove_file(&file).unwrap();
+        assert_eq!(
+            test_release_updates(&base, tmp.path()).view().status,
+            UpdateStatus::NotInstalled {
+                version: "1.2.3".into()
+            }
+        );
+    }
+
+    /// A pending file of rc.2 (no `file`) is still read.
+    #[test]
+    fn a_pending_install_of_an_older_padboard_is_read() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join(PENDING_INSTALL),
+            r#"{"version":"0.2.0-rc.2"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            restarted(tmp.path(), "0.2.0-rc.1").view().status,
+            UpdateStatus::NotInstalled {
+                version: "0.2.0-rc.2".into()
             }
         );
     }

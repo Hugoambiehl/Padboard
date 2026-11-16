@@ -470,23 +470,39 @@ SM-T580, always measure in release builds.
   API (`Hugoambiehl/Padboard`), at launch + 10 s then daily, on by
   default, pre-releases only with "Versions de test" (`preferences.json`
   `updates`); never in test mode, off when `updater-key.pub` is empty.
-  Windows: `tauri-plugin-updater` ~2.12 (last for tauri 2.11 / Rust 1.88,
-  Windows-only dependency, driven from Rust only: no JS package, no
-  permission for the page), `requireSignedVersion`, NSIS wizard
-  (`basicUi`, not `passive`, while the installer is unsigned: Bitdefender
-  ATC quarantined a passive test install; back to `passive` once SignPath
-  signs it), pending edits flushed in `on_before_exit`. The version being
-  installed is written to `update-pending.json`; a launch still on the
-  older version shows `NotInstalled` (wizard cancelled or blocked by an
-  antivirus, "Que faire ?" opens `help.rs`'s page). An automatic check
-  never replaces a failed install of the same version with "available"
-  (only "Rechercher" offers it again). Linux: notice + release page
-  (opened through the `open` action, URL built by the backend). Our HTTP:
-  `reqwest` with `rustls-no-provider` (ring installed as default
-  provider). UI: "Mises à jour" section of the About card, header badge;
-  `types/updates.ts` mirrors `UpdatesView` by hand. The plugin's Windows
-  path cannot be cross-checked from Linux (ring needs MSVC's `lib.exe`):
-  CI's Windows job builds it.
+  An automatic check that cannot reach GitHub shows nothing (logged
+  only) and is retried after 5 then 30 min, then daily (`next_check`);
+  "Rechercher" shows its failures.
+  **Never start an unsigned Windows installer automatically**: started
+  by Padboard rc.1, the unsigned rc.2 installer was taken by Bitdefender
+  ATC (`Atc4.Detection`) and Padboard itself quarantined, with no message
+  (`windows-test-plan.md` 8.5). Windows ("Télécharger",
+  `updates/installer.rs`): our own code downloads the installer and its
+  `.sig` (minisign, bound to file name and version) and the signed
+  `SHA256SUMS`, saves it in Downloads (test mode: `<test dir>/config/
+  downloads`), then `installer::decide`: started only if WinVerifyTrust
+  validates an Authenticode signature by `TRUSTED_PUBLISHER` (empty until
+  SignPath: never), else `UpdateStatus::Ready`: the Explorer opens on the
+  file selected (`explorer /select`), the card says « Ferme Padboard, puis
+  lance ce fichier » with *Afficher le fichier*, *Quitter Padboard* and
+  the release page. The trusted path goes through `tauri-plugin-updater`
+  ~2.12 (last for tauri 2.11 / Rust 1.88, Windows-only dependency, driven
+  from Rust only: no JS package, no permission for the page) with our
+  checked bytes, NSIS wizard (`basicUi`; back to `passive` once SignPath
+  signs), pending edits flushed in `on_before_exit`. The version and file
+  are written to `update-pending.json`; a launch still on the older
+  version offers the file again (`Ready`), or shows `NotInstalled` if it
+  is gone ("Que faire ?" opens `help.rs`'s page). An automatic check
+  never replaces a failed or ready install of the same version with
+  "available" (only "Rechercher" offers it again). Linux: notice +
+  release page (opened through the `open` action, URL built by the
+  backend); test sources (`test-updates`) also take the Windows path on
+  Linux, for `e2e/updates` (the e2e build has the feature; nothing is
+  shown outside Windows). Our HTTP: `reqwest` with `rustls-no-provider`
+  (ring installed as default provider). UI: "Mises à jour" section of
+  the About card, header badge; `types/updates.ts` mirrors `UpdatesView`
+  by hand. The Windows-only code cannot be cross-checked from Linux (ring
+  needs MSVC's `lib.exe`): CI's Windows job builds it.
 - **Tablet updates from the PC**: always to the PC's own version (the
   APK of the same release; a development version, outside the
   `versionCode` scheme, offers nothing). `updates/tablet.rs` downloads

@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { CircleHelp, Download, ExternalLink, RefreshCw } from "lucide-vue-next";
+import { CircleHelp, Download, ExternalLink, FolderOpen, LogOut, RefreshCw } from "lucide-vue-next";
 import ToggleSwitch from "./ToggleSwitch.vue";
 import {
   checkForUpdates,
   installUpdate,
   openHelp,
   openReleasePage,
+  quitApp,
   setUpdatePreferences,
+  showUpdateInstaller,
 } from "../commands";
 import { useUpdates } from "../composables/useUpdates";
 import type { UpdatePreferences } from "../types/updates";
@@ -56,6 +58,8 @@ const line = computed(() => {
       return t(`updates.error.${s.error}`);
     case "notInstalled":
       return t("updates.notInstalled", { version: s.version });
+    case "ready":
+      return t("updates.ready", { version: s.version });
   }
   return "";
 });
@@ -98,8 +102,18 @@ function save(change: Partial<UpdatePreferences>) {
       {{ t("updates.manual") }}
     </p>
     <p v-if="status?.state === 'available' && status.installable" class="text-xs text-muted">
-      {{ t("updates.wizard") }}
+      {{ status.startsInstaller ? t("updates.wizard") : t("updates.downloadHint") }}
     </p>
+    <div v-if="status?.state === 'ready'" class="flex flex-col gap-1" data-updates-ready>
+      <p class="text-sm">{{ t("updates.readyHint") }}</p>
+      <p
+        class="break-all rounded-lg border border-line bg-surface-2 px-2 py-1 font-mono text-xs text-muted-2"
+        data-updates-file
+      >
+        {{ status.file }}
+      </p>
+      <p class="text-xs text-muted">{{ t("updates.readyQuitHint") }}</p>
+    </div>
     <p v-if="status?.state === 'notInstalled'" class="text-xs text-muted">
       {{ t("updates.notInstalledHint") }}
     </p>
@@ -112,7 +126,27 @@ function save(change: Partial<UpdatePreferences>) {
         @click="run(installUpdate)"
       >
         <Download :size="16" aria-hidden="true" />
-        {{ t("updates.install") }}
+        {{ status.startsInstaller ? t("updates.install") : t("updates.download") }}
+      </button>
+      <button
+        v-if="status?.state === 'ready'"
+        type="button"
+        class="flex items-center gap-2 rounded-xl bg-accent px-3 py-2 text-sm font-medium text-[#0E0F12] transition-opacity hover:opacity-90"
+        data-updates-show
+        @click="run(showUpdateInstaller)"
+      >
+        <FolderOpen :size="16" aria-hidden="true" />
+        {{ t("updates.showFile") }}
+      </button>
+      <button
+        v-if="status?.state === 'ready'"
+        type="button"
+        class="flex items-center gap-2 rounded-xl border border-line-2 bg-surface-2 px-3 py-2 text-sm transition-colors hover:bg-surface-active"
+        data-updates-quit
+        @click="run(quitApp)"
+      >
+        <LogOut :size="16" class="text-muted-2" aria-hidden="true" />
+        {{ t("updates.quit") }}
       </button>
       <button
         v-if="status?.state === 'notInstalled'"
@@ -125,7 +159,11 @@ function save(change: Partial<UpdatePreferences>) {
         {{ t("updates.help") }}
       </button>
       <button
-        v-if="status?.state === 'available' || status?.state === 'notInstalled'"
+        v-if="
+          status?.state === 'available' ||
+          status?.state === 'notInstalled' ||
+          status?.state === 'ready'
+        "
         type="button"
         class="flex items-center gap-2 rounded-xl border border-line-2 bg-surface-2 px-3 py-2 text-sm transition-colors hover:bg-surface-active"
         data-updates-page

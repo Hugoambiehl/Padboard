@@ -596,9 +596,10 @@
     "downloadingPercent": "Downloading version {version}… {percent}%",
     "installing": "The installer of version {version} opens: follow its steps, Padboard closes meanwhile.",
     "error": {
-      "network": "Cannot reach GitHub. Next try tomorrow, or with “Check now”.",
+      "network": "Cannot reach GitHub. Try again with “Check now”.",
       "signature": "The download is not signed for this version: update refused.",
-      "install": "Cannot start the installer."
+      "install": "Cannot start the installer.",
+      "storage": "Cannot save the downloaded installer."
     },
     "install": "Install",
     "notes": "Release notes",
@@ -612,7 +613,14 @@
     "wizard": "Padboard's installer will open: just follow its steps.",
     "notInstalled": "Version {version} was not installed.",
     "notInstalledHint": "The installer was closed before the end, or your antivirus blocked it. Try again with “Check now”, or install the version by hand from its page.",
-    "help": "What to do?"
+    "help": "What to do?",
+    "download": "Download",
+    "downloadHint": "Padboard downloads the installer and checks its signature, then shows it to you in the Explorer: you run it yourself.",
+    "ready": "Version {version} is downloaded and checked.",
+    "readyHint": "Close Padboard, then run this file:",
+    "readyQuitHint": "“Quit Padboard” really closes it (closing the window keeps it running near the clock).",
+    "showFile": "Show the file",
+    "quit": "Quit Padboard"
   },
   "licenses": {
     "title": "Licenses",
