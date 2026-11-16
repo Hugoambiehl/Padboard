@@ -457,4 +457,4 @@ files.
 
 - Keys cannot be sent to elevated (administrator) windows.
 - Audio states are read every 300 ms (Windows has no simple change feed).
-- The installer is not signed yet (SmartScreen warning); SignPath once the project is public.
+- The installer has no Authenticode signature (SignPath Foundation declined for now): SmartScreen warns on first launch, expected; Padboard never starts it by itself.

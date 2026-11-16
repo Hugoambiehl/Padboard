@@ -453,7 +453,9 @@ SM-T580, always measure in release builds.
   (Android versionCode = MAJOR*1e6 + MINOR*1e4 + PATCH*100 + rc number, 99
   for the release), regenerates `CHANGELOG.md` (git-cliff, `cliff.toml`:
   feat/fix/perf only; 0.1.0 has a written summary instead), commits and tags without pushing. A pushed `v*` tag
-  runs `release.yml`: NSIS installer (unsigned, SignPath once public), .deb
+  runs `release.yml`: NSIS installer (unsigned: SignPath Foundation declined
+  the request for now, may be asked again later; SmartScreen warning
+  expected, every installer submitted to antivirus makers), .deb
   (built on Ubuntu 22.04), unsigned APK, draft release (pre-release for rc)
   with SHA256SUMS. `scripts/sign-release.sh X` then signs the draft on the
   maintainer's PC (keys never go to CI, `docs/release-signing.md`): the
@@ -461,9 +463,10 @@ SM-T580, always measure in release builds.
   `--app-version`: the version is in the signed trusted comment),
   `latest.json`, and `SHA256SUMS` written again and signed for X; checked
   by the `verify-release` example (the app's own code) before upload.
-  Future SignPath (Authenticode) signs the installer in CI before the
-  draft, so the minisign signature covers the final file; the script
-  refuses an unsigned installer once the workflow has a SignPath step.
+  If Authenticode signing (SignPath) comes one day, it signs the
+  installer in CI before the draft, so the minisign signature covers the
+  final file; the script refuses an unsigned installer once the workflow
+  has a SignPath step.
   Public update key: `apps/desktop/src-tauri/updater-key.pub` (empty =
   updates off; the release workflow refuses it).
 - **Desktop updates** (`updates/`): the releases list from the GitHub
@@ -481,15 +484,16 @@ SM-T580, always measure in release builds.
   `.sig` (minisign, bound to file name and version) and the signed
   `SHA256SUMS`, saves it in Downloads (test mode: `<test dir>/config/
   downloads`), then `installer::decide`: started only if WinVerifyTrust
-  validates an Authenticode signature by `TRUSTED_PUBLISHER` (empty until
-  SignPath: never), else `UpdateStatus::Ready`: the Explorer opens on the
+  validates an Authenticode signature by `TRUSTED_PUBLISHER` (empty: no
+  certificate, SignPath declined for now, so never; if one comes, check
+  the issuer too, not only the name), else `UpdateStatus::Ready`: the Explorer opens on the
   file selected (`explorer /select`), the card says « Ferme Padboard, puis
   lance ce fichier » with *Afficher le fichier*, *Quitter Padboard* and
   the release page. The trusted path goes through `tauri-plugin-updater`
   ~2.12 (last for tauri 2.11 / Rust 1.88, Windows-only dependency, driven
   from Rust only: no JS package, no permission for the page) with our
-  checked bytes, NSIS wizard (`basicUi`; back to `passive` once SignPath
-  signs), pending edits flushed in `on_before_exit`. The version and file
+  checked bytes, NSIS wizard (`basicUi`; `passive` only with a signed
+  installer), pending edits flushed in `on_before_exit`. The version and file
   are written to `update-pending.json`; a launch still on the older
   version offers the file again (`Ready`), or shows `NotInstalled` if it
   is gone ("Que faire ?" opens `help.rs`'s page). An automatic check

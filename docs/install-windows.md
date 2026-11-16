@@ -10,8 +10,9 @@ app ([tablet guide](install-tablet.md)).
 2. Optional: check the download. In PowerShell,
    `Get-FileHash .\Padboard_<version>_x64-setup.exe` must print the SHA-256
    listed for that file in the release's `SHA256SUMS`.
-3. Run the installer. It is **not signed yet**, so SmartScreen shows
-   *Windows protected your PC*: click *More info* → *Run anyway*.
+3. Run the installer. It has **no code signing certificate** (none for
+   now), so SmartScreen shows *Windows protected your PC*: click *More
+   info* → *Run anyway*. This is expected for every version.
    It installs for your user only (no administrator rights) and adds a Start
    menu entry. WebView2 comes with Windows 11; on Windows 10 the installer
    downloads it if it is missing.
@@ -141,15 +142,17 @@ Explorer on it. Then:
 2. run the selected file, `Padboard_<version>_x64-setup.exe`, and follow
    its steps as for the first install. Your configuration is kept.
 
-Padboard does not start the installer itself while it is not signed with
-a code signing certificate: started by Padboard, an unsigned installer
+Padboard does not start the installer itself: it has no code signing
+certificate (none for now), and started by Padboard an unsigned installer
 looks suspicious to some antivirus programs (see below). If you do not
 run it, Padboard offers the same file again at its next launch.
 
 ## If your antivirus blocks Padboard
 
-The installer is not signed yet (a code signing certificate is on its way),
-so an antivirus may take it for a threat. With **Bitdefender**, seen on
+The installer has no code signing certificate (the free one for open
+source projects was declined for now), so an antivirus may take it for a
+threat. Each installer is submitted to Bitdefender as a false positive
+before it is published, but a new version can still be flagged. With **Bitdefender**, seen on
 0.2.0-rc.2: started by Padboard, the installer was stopped by *Advanced
 Threat Control* (`Atc4.Detection`), and Padboard itself was quarantined.
 The same installer run by hand installed fine. Padboard no longer starts

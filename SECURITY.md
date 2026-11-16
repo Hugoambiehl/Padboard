@@ -57,6 +57,14 @@ the user of the active local session only, but then any program in that
 session can create a virtual keyboard, as on X11
 ([details](docs/install-linux.md#2-allow-keyboard-shortcuts-uinput)).
 
+**Releases.** The tablet APK, the desktop updates and the checksums
+(`SHA256SUMS`) are signed on the maintainer's PC, with keys that never go
+to CI; the apps refuse anything else. The Windows installer has **no
+Authenticode signature** (no code signing certificate for now): SmartScreen
+warns on first launch, and Padboard never starts an installer by itself. It
+downloads it, checks its signature and checksum, then shows it for the user
+to run. Check a manual download with the release's `SHA256SUMS`.
+
 **Kiosk mode.** On the tablet, Padboard becomes the device owner. It can
 leave this role at any time: from the PC, or by holding the bottom-left
 corner for 5 seconds, then confirming. It requests no other permission than the network.

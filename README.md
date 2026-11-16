@@ -117,9 +117,13 @@ tagged commit, and checksums are published with it (`SHA256SUMS`).
 - **Updates**: the desktop's in-app updates and the checksums are also
   signed on the maintainer's PC, with a separate key bound to each
   version (`scripts/sign-release.sh`); the app refuses anything else.
-- **Windows installer**: not signed yet. A free certificate for open
-  source projects has been requested; until then, Windows SmartScreen asks
-  for confirmation on first launch.
+- **Windows installer**: not signed with Authenticode. The request for a
+  free certificate (SignPath Foundation) was declined for now (the program
+  is for more visible projects; it can be asked again later). Windows
+  SmartScreen therefore asks for confirmation on first launch, and the app
+  never starts an installer by itself: it downloads and checks it, then
+  shows it for you to run. Each installer is submitted to antivirus makers
+  as a possible false positive before it is published.
 
 Team roles:
 

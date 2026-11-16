@@ -9,7 +9,7 @@ one version.
 
 | File | Built by | Notes |
 |---|---|---|
-| `Padboard_X_x64-setup.exe` | release workflow (Windows runner) | NSIS installer, English or French from the Windows language. **Not signed** yet (SignPath once public): SmartScreen asks for confirmation. |
+| `Padboard_X_x64-setup.exe` | release workflow (Windows runner) | NSIS installer, English or French from the Windows language. **Not signed** (no Authenticode certificate: SignPath Foundation declined for now): SmartScreen asks for confirmation. |
 | `Padboard_X_amd64.deb` | release workflow (Ubuntu 22.04) | Ubuntu 22.04+ / Debian 12+. |
 | `padboard-X.apk` | release workflow, **signed on the maintainer’s PC** | The workflow attaches `padboard-X-unsigned.apk`; `scripts/sign-release.sh` signs it and replaces it. The keys never leave that PC (`docs/release-signing.md`). |
 | `Padboard_X_x64-setup.exe.sig`, `latest.json` | `scripts/sign-release.sh` | The in-app updater (Windows) reads `latest.json` and checks the installer against this signature, made for version X. |
@@ -58,16 +58,19 @@ for `apksigner`; the GitHub CLI (`gh`).
    updater, writes `latest.json`, writes and signs `SHA256SUMS` again,
    checks the result with the app's own code (example `verify-release`),
    then uploads it and removes the unsigned APK. It asks for the update
-   key's password once. Once SignPath signs the installer in the workflow
-   (Authenticode), nothing changes here: the installer is final before the
-   draft exists, and the script refuses one without its Authenticode
-   signature.
+   key's password once. If Authenticode signing is added to the workflow
+   one day (SignPath declined the first request; it can be asked again
+   later), nothing changes here: the installer is final before the draft
+   exists, and the script refuses one without its Authenticode signature
+   once the workflow has a SignPath step.
 
 4. **Test** the builds (Windows: `docs/windows-test-plan.md`; the tablet:
    `adb install -r padboard-X.apk`, then `docs/tablet-test-plan.md`). A rejected draft is deleted
    (`gh release delete v0.1.0-rc.1`), never re-signed after publishing.
 
-   **Antiviruses**, while the installer is not signed (Authenticode): before
+   **Antiviruses**: the installer has no Authenticode signature (SignPath
+   Foundation declined the request for now; SmartScreen warns on first
+   launch, expected). Before
    publishing, upload the signed draft's `Padboard_X_x64-setup.exe` to
    [VirusTotal](https://www.virustotal.com) (below), and **submit every
    installer to Bitdefender**
@@ -79,9 +82,10 @@ for `apksigner`; the GitHub CLI (`gh`).
    rc.1, and Padboard with it (`docs/windows-test-plan.md`, 8.5): since
    rc.3 Padboard never starts an installer that is not validly signed by
    `TRUSTED_PUBLISHER` (`updates/installer.rs`, empty until SignPath), it
-   shows it in the Explorer. Once SignPath signs: set that constant to the
-   certificate's name as Windows shows it, and go back from `basicUi` to
-   `passive` (`installMode` in `tauri.conf.json`).
+   shows it in the Explorer. `TRUSTED_PUBLISHER` stays empty while there
+   is no certificate. If one comes later: set that constant to the
+   certificate's name as Windows shows it, check its issuer too, and go
+   back from `basicUi` to `passive` (`installMode` in `tauri.conf.json`).
 
    **VirusTotal**, step by step:
 
