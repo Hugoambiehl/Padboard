@@ -472,7 +472,7 @@ files.
 | Check | Result | Remark |
 |---|---|---|
 | 9.1 rc.2 → rc.3 by hand | OK | Tray, silent retry after a restart, single instance OK |
-| 9.2 | Postponed | To the real update to 0.2.0, from rc.4 (see 9.2) |
+| 9.2 | Postponed | To the real update to 0.2.0, from rc.4 (see 9.2): done, see 9.6 |
 | 9.3 (8.2, 8.3) | OK | "Supprimer adb" next to Touch Portal; kiosk on, then tablet updated from the PC in 4 s; the new exit gesture (bottom-left corner) tried by finger |
 
 Found during this round, fixed or documented in rc.4 (section 10):
@@ -496,6 +496,32 @@ Found during this round, fixed or documented in rc.4 (section 10):
    installed on the tablet.
 5. The installer showed NSIS's **default images** (the blue computer).
    rc.4 has Padboard's (`scripts/icons.mjs`).
+
+### 9.6 Results of 9.2: rc.4 → 0.2.0 (reported 2026-11-17)
+
+Official rc.4 → published 0.2.0, Bitdefender active, no exception,
+*Versions de test* on.
+
+| Check | Result | Remark |
+|---|---|---|
+| Found | OK | *Rechercher*: *update available version=0.2.0* |
+| Not started by Padboard | OK | *Télécharger*: `Padboard_0.2.0_x64-setup.exe` in *Downloads*, *installer downloaded and checked*, then *not started by Padboard* (`no trusted publisher in this build`); SHA-256 `599289e6…4aaf4ed08` = `SHA256SUMS`; no installer process until the double-click; no Bitdefender event |
+| Show again | OK | *Afficher le fichier*: the Explorer opened again on *Downloads*, the file selected |
+| Run by the user | OK | *Quitter Padboard* in the card, double-click: Padboard's images; *Déjà installé* page, *Désinstaller avant d'installer*; no confirmation page, no *Supprimer les données de l'application*; install folder unchanged; 0.2.0 started (*update installed version=0.2.0*), tablet reconnected over USB in 4 s. `identity`, `profiles`, `paired-devices`, `obs`, `tls-key`, `preferences` unchanged byte for byte (*Versions de test* kept); one entry in *Settings → Apps* (0.2.0); `Run` value and `StartupApproved` (`02…`) unchanged (*entry refreshed*); Start menu and desktop shortcuts kept |
+| No failure notice | OK | No *… n’a pas abouti* in *Mises à jour* |
+| Firewall | OK | No ATC detection, no quarantine, no ATC / ctc file during the install and 5 min after (21:38 → 21:44). One new rule, before the install: a **temporary allow** for the running rc.4 (`--hidden`), added when it downloaded the installer (as in 10.5); nothing during the install or for 0.2.0 |
+| Tablet (8.3) | OK | Kiosk on, USB card: 20004 → 20099 (0.2.0) in 5 s; still device owner, lock task `LOCKED`, grid shown; `<config>/updates` keeps only the 0.2.0 APK |
+| Sound | OK | Same as before the test, nothing to restore |
+
+Remarks:
+
+1. During an update the installer still shows the folder page
+   (*Choisissez le dossier d'installation*, prefilled with the current
+   one). A different folder would install beside the old path: the `Run`
+   value is written again at launch, but shortcuts, a taskbar pin and
+   Bitdefender's rules by path keep pointing to the old one.
+2. The *Déja installé.* / *La version ancien* typos of Tauri's NSIS
+   language file are still there (10.5, remark 1).
 
 ## 10. Release candidate 0.2.0-rc.4: update from rc.3 (Bitdefender active)
 
