@@ -75,7 +75,7 @@ tauri-plugin-updater = { version = "~2.12", default-features = false, features =
 
 [dev-dependencies]
 tempfile = "3.27.0"
-# stdin for the fake-tablet example
+# stdin for the fake-tablet and fake-obs examples
 tokio = { version = "1.54.1", features = ["io-std"] }
 
 [lints]

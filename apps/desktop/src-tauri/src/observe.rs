@@ -95,8 +95,13 @@ fn media_loop(tx: &watch::Sender<SystemState>) -> ! {
 /// states without touching the real microphone. Example:
 /// `{"audio": {"outputPercent": 50, "outputMuted": false, "inputMuted": true}, "mediaPlaying": false}`;
 /// `"audio": "unavailable"` simulates a missing sound server; an absent key
-/// means not observed.
-pub fn start_from_file(path: std::path::PathBuf, state: &watch::Sender<SystemState>) {
+/// means not observed. With `keep_obs` (the app connects to a fake OBS), the
+/// OBS state is left to that connection.
+pub fn start_from_file(
+    path: std::path::PathBuf,
+    state: &watch::Sender<SystemState>,
+    keep_obs: bool,
+) {
     let tx = state.clone();
     spawn("padboard-test-state", move || {
         let mut last = None;
@@ -107,8 +112,11 @@ pub fn start_from_file(path: std::path::PathBuf, state: &watch::Sender<SystemSta
                 match parsed {
                     None => {}
                     Some(Ok(test)) => {
-                        let next = test.into_state();
+                        let mut next = test.into_state();
                         tx.send_if_modified(|s| {
+                            if keep_obs {
+                                next.obs = s.obs.clone();
+                            }
                             let changed = *s != next;
                             *s = next.clone();
                             changed

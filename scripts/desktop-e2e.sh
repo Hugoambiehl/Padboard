@@ -67,11 +67,12 @@ if ((build)); then
   # `test-updates`: e2e/updates reads its releases from a local server
   # (only when PADBOARD_TEST_RELEASES is set; never in shipped builds).
   npm run tauri build -- --debug --no-bundle --features test-updates
-  cargo build -p padboard-desktop --example fake-tablet
+  cargo build -p padboard-desktop --example fake-tablet --example fake-obs
 fi
 
 export PADBOARD_E2E_APP="$CARGO_TARGET_DIR/debug/padboard-desktop"
 export PADBOARD_E2E_FAKE_TABLET="$CARGO_TARGET_DIR/debug/examples/fake-tablet"
+export PADBOARD_E2E_FAKE_OBS="$CARGO_TARGET_DIR/debug/examples/fake-obs"
 export PADBOARD_E2E_SHOTS="$CARGO_TARGET_DIR/screenshots"
 rm -rf "$PADBOARD_E2E_SHOTS"
 

@@ -167,7 +167,12 @@ add/adjust round-trip serialization tests.
   a wrong password, publishes scene / recording / streaming / muted inputs
   once all initial answers are in (OBS answers in any order). Tests use an
   isolated OBS: `XDG_CONFIG_HOME=<dir> xvfb-run obs` with obs-websocket on
-  another port and its recording path in that dir.
+  another port and its recording path in that dir. The editor's scene and
+  input lists (`get_obs`) are re-read on the `obs` event, sent when the
+  status changes **and** when the names in `SystemState` change (they
+  arrive after `Connected`, issue #13); a scene collection change asks
+  them again. e2e: `e2e/obs` with the `fake-obs` example
+  (`PADBOARD_TEST_OBS=1`: the real client in simulated test mode).
 - Discord only via its global shortcuts (no RPC).
 
 ## Design

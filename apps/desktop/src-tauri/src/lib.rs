@@ -860,7 +860,9 @@ pub fn run() {
             match &test_mode {
                 None => observe::start(&state_tx),
                 Some(mode) if mode.system() => observe::start(&state_tx),
-                Some(mode) => observe::start_from_file(mode.state_file(), &state_tx),
+                Some(mode) => {
+                    observe::start_from_file(mode.state_file(), &state_tx, mode.obs());
+                }
             }
             let ctx = Arc::new(ServerContext {
                 server_name,
@@ -879,20 +881,32 @@ pub fn run() {
                 obs: OnceLock::new(),
                 sessions: Mutex::default(),
             });
-            // OBS: real in normal and system test modes; in simulated test
-            // mode its state comes from state.json.
-            if test_mode.as_ref().is_none_or(TestMode::system) {
+            // OBS: real in normal and system test modes (and with
+            // PADBOARD_TEST_OBS); otherwise its state comes from state.json.
+            if test_mode.as_ref().is_none_or(TestMode::obs) {
                 let settings: obs::ObsSettings = config.load_or_init(obs::ObsSettings::default);
                 let client = obs::Obs::start(settings, ctx.state.clone());
                 let status_handle = app.handle().clone();
                 let mut status = client.status();
+                let mut system = ctx.state.subscribe();
+                // The editor reads the status and the scene and input
+                // lists (`get_obs`) on this event: sent when the status
+                // changes, and when the lists do (they arrive after
+                // `Connected`, and follow OBS while connected).
                 tauri::async_runtime::spawn(async move {
+                    let mut names = system.borrow_and_update().obs_names();
+                    let _ = status_handle.emit(OBS_EVENT, status.borrow_and_update().clone());
                     loop {
-                        let current = status.borrow_and_update().clone();
-                        let _ = status_handle.emit(OBS_EVENT, current);
-                        if status.changed().await.is_err() {
-                            break;
+                        tokio::select! {
+                            changed = status.changed() => if changed.is_err() { break },
+                            changed = system.changed() => {
+                                if changed.is_err() { break }
+                                let current = system.borrow_and_update().obs_names();
+                                if current == names { continue }
+                                names = current;
+                            }
                         }
+                        let _ = status_handle.emit(OBS_EVENT, status.borrow_and_update().clone());
                     }
                 });
                 let _ = ctx.obs.set(client);

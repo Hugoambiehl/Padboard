@@ -29,8 +29,18 @@ use crate::storage::Document;
 pub const DEFAULT_PORT: u16 = 4455;
 const RETRY: Duration = Duration::from_secs(3);
 const TIMEOUT: Duration = Duration::from_secs(3);
-/// Scenes, inputs and outputs events.
-const EVENT_SUBSCRIPTIONS: u32 = 4 | 8 | 64;
+/// Config (scene collection changes), scenes, inputs and outputs events.
+const EVENT_SUBSCRIPTIONS: u32 = 2 | 4 | 8 | 64;
+/// What the state starts from; asked again when the scene collection
+/// changes (its scenes and inputs replace the previous ones).
+const INITIAL_REQUESTS: [&str; 5] = [
+    "GetCurrentProgramScene",
+    "GetRecordStatus",
+    "GetStreamStatus",
+    "GetSceneList",
+    "GetInputList",
+];
+const COLLECTION_REQUESTS: [&str; 3] = ["GetCurrentProgramScene", "GetSceneList", "GetInputList"];
 
 /// `obs.json` (owner-only: it holds the obs-websocket password). `Debug`
 /// redacts the password.
@@ -338,27 +348,13 @@ async fn session(
     let mut obs = ObsState::default();
 
     // Initial state: answers are collected below like any reply.
-    let mut ask = |ws_requests: &mut Vec<Value>, request: &str, data: Value| {
+    for request in INITIAL_REQUESTS {
         next_id += 1;
-        let id = format!("init-{request}-{next_id}");
-        ws_requests.push(json!({ "op": 6, "d": { "requestType": request, "requestId": id, "requestData": data } }));
-    };
-    let mut initial = Vec::new();
-    for request in [
-        "GetCurrentProgramScene",
-        "GetRecordStatus",
-        "GetStreamStatus",
-        "GetSceneList",
-        "GetInputList",
-    ] {
-        ask(&mut initial, request, json!({}));
-    }
-    for request in &initial {
-        send_json(&mut ws, request).await?;
+        send_initial(&mut ws, request, next_id).await?;
     }
     // Answers can come in any order: the state is published once all the
     // initial ones are in (no half-filled state on the buttons).
-    let mut initial_left = initial.len();
+    let mut initial_left = INITIAL_REQUESTS.len();
     let mut ready = false;
 
     loop {
@@ -387,6 +383,18 @@ async fn session(
                                 ))
                             });
                         } else if id.starts_with("init-") {
+                            let request = d["requestType"].as_str().unwrap_or_default();
+                            if d["requestStatus"]["result"].as_bool() != Some(true) {
+                                // The state stays without it (an empty list…).
+                                tracing::warn!(
+                                    request,
+                                    code = d["requestStatus"]["code"].as_u64(),
+                                    comment = d["requestStatus"]["comment"].as_str().unwrap_or_default(),
+                                    "OBS refused an initial request"
+                                );
+                            } else {
+                                tracing::debug!(request, "OBS answered");
+                            }
                             let followups = apply_initial(&mut obs, d);
                             for input in followups {
                                 next_id += 1;
@@ -401,8 +409,22 @@ async fn session(
                             initial_left = initial_left.saturating_sub(1);
                             ready = initial_left == 0;
                             if ready {
+                                tracing::debug!(
+                                    scenes = obs.scenes.len(),
+                                    inputs = obs.inputs.len(),
+                                    "OBS state received"
+                                );
                                 publish(state, Observed::Known(obs.clone()));
                             }
+                        }
+                    }
+                    // Another scene collection: its scenes and inputs are
+                    // asked again (answers handled like the initial ones).
+                    Some(5) if d["eventType"] == "CurrentSceneCollectionChanged" => {
+                        tracing::debug!("OBS scene collection changed");
+                        for request in COLLECTION_REQUESTS {
+                            next_id += 1;
+                            send_initial(&mut ws, request, next_id).await?;
                         }
                     }
                     // Event
@@ -426,6 +448,20 @@ async fn session(
     }
 }
 
+/// Sends a request whose answer [`apply_initial`] reads.
+async fn send_initial(ws: &mut Ws, request: &str, id: u64) -> Result<(), ObsError> {
+    tracing::debug!(request, "OBS request");
+    send_json(
+        ws,
+        &json!({ "op": 6, "d": {
+            "requestType": request,
+            "requestId": format!("init-{request}-{id}"),
+            "requestData": {},
+        }}),
+    )
+    .await
+}
+
 /// Applies the answer of an initial request; returns the inputs whose mute
 /// state must be asked.
 fn apply_initial(obs: &mut ObsState, d: &Value) -> Vec<String> {
@@ -446,6 +482,8 @@ fn apply_initial(obs: &mut ObsState, d: &Value) -> Vec<String> {
         }
         Some("GetInputList") => {
             obs.inputs = names(&data["inputs"], "inputName");
+            // Asked again for each input.
+            obs.muted_inputs.clear();
             return obs.inputs.clone();
         }
         _ => {}
@@ -488,6 +526,11 @@ fn apply_event(obs: &mut ObsState, d: &Value) -> bool {
             if let Some(name) = data["sceneName"].as_str() {
                 obs.scenes.push(name.to_owned());
             }
+        }
+        // Scenes reordered: the whole list, like GetSceneList.
+        Some("SceneListChanged") => {
+            obs.scenes = names(&data["scenes"], "sceneName");
+            obs.scenes.reverse();
         }
         Some("SceneRemoved") => obs
             .scenes
@@ -615,5 +658,75 @@ mod tests {
             &mut obs,
             &event("StudioModeStateChanged", json!({}))
         ));
+    }
+
+    #[test]
+    fn scene_events_keep_the_list_as_in_obs() {
+        let mut obs = ObsState::default();
+        // GetSceneList lists bottom-up: shown top-down.
+        apply_initial(
+            &mut obs,
+            &json!({ "requestType": "GetSceneList", "responseData": {
+                "scenes": [{"sceneName": "Pause"}, {"sceneName": "Jeu"}],
+            }}),
+        );
+        assert_eq!(obs.scenes, ["Jeu", "Pause"]);
+        obs.scene = Some("Jeu".into());
+        let event = |kind: &str, data: Value| json!({ "eventType": kind, "eventData": data });
+        assert!(apply_event(
+            &mut obs,
+            &event(
+                "SceneCreated",
+                json!({"sceneName": "Discussion", "isGroup": false})
+            )
+        ));
+        assert_eq!(obs.scenes, ["Jeu", "Pause", "Discussion"]);
+        // Renamed: the current scene follows.
+        assert!(apply_event(
+            &mut obs,
+            &event(
+                "SceneNameChanged",
+                json!({"oldSceneName": "Jeu", "sceneName": "Partie"})
+            )
+        ));
+        assert_eq!(obs.scenes, ["Partie", "Pause", "Discussion"]);
+        assert_eq!(obs.scene.as_deref(), Some("Partie"));
+        assert!(apply_event(
+            &mut obs,
+            &event("SceneRemoved", json!({"sceneName": "Pause"}))
+        ));
+        assert_eq!(obs.scenes, ["Partie", "Discussion"]);
+        // Reordered in OBS: the whole list, bottom-up like GetSceneList.
+        assert!(apply_event(
+            &mut obs,
+            &event(
+                "SceneListChanged",
+                json!({"scenes": [{"sceneName": "Partie"}, {"sceneName": "Discussion"}]})
+            )
+        ));
+        assert_eq!(obs.scenes, ["Discussion", "Partie"]);
+    }
+
+    #[test]
+    fn a_new_input_list_forgets_the_old_mutes() {
+        let mut obs = ObsState {
+            inputs: vec!["Mic/Aux".into()],
+            muted_inputs: BTreeSet::from(["Mic/Aux".to_owned()]),
+            ..ObsState::default()
+        };
+        let asked = apply_initial(
+            &mut obs,
+            &json!({ "requestType": "GetInputList", "responseData": {
+                "inputs": [{"inputName": "Micro"}, {"inputName": "Bureau"}],
+            }}),
+        );
+        assert_eq!(asked, ["Micro", "Bureau"]);
+        assert!(obs.muted_inputs.is_empty());
+        // A refused request (no responseData) leaves an empty list.
+        apply_initial(
+            &mut obs,
+            &json!({ "requestType": "GetSceneList", "requestStatus": {"result": false} }),
+        );
+        assert!(obs.scenes.is_empty());
     }
 }

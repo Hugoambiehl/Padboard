@@ -78,6 +78,16 @@ cargo run -p padboard-desktop --example fake-tablet -- forget            # drop 
 `--id NAME` simulates another tablet. Once connected, type a button id (e.g.
 `terminal`) and Enter to press it.
 
+`fake-obs` is a small obs-websocket v5 server (no password) with a scene
+list, for the OBS settings of the connections view:
+
+```sh
+cargo run -p padboard-desktop --example fake-obs -- --port 4455 Jeu Pause
+```
+
+Then type `create <scene>`, `rename <old> <new>` or `remove <scene>` to send
+the matching OBS event.
+
 Actions alone, without the app:
 
 ```sh
@@ -94,6 +104,10 @@ configuration in that directory, never yours: actions are recorded to
 alone, logs go to `<dir>/app.log`, the window title says "mode test", and
 button states come from `<dir>/state.json`, e.g.
 `{"audio": {"outputPercent": 50, "outputMuted": false, "inputMuted": true}, "mediaPlaying": false}`.
+
+Add `PADBOARD_TEST_OBS=1` to reach OBS for real (with the test
+configuration's `obs.json`, e.g. pointing to `fake-obs`) instead of reading
+its state from `state.json`.
 
 Add `PADBOARD_TEST_SYSTEM=1` to run actions and observe states for real (the
 configuration stays in the test directory; Wi-Fi can be forced on with

@@ -17,10 +17,11 @@ function required(name: string): string {
 
 const APP = () => required("PADBOARD_E2E_APP");
 const FAKE_TABLET = () => required("PADBOARD_E2E_FAKE_TABLET");
+const FAKE_OBS = () => required("PADBOARD_E2E_FAKE_OBS");
 const SHOTS = () => required("PADBOARD_E2E_SHOTS");
 
 /** A free TCP port on loopback. */
-function freePort(): Promise<number> {
+export function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = createServer();
     server.once("error", reject);
@@ -66,6 +67,7 @@ export class App {
   private driver?: ChildProcess;
   private driverUrl = "";
   private tablets: FakeTablet[] = [];
+  private fakeObs: FakeObs[] = [];
 
   private constructor(
     /** The PADBOARD_TEST_DIR of this app: configuration and recorded actions. */
@@ -79,11 +81,22 @@ export class App {
     this.usbPort = usbPort;
   }
 
-  /** A fresh test directory, then tauri-driver, then the app. */
-  static async start(locale: "fr" | "en" = "fr", env: Record<string, string> = {}): Promise<App> {
+  /**
+   * A fresh test directory, then tauri-driver, then the app. `config`:
+   * files written to the test configuration before the app starts.
+   */
+  static async start(
+    locale: "fr" | "en" = "fr",
+    env: Record<string, string> = {},
+    config: Record<string, unknown> = {},
+  ): Promise<App> {
     const dir = await mkdtemp(join(tmpdir(), "padboard-e2e-"));
     const app = new App(dir, await freePort(), locale, env);
     try {
+      await mkdir(join(dir, "config"), { recursive: true });
+      for (const [name, value] of Object.entries(config)) {
+        await writeFile(join(dir, "config", name), JSON.stringify(value));
+      }
       await app.startDriver();
       await app.open();
     } catch (e) {
@@ -158,6 +171,7 @@ export class App {
 
   async stop(): Promise<void> {
     for (const tablet of this.tablets) tablet.stop();
+    for (const obs of this.fakeObs) obs.stop();
     await this.session?.quit().catch(() => undefined);
     this.driver?.kill();
     if (!process.env.PADBOARD_E2E_KEEP) await rm(this.dir, { recursive: true, force: true });
@@ -221,6 +235,18 @@ export class App {
     this.tablets.push(tablet);
     await tablet.waitFor(/^Layout /);
     return tablet;
+  }
+
+  /**
+   * Starts the `fake-obs` example on `port` with these scenes (top-down);
+   * the app must run with PADBOARD_TEST_OBS=1 and an `obs.json` pointing
+   * to that port.
+   */
+  async startObs(port: number, scenes: string[]): Promise<FakeObs> {
+    const obs = new FakeObs(FAKE_OBS(), ["--port", String(port), ...scenes]);
+    this.fakeObs.push(obs);
+    await obs.waitFor(/^listening /);
+    return obs;
   }
 
   // --- Editor helpers ------------------------------------------------------
@@ -293,18 +319,22 @@ export class App {
   }
 }
 
-// --- Fake tablet -----------------------------------------------------------------
+// --- Fake tablet and OBS -----------------------------------------------------------
 
-/** The `fake-tablet` example, connected over USB, read line by line. */
-export class FakeTablet {
+/** An example program, driven on stdin and read line by line. */
+class Helper {
   readonly lines: string[] = [];
-  private readonly child: ChildProcess;
+  protected readonly child: ChildProcess;
 
-  /** `tmpDir`: where it keeps its pairing state (removed with the test directory). */
-  constructor(binary: string, args: string[], tmpDir: string) {
+  constructor(
+    private readonly name: string,
+    binary: string,
+    args: string[],
+    env: Record<string, string> = {},
+  ) {
     this.child = spawn(binary, args, {
       stdio: ["pipe", "pipe", "inherit"],
-      env: { ...process.env, TMPDIR: tmpDir },
+      env: { ...process.env, ...env },
     });
     let partial = "";
     this.child.stdout!.on("data", (chunk: Buffer) => {
@@ -322,10 +352,24 @@ export class FakeTablet {
       const line = this.lines.slice(from).find((l) => pattern.test(l));
       if (line) return line;
       if (Date.now() > deadline) {
-        throw new Error(`fake tablet: no line matching ${pattern}; got:\n${this.lines.join("\n")}`);
+        throw new Error(
+          `${this.name}: no line matching ${pattern}; got:\n${this.lines.join("\n")}`,
+        );
       }
       await sleep(100);
     }
+  }
+
+  stop(): void {
+    this.child.kill();
+  }
+}
+
+/** The `fake-tablet` example, connected over USB. */
+export class FakeTablet extends Helper {
+  /** `tmpDir`: where it keeps its pairing state (removed with the test directory). */
+  constructor(binary: string, args: string[], tmpDir: string) {
+    super("fake tablet", binary, args, { TMPDIR: tmpDir });
   }
 
   /** The last layout received: `Layout "<profile>": <button ids>`. */
@@ -336,8 +380,18 @@ export class FakeTablet {
   press(buttonId: string): void {
     this.child.stdin!.write(`${buttonId}\n`);
   }
+}
 
-  stop(): void {
-    this.child.kill();
+/** The `fake-obs` example: an obs-websocket server with a scene list. */
+export class FakeObs extends Helper {
+  constructor(binary: string, args: string[]) {
+    super("fake OBS", binary, args);
+  }
+
+  /** `create <scene>`, `rename <old> <new>`, `remove <scene>`: sent as OBS events. */
+  async command(line: string): Promise<void> {
+    const from = this.lines.length;
+    this.child.stdin!.write(`${line}\n`);
+    await this.waitFor(/^sent /, from);
   }
 }

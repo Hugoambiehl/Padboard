@@ -20,6 +20,11 @@
 //! `PADBOARD_BIND=lan` may turn Wi-Fi on; the configuration still lives in
 //! the test directory.
 //!
+//! With `PADBOARD_TEST_OBS=1` (simulated mode), OBS is not simulated by
+//! `state.json` but reached for real, with the settings of the test
+//! configuration (`<dir>/config/obs.json`): e2e tests point it to the
+//! `fake-obs` example.
+//!
 //! The window title says the app is in test mode.
 
 use std::fs::OpenOptions;
@@ -34,11 +39,15 @@ pub const VARIABLE: &str = "PADBOARD_TEST_DIR";
 /// configuration stays in the test directory). For tests on the real
 /// tablet and sound devices.
 pub const SYSTEM_VARIABLE: &str = "PADBOARD_TEST_SYSTEM";
+/// With test mode: connect to OBS (`obs.json` of the test configuration)
+/// instead of reading its state from `state.json`.
+pub const OBS_VARIABLE: &str = "PADBOARD_TEST_OBS";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TestMode {
     dir: PathBuf,
     system: bool,
+    obs: bool,
 }
 
 impl TestMode {
@@ -46,9 +55,13 @@ impl TestMode {
     /// could land anywhere, so it is refused rather than guessed.
     pub fn from_env() -> Result<Option<Self>, String> {
         let system = std::env::var(SYSTEM_VARIABLE).is_ok_and(|v| v == "1");
+        let obs = std::env::var(OBS_VARIABLE).is_ok_and(|v| v == "1");
         Ok(
-            Self::from_var(std::env::var_os(VARIABLE).map(PathBuf::from))?
-                .map(|mode| Self { system, ..mode }),
+            Self::from_var(std::env::var_os(VARIABLE).map(PathBuf::from))?.map(|mode| Self {
+                system,
+                obs,
+                ..mode
+            }),
         )
     }
 
@@ -58,11 +71,22 @@ impl TestMode {
         self.system
     }
 
+    /// The app connects to OBS: always in system mode, with
+    /// `PADBOARD_TEST_OBS=1` in simulated mode.
+    #[must_use]
+    pub fn obs(&self) -> bool {
+        self.system || self.obs
+    }
+
     fn from_var(value: Option<PathBuf>) -> Result<Option<Self>, String> {
         match value {
             None => Ok(None),
             Some(dir) if dir.as_os_str().is_empty() => Ok(None),
-            Some(dir) if dir.is_absolute() => Ok(Some(Self { dir, system: false })),
+            Some(dir) if dir.is_absolute() => Ok(Some(Self {
+                dir,
+                system: false,
+                obs: false,
+            })),
             Some(dir) => Err(dir.display().to_string()),
         }
     }
