@@ -471,7 +471,9 @@ SM-T580, always measure in release builds.
   runs `release.yml`: NSIS installer (unsigned: SignPath Foundation declined
   the request for now, may be asked again later; SmartScreen warning
   expected, every installer submitted to antivirus makers), .deb
-  (built on Ubuntu 22.04), unsigned APK, draft release (pre-release for rc)
+  (built on Ubuntu 22.04; an rc's package version gets a tilde,
+  `0.2.1~rc.1`, by `scripts/deb-version.py`, so Debian sorts it before
+  the release; file name unchanged), unsigned APK, draft release (pre-release for rc)
   with SHA256SUMS. `scripts/sign-release.sh X` then signs the draft on the
   maintainer's PC (keys never go to CI, `docs/release-signing.md`): the
   APK (certificate checked), the installer for the updater (minisign,

@@ -9,7 +9,9 @@
 #   git push origin main v0.1.0      # then: docs/releasing.md
 #
 # Versions: MAJOR.MINOR.PATCH, or MAJOR.MINOR.PATCH-rc.N for a release
-# candidate (versionCode: scripts/lib/set-version.sh). Right after the
+# candidate (versionCode: scripts/lib/set-version.sh; the .deb of a
+# candidate is versioned X.Y.Z~rc.N by the release workflow,
+# scripts/deb-version.py, so Debian sorts it before X.Y.Z). Right after the
 # tagged release commit, a second commit moves main to the next
 # development version (X.Y.Z-dev): `git push origin main vX` pushes both,
 # the release workflow builds the tag.
@@ -62,6 +64,7 @@ write_version "$dev"
 git add "${VERSION_FILES[@]}"
 git commit -q -m "chore: start $dev"
 
-echo "Release $tag prepared (Android versionCode $release_code), then main moved to $dev."
+echo "Release $tag prepared (Android versionCode $release_code, Debian package" \
+  "$(python3 "$ROOT/scripts/deb-version.py" --print "$version")), then main moved to $dev."
 echo "Check the commit and CHANGELOG.md, then start the release workflow with:"
 echo "  git push origin main $tag"

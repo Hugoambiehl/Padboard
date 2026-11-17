@@ -191,6 +191,22 @@ jobs:
           npm ci
           npx tauri build --bundles deb
 
+      # Debian reads "-rc.1" as a package revision and sorts 0.2.1-rc.1
+      # after 0.2.1: a release candidate's package gets 0.2.1~rc.1, which
+      # sorts before (only the control file's Version; the file name keeps
+      # the release's version, like the other files). Issue #11.
+      - name: Debian version of a release candidate
+        env:
+          VERSION: ${{ needs.notices.outputs.version }}
+        run: |
+          python3 scripts/deb-version.py target/release/bundle/deb/*.deb
+          expected="$(python3 scripts/deb-version.py --print "$VERSION")"
+          found="$(dpkg-deb -f target/release/bundle/deb/*.deb Version)"
+          if [[ "$found" != "$expected" ]]; then
+            echo "::error::the .deb's version is $found, expected $expected"
+            exit 1
+          fi
+
       - name: No test update source in the binary
         run: |
           if grep -q PADBOARD_TEST_RELEASES target/release/padboard-desktop; then

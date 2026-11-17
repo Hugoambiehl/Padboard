@@ -10,7 +10,7 @@ one version.
 | File | Built by | Notes |
 |---|---|---|
 | `Padboard_X_x64-setup.exe` | release workflow (Windows runner) | NSIS installer, English or French from the Windows language, from Padboard's template (`src-tauri/windows/installer.nsi`, see *Notes*). **Not signed** (no Authenticode certificate: SignPath Foundation declined for now): SmartScreen asks for confirmation. |
-| `Padboard_X_amd64.deb` | release workflow (Ubuntu 22.04) | Ubuntu 22.04+ / Debian 12+. |
+| `Padboard_X_amd64.deb` | release workflow (Ubuntu 22.04) | Ubuntu 22.04+ / Debian 12+. Package version `X` with `~` instead of `-` for an rc (`0.2.1~rc.1`, see *Notes*). |
 | `padboard-X.apk` | release workflow, **signed on the maintainer’s PC** | The workflow attaches `padboard-X-unsigned.apk`; `scripts/sign-release.sh` signs it and replaces it. The keys never leave that PC (`docs/release-signing.md`). |
 | `Padboard_X_x64-setup.exe.sig`, `latest.json` | `scripts/sign-release.sh` | The in-app updater (Windows) reads `latest.json` and checks the installer against this signature, made for version X. |
 | `SHA256SUMS`, `SHA256SUMS.sig` | release workflow, then `scripts/sign-release.sh` | Written again with the signed files, and signed for version X: the PC checks it before sending the APK to a tablet. |
@@ -239,8 +239,19 @@ After `scripts/sign-release.sh`, before publishing:
   `PADBOARD_E2E_TRAY_CLOSE=1` runs the close tests, and the checklist has
   the manual check.
 
-- Debian sorts `0.1.0-rc.1` after `0.1.0`: installing the final `.deb` over a
-  release candidate needs `sudo apt install --allow-downgrades ./Padboard_0.1.0_amd64.deb`.
+- **Debian versions of release candidates.** Debian reads what follows
+  `-` as a package revision, so `0.2.1-rc.1` would sort after `0.2.1` and
+  apt would refuse to "downgrade" an rc to the release. From 0.2.1-rc.1
+  on, the release workflow gives an rc's `.deb` the Debian version
+  `0.2.1~rc.1` (`scripts/deb-version.py`: only the `Version:` line of
+  its control file; data untouched), which sorts before `0.2.1` and
+  after `0.2.0`; it checks the result with `dpkg-deb -f`. The file name
+  keeps the SemVer version (`Padboard_0.2.1-rc.1_amd64.deb`), as do the
+  installer, the APK and `latest.json`. `release.sh` prints the Debian
+  version. Tested by `scripts/tests/test_deb_version.py`
+  (`dpkg --compare-versions`). Packages of earlier rcs (up to
+  0.2.0-rc.4) still carry `-rc.N`: installing a release over one of
+  them needs `sudo apt install --allow-downgrades ./Padboard_X_amd64.deb`.
 - A manual run of the workflow (`gh workflow run Release --ref main`) builds
   the same files as artifacts (7 days), without a release.
 - The tablet's store listing (IzzyOnDroid, F-Droid clients) is read from
