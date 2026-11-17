@@ -3,7 +3,7 @@
 Notable changes of Padboard, generated from the commit history with
 [git-cliff](https://git-cliff.org). Versions follow [Semantic Versioning](https://semver.org).
 
-## 0.2.0-rc.4 (2026-11-16)
+## 0.2.0 (2026-11-17)
 
 ### Upgrading from 0.1.0
 
@@ -11,14 +11,13 @@ Notable changes of Padboard, generated from the commit history with
 
 ### Features
 
-- **desktop**: Look for new versions and install them on Windows
+- **desktop**: Look for new versions; on Windows, download the installer, check it and show it
 - **protocol**: Protocol 5 with a frozen core and update-only sessions
 - **desktop**: Update USB tablets to the PC's version
 - Update kiosk tablets over Wi-Fi from the PC
-- **desktop**: Explain why a published tablet cannot use a development PC
 - **android**: Say when the paired PC is visible but unreachable
 - **desktop**: Say when a tablet's Wi-Fi session keeps dropping
-- **desktop**: Open the update wizard and say when an update did not install
+- **desktop**: Say when an update did not install
 - **desktop**: Offer to download Google's adb on Windows
 - **desktop**: Detect another adb's server and a server that keeps stopping
 - **kiosk**: Report who took the tablet out of kiosk mode
@@ -27,21 +26,9 @@ Notable changes of Padboard, generated from the commit history with
 
 - **desktop**: Keep the session autostart entry per user
 - Never print a secret through Debug or toString
-- **desktop**: Keep the signed test fixtures byte for byte on Windows
-- **desktop**: Offer Wi-Fi updates as soon as a tablet enters kiosk mode
-- **desktop**: Neutral message when the update and the tablet app keys differ
-- **android**: Show an update above the screensaver
-- **android**: Tell the user when an update is cut off midway
-- **android**: Pace the pieces of an update over Wi-Fi
-- **desktop**: Keep a failed update install shown after an automatic check
 - **linux**: Make the .deb depend on ca-certificates
-- **desktop**: Say that system test mode uses USB
-- **kiosk**: Move the exit gesture to an empty corner, clearer confirmation
-- **desktop**: Do not wait 2 s per probe of a missing adb server on Windows
-- **desktop**: Remove adb stops only a server started from Padboard's copy
+- **kiosk**: The exit gesture moves to the bottom-left corner, with a clearer confirmation
 - **desktop**: A double-click no longer releases a tablet from kiosk mode
-- **scripts**: Tablet UI tests see a running Padboard again
-- **updates**: Never start an unsigned Windows installer from Padboard
 - **windows**: Keep the configuration and autostart across updates
 
 ## 0.1.0 (2026-11-12)
