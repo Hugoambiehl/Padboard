@@ -77,7 +77,13 @@ for `apksigner`; the GitHub CLI (`gh`).
    ([bitdefender.com/submit](https://www.bitdefender.com/submit),
    category *False Positive*; detection name if any, e.g. `Atc4.Detection`),
    even when VirusTotal shows it clean: Bitdefender detects it only by
-   behaviour (ATC), which VirusTotal does not run. Bitdefender's *Advanced
+   behaviour (ATC), which VirusTotal does not run. **A false positive
+   submission only covers the static detection** (Bitdefender's lab
+   answered for 0.2.0-rc.4: static analysis clean). For a behaviour
+   detection (ATC), go through **Bitdefender support** with a **BDSYS
+   log** (Bitdefender's support tool, run on the Windows PC where it was
+   detected), a description of what happened and screenshots of the
+   alert and the quarantine. Bitdefender's *Advanced
    Threat Control* quarantined the 0.2.0-rc.2 installer started by Padboard
    rc.1, and Padboard with it (`docs/windows-test-plan.md`, 8.5): since
    rc.3 Padboard never starts an installer that is not validly signed by
@@ -95,15 +101,39 @@ for `apksigner`; the GitHub CLI (`gh`).
       (`sha256sum -c --ignore-missing SHA256SUMS`).
    2. Upload it to [virustotal.com](https://www.virustotal.com) (*File*).
       Check that the SHA-256 VirusTotal shows is the same.
-   3. Expected: **Bitdefender and Microsoft *Undetected***, and no more
-      than a lone heuristic verdict on unknown unsigned programs. For
-      0.2.0-rc.1: 1/70, SecureAge *Malicious* (its heuristic on unknown
-      unsigned executables), every other engine *Undetected*. Note the
-      result (count, engines, SHA-256) in the release's notes.
+   3. Expected: **Bitdefender and Microsoft *Undetected***, and only
+      generic verdicts of heuristic or machine learning engines on unknown
+      unsigned programs (no family name): SecureAge *Malicious*,
+      CrowdStrike Falcon `Win/grayware_confidence_N%`, DeepInstinct
+      *MALICIOUS*. Note the result (count, engines, SHA-256) in the table
+      below and in the release's notes.
    4. Stop and do not publish if Bitdefender or Microsoft detects it, or if
       an engine gives a named detection (a family name, not a generic
       heuristic): rebuild nothing yet, look at what changed since the
       previous clean release.
+   5. Report each generic verdict as a false positive to its maker (the
+      addresses of [VirusTotal's list](https://docs.virustotal.com/docs/false-positive-contacts)),
+      in English: the VirusTotal report link, the SHA-256, the release
+      page, "open source (GPL-3.0), built by GitHub Actions from
+      github.com/Hugoambiehl/Padboard, unsigned NSIS installer". Send the
+      link, not the file: these mailboxes often refuse `.exe` and archives.
+      - CrowdStrike Falcon (its VirusTotal engine): `VTscanner@crowdstrike.com`.
+      - DeepInstinct: `vt-fps-requests@deepinstinct.com`.
+      - SecureAge: the form at [secureage.com/contact-us](https://www.secureage.com/contact-us).
+
+      A VirusTotal verdict says nothing of the vendor's full product (a
+      lone static model there, more context on a customer's PC), so a
+      fixed model is checked by a *Reanalyze* on VirusTotal some days
+      later.
+
+   VirusTotal by version (the installer, `Padboard_X_x64-setup.exe`):
+
+   | Version | Result | Engines | Notes |
+   |---|---|---|---|
+   | 0.2.0-rc.1 | 1/70 | SecureAge | |
+   | 0.2.0-rc.2 | 1/71 | SecureAge | Bitdefender clean statically, detected by ATC when Padboard started it |
+   | 0.2.0-rc.3 | 1/70 | | |
+   | 0.2.0-rc.4 | 3/71 | SecureAge, CrowdStrike Falcon (`Win/grayware_confidence_60%`), DeepInstinct (`MALICIOUS`) | SHA-256 `50ae2a3e0c751939110c422f9ed1e39fd6025310386194868478b226b9cbc01f`; the two new ones are static machine learning models, probably reacting to the custom NSIS template (first release with it); Bitdefender undetected |
 
    And on Windows, Bitdefender active with no exception for Padboard
    (`docs/windows-test-plan.md`, section 7): nothing detected during the
@@ -156,11 +186,13 @@ After `scripts/sign-release.sh`, before publishing:
 - [ ] The tablet APK: `adb install -r`, then an update from the PC.
 - [ ] `docs/tablet-test-plan.md` on the real tablet (the section of the
       release, e.g. the kiosk exit corner and Android's system gestures).
-- [ ] VirusTotal (step 4: Bitdefender and Microsoft undetected, at most a
-      lone heuristic such as SecureAge's).
+- [ ] VirusTotal (step 4: Bitdefender and Microsoft undetected, only
+      generic heuristic or machine learning verdicts), noted in the
+      table, each one reported to its maker.
 - [ ] While the installer is unsigned: **the installer submitted to
       Bitdefender** as a false positive (step 4), every release and
-      release candidate, detected or not.
+      release candidate, detected or not; a behaviour (ATC) detection
+      goes to Bitdefender support with a BDSYS log.
 - [ ] For a release candidate that follows another: the real update from
       the previous one, with Bitdefender active
       (`docs/windows-test-plan.md`, *Real update with an antivirus*).
