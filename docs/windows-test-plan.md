@@ -565,6 +565,37 @@ Restore the autostart state noted in 10.0 (and the Task Manager line),
 the sound, then send the report with the `padboard.log` files. rc.4 stays
 installed: 9.2 runs from it when 0.2.0 is published.
 
+### 10.5 Results (reported 2026-11-17)
+
+| Check | Result | Remark |
+|---|---|---|
+| 10.0 | OK | No firewall rule left for `padboard-desktop.exe`, quarantine empty, *Démarrage* already on |
+| Found | OK | rc.3 offered 0.2.0-rc.4 at launch, no request error |
+| Shown | OK | *Télécharger*: the Explorer opened on the file selected in *Downloads*, not started (`no trusted publisher in this build`); SHA-256 = `SHA256SUMS`; no Bitdefender event |
+| Images (d) | OK | Padboard's sidebar and header |
+| Padboard running | OK | Asked to close Padboard; *OK* closed rc.3. *Annuler* was checked afterwards by running the rc.4 installer again over rc.4: the same-version page (*Ajouter/Réinstaller* · *Désinstaller Padboard*) takes the same path; *Désinstaller Padboard*, *Suivant*, *Annuler*: back on that page, Padboard still running, installed files unchanged, no uninstaller started |
+| No deletion offered (a) | OK | No confirmation page, no checkbox |
+| Kept | OK | `identity`, `profiles`, `paired-devices`, `obs`, `tls-key` unchanged byte for byte; `preferences.json` only gained `"autostart": true`; tablet reconnected without a PIN; Start menu and desktop shortcuts kept; one entry in *Settings → Apps* (0.2.0-rc.4); `Run` value kept |
+| Bitdefender (`/P` uninstall) | OK | No ATC detection, no quarantine, no ATC / ctc file from 17:54 to 18:01 and later. One new firewall rule: a **temporary allow** for the running rc.3 (`--hidden`), added when it downloaded the installer; nothing for the installer or the uninstaller |
+| 10.2 Choice recorded | OK | `choice recorded from the entry on=true` at rc.4's first launch |
+| 10.2 Written again | OK | Value removed, Padboard started: written again, same content, `StartupApproved` untouched (`02…`) |
+| 10.2 Task Manager respected | OK | Disabled (`StartupApproved` `03…`), value removed, Padboard started: value written again, `StartupApproved` unchanged; after a restart Padboard did not start. Enabled again |
+| 10.2 Turned off | OK | *Démarrage* off: value removed; quit and started again: nothing written |
+| 10.2 Restart | OK | Started hidden in the tray, tablet reconnected over USB |
+| 10.3 Gesture text (c) | OK | Tablet on rc.3, in rc.3 then in rc.4: *… coin en bas à gauche …* (no tablet below rc.2 at hand) |
+| 10.3 Update | OK | 20003 → 20004 over USB in about 3 s; kiosk kept (device owner, lock task); same text |
+| 10.4 | OK | `Run` value, `StartupApproved` and sound back exactly as noted in 10.0 |
+
+Remarks:
+
+1. The French texts of the *Déjà installé* page come from Tauri's NSIS
+   language file and have two mistakes: *Déja installé.* and *La version
+   ancien de Padboard est installée…*. Not from our template.
+2. The `/P` uninstaller was too short-lived for the watcher (process list
+   every 0.7 s) to see it.
+3. Padboard uses Touch Portal's `adb` found in `PATH` (expected order:
+   setting, `PATH`, SDK, our copy).
+
 ## Known Windows limits
 
 - Keys cannot be sent to elevated (administrator) windows.
