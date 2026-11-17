@@ -210,14 +210,21 @@ After `scripts/sign-release.sh`, before publishing:
   the directory page (*Choose Install Location*) is skipped when Padboard
   is installed, whatever the reinstall page's choice (`PadboardSkipDirectory`,
   `$PadboardInstalled` read in `.onInit`), and still shown for a first
-  installation.
+  installation;
+  Tauri's French strings with typos (`alreadyInstalled`,
+  `alreadyInstalledLong`, `newerVersionInstalled`, `older`, `unknown`,
+  `choowHowToInstall`, `webview2AbortError`) are replaced by our
+  `padboard*` LangStrings (English: Tauri's text), defined after the
+  language files. Once Tauri's `French.nsh` is fixed (reported upstream),
+  drop them and use Tauri's keys again.
   When `@tauri-apps/cli` is upgraded, `scripts/tests/test_nsis_template.py`
   fails (CI): take the new version's
   `crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi` (tag
   `tauri-cli-vX`), apply the marked changes again, update the `; Base:`
   line, and check an update by hand on Windows (*Désinstaller avant
-  d'installer*: no directory page, no checkbox, configuration kept) and a
-  first installation (directory page shown).
+  d'installer*: no directory page, no checkbox, French texts without
+  typos, configuration kept) and a first installation (directory page
+  shown).
 
 - **Later: automatic window close tests.** WebKitWebDriver never finishes
   a command whose effect hides the window (and once crashed, segfault,

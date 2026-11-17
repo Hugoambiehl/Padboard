@@ -19,7 +19,8 @@
 ;
 ; Also: the directory page is skipped when Padboard is installed (choosing
 ; another folder in an update left the shortcuts, the taskbar pin and the
-; antivirus rules on the old one, issue #12).
+; antivirus rules on the old one, issue #12), and Tauri's French texts
+; with typos are replaced by corrected ones (padboard* LangStrings, #10).
 
 Unicode true
 ManifestDPIAware true
@@ -245,38 +246,38 @@ Function PageReinstall
   ; Compare this installar version with the existing installation
   ; and modify the messages presented to the user accordingly
   compare_version:
-  StrCpy $R4 "$(older)"
+  StrCpy $R4 "$(padboardOlder)"
   ${If} $WixMode = 1
     ReadRegStr $R0 HKLM "$R6" "DisplayVersion"
   ${Else}
     ReadRegStr $R0 SHCTX "${UNINSTKEY}" "DisplayVersion"
   ${EndIf}
-  ${IfThen} $R0 == "" ${|} StrCpy $R4 "$(unknown)" ${|}
+  ${IfThen} $R0 == "" ${|} StrCpy $R4 "$(padboardUnknown)" ${|}
 
   nsis_tauri_utils::SemverCompare "${VERSION}" $R0
   Pop $R0
   ; Reinstalling the same version
   ${If} $R0 = 0
-    StrCpy $R1 "$(alreadyInstalledLong)"
+    StrCpy $R1 "$(padboardAlreadyInstalledLong)"
     StrCpy $R2 "$(addOrReinstall)"
     StrCpy $R3 "$(uninstallApp)"
-    !insertmacro MUI_HEADER_TEXT "$(alreadyInstalled)" "$(chooseMaintenanceOption)"
+    !insertmacro MUI_HEADER_TEXT "$(padboardAlreadyInstalled)" "$(chooseMaintenanceOption)"
   ; Upgrading
   ${ElseIf} $R0 = 1
     StrCpy $R1 "$(olderOrUnknownVersionInstalled)"
     StrCpy $R2 "$(uninstallBeforeInstalling)"
     StrCpy $R3 "$(dontUninstall)"
-    !insertmacro MUI_HEADER_TEXT "$(alreadyInstalled)" "$(choowHowToInstall)"
+    !insertmacro MUI_HEADER_TEXT "$(padboardAlreadyInstalled)" "$(padboardChooseHowToInstall)"
   ; Downgrading
   ${ElseIf} $R0 = -1
-    StrCpy $R1 "$(newerVersionInstalled)"
+    StrCpy $R1 "$(padboardNewerVersionInstalled)"
     StrCpy $R2 "$(uninstallBeforeInstalling)"
     !if "${ALLOWDOWNGRADES}" == "true"
       StrCpy $R3 "$(dontUninstall)"
     !else
       StrCpy $R3 "$(dontUninstallDowngrade)"
     !endif
-    !insertmacro MUI_HEADER_TEXT "$(alreadyInstalled)" "$(choowHowToInstall)"
+    !insertmacro MUI_HEADER_TEXT "$(padboardAlreadyInstalled)" "$(padboardChooseHowToInstall)"
   ${Else}
     Abort
   ${EndIf}
@@ -507,6 +508,26 @@ FunctionEnd
   !include "{{this}}"
 {{/each}}
 
+; Padboard: Tauri's French texts have typos ("Déja", "continer",
+; "s'éxécuter", "La version ancien/inconnu") and "Choose how you want to
+; install" was translated as "choose the install location". Our own strings
+; (English: Tauri's) replace them below; redefining Tauri's would only warn.
+; To drop once Tauri's French.nsh is fixed (see docs/releasing.md).
+LangString padboardAlreadyInstalled ${LANG_ENGLISH} "Already Installed"
+LangString padboardAlreadyInstalled ${LANG_FRENCH} "Déjà installé."
+LangString padboardAlreadyInstalledLong ${LANG_ENGLISH} "${PRODUCTNAME} ${VERSION} is already installed. Select the operation you want to perform and click Next to continue."
+LangString padboardAlreadyInstalledLong ${LANG_FRENCH} "${PRODUCTNAME} ${VERSION} est déjà installé. Sélectionnez l'opération que vous souhaitez effectuer, puis cliquez sur Suivant pour continuer."
+LangString padboardNewerVersionInstalled ${LANG_ENGLISH} "A newer version of ${PRODUCTNAME} is already installed! It is not recommended that you install an older version. If you really want to install this older version, it's better to uninstall the current version first. Select the operation you want to perform and click Next to continue."
+LangString padboardNewerVersionInstalled ${LANG_FRENCH} "Une version plus récente de ${PRODUCTNAME} est déjà installée. Il n'est pas recommandé d'installer une ancienne version. Si vous souhaitez installer cette ancienne version, il est conseillé de désinstaller la version courante en premier. Veuillez sélectionner l'opération que vous souhaitez effectuer, puis cliquez sur Suivant pour continuer."
+LangString padboardOlder ${LANG_ENGLISH} "older"
+LangString padboardOlder ${LANG_FRENCH} "ancienne"
+LangString padboardUnknown ${LANG_ENGLISH} "unknown"
+LangString padboardUnknown ${LANG_FRENCH} "inconnue"
+LangString padboardChooseHowToInstall ${LANG_ENGLISH} "Choose how you want to install ${PRODUCTNAME}."
+LangString padboardChooseHowToInstall ${LANG_FRENCH} "Choisissez comment installer ${PRODUCTNAME}."
+LangString padboardWebview2AbortError ${LANG_ENGLISH} "Failed to install WebView2! The app can't run without it. Try restarting the installer."
+LangString padboardWebview2AbortError ${LANG_FRENCH} "L'installation de WebView2 a échoué ! L'application ne peut s'exécuter sans WebView2. Veuillez essayer de redémarrer l'installation."
+
 Function .onInit
   ${GetOptions} $CMDLINE "/P" $PassiveMode
   ${IfNot} ${Errors}
@@ -616,7 +637,7 @@ Section WebView2
           DetailPrint "$(webview2DownloadSuccess)"
         ${Else}
           DetailPrint "$(webview2DownloadError)"
-          Abort "$(webview2AbortError)"
+          Abort "$(padboardWebview2AbortError)"
         ${EndIf}
         StrCpy $6 "$TEMP\MicrosoftEdgeWebview2Setup.exe"
         Goto install_webview2
@@ -648,7 +669,7 @@ Section WebView2
           DetailPrint "$(webview2InstallSuccess)"
         ${Else}
           DetailPrint "$(webview2InstallError)"
-          Abort "$(webview2AbortError)"
+          Abort "$(padboardWebview2AbortError)"
         ${EndIf}
       webview2_done:
     ${EndIf}

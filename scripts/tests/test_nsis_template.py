@@ -96,6 +96,38 @@ class NsisTemplateTest(unittest.TestCase):
         self.assertIn("Push $0", init)
         self.assertIn("Pop $0", init)
 
+    def test_french_texts_corrected(self):
+        t = self.template
+        # Tauri's mistyped strings are no longer used...
+        for key in (
+            "alreadyInstalled",
+            "alreadyInstalledLong",
+            "newerVersionInstalled",
+            "older",
+            "unknown",
+            "choowHowToInstall",
+            "webview2AbortError",
+        ):
+            self.assertNotIn(f"$({key})", t, key)
+        # ...ours are, each defined once in English and once in French.
+        used = set(re.findall(r"\$\((padboard\w+)\)", t))
+        self.assertEqual(len(used), 7, used)
+        for key in used:
+            for lang in ("ENGLISH", "FRENCH"):
+                self.assertEqual(
+                    len(re.findall(rf"^LangString {key} \$\{{LANG_{lang}\}} ", t, re.M)),
+                    1,
+                    f"{key} {lang}",
+                )
+        french = "\n".join(re.findall(r"^LangString padboard\w+ \$\{LANG_FRENCH\} .*$", t, re.M))
+        for typo in ("Déja", "déja", "continer", "éxécuter"):
+            self.assertNotIn(typo, french)
+        self.assertIn('padboardOlder ${LANG_FRENCH} "ancienne"', t)
+        self.assertIn('padboardUnknown ${LANG_FRENCH} "inconnue"', t)
+        # Both languages are built (LANG_FRENCH must exist).
+        conf = json.loads(read(os.path.join(DESKTOP, "src-tauri", "tauri.conf.json")))
+        self.assertEqual(conf["bundle"]["windows"]["nsis"]["languages"], ["English", "French"])
+
 
 def read_bytes(path):
     with open(path, "rb") as f:
