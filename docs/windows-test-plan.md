@@ -622,6 +622,54 @@ Remarks:
 3. Padboard uses Touch Portal's `adb` found in `PATH` (expected order:
    setting, `PATH`, SDK, our copy).
 
+## 11. Release candidate 0.2.1-rc.1: update from 0.2.0 (Bitdefender active)
+
+Same PC and rules as section 10, 0.2.0 installed, Bitdefender active with
+no exception. 0.2.1 fixes: the folder page during an update (#12), the
+installer's French texts (#10), the OBS scene list (#13).
+
+### 11.0 Before starting
+
+As 10.0. Copy `%APPDATA%\io.github.hugoambiehl.padboard` somewhere safe
+(11.3 deletes it). In 0.2.0: *Versions de test* **on**.
+
+### 11.1 0.2.0 → 0.2.1-rc.1 by the new path
+
+| Check | Do | Expect |
+|---|---|---|
+| Shown | *Rechercher*, *Télécharger* | The Explorer opens on `Padboard_0.2.1-rc.1_x64-setup.exe` in *Downloads*; `Get-FileHash` = `SHA256SUMS`; no Bitdefender event |
+| French texts | *Quitter Padboard*, double-click the file | Page title **Déjà installé.**, subtitle **Choisissez comment installer Padboard.**, text **La version ancienne de Padboard est installée…**; no *déja*, *continer* |
+| No folder page | *Désinstaller avant d'installer* (default), *Suivant* | Straight to the installation: **no *Choisissez le dossier d'installation* page**; no *Supprimer les données de l'application* |
+| Kept | 0.2.1-rc.1 starts | Same folder (`%LOCALAPPDATA%\Padboard`); profiles, preferences, paired tablets kept; shortcuts, taskbar pin and the `Run` value kept; one entry in *Settings → Apps* |
+| Other choice | Run the same installer again: **Ajouter/Réinstaller un composant**, *Suivant* | No folder page either; configuration kept |
+| Bitdefender | Whole section | **No ATC detection, no quarantine, no new firewall rule** |
+
+### 11.2 OBS scene list (#13)
+
+| Check | Do | Expect |
+|---|---|---|
+| OBS after Padboard | OBS closed; start Padboard, open the editor on an OBS *Changer de scène* button; then start OBS | Once *Connexions* says OBS is connected, the *Scène* list shows OBS's scenes, in OBS's order, **without reopening anything** |
+| Created / renamed | In OBS: add a scene, rename another, remove a third | The list follows each change within a second |
+| Collection | In OBS: *Collection de scènes* → another one | The list shows the new collection's scenes |
+
+### 11.3 First installation on an empty folder
+
+| Check | Do | Expect |
+|---|---|---|
+| Removed | *Settings → Apps* → Padboard → *Désinstaller*, tick **Supprimer les données de l'application** | Padboard, its folder and its data gone |
+| Folder page | Run the 0.2.1-rc.1 installer | No *Déjà installé* page; the **folder page shows**, on `%LOCALAPPDATA%\Padboard`; install, Padboard starts as new (demo profile) |
+| Restored | Quit Padboard, copy the saved folder back to `%APPDATA%\io.github.hugoambiehl.padboard`, start Padboard | Your profiles and pairings are back |
+
+### 11.4 Tablet
+
+8.3 to **0.2.1-rc.1** (versionCode 20101), the tablet in kiosk mode:
+updated from the PC, kiosk mode back by itself.
+
+### 11.5 Afterwards
+
+Restore the autostart state noted in 11.0, the sound, then send the
+report with the `padboard.log` files.
+
 ## Known Windows limits
 
 - Keys cannot be sent to elevated (administrator) windows.
