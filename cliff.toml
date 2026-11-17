@@ -62,7 +62,29 @@ tag_pattern = "v[0-9].*"
 # Release candidates fold into the release that follows them.
 ignore_tags = "-rc\\.[0-9]+$"
 sort_commits = "oldest"
+# 0.2.0: fixes to features that 0.1.0 did not have (Wi-Fi and USB tablet
+# updates, the Windows updater, Installer adb), and test or development
+# entries, are left out: nobody upgrading from 0.1.0 met those bugs. A few
+# messages are reworded for what the release really does.
+commit_preprocessors = [
+    { pattern = "^feat\\(desktop\\): look for new versions and install them on Windows", replace = "feat(desktop): look for new versions; on Windows, download the installer, check it and show it" },
+    { pattern = "^feat\\(desktop\\): open the update wizard and say when an update did not install", replace = "feat(desktop): say when an update did not install" },
+    { pattern = "^fix\\(kiosk\\): move the exit gesture to an empty corner, clearer confirmation", replace = "fix(kiosk): the exit gesture moves to the bottom-left corner, with a clearer confirmation" },
+]
 commit_parsers = [
+    { sha = "3a01ffe88e0f051c0d5832c342a0b8426780030f", skip = true },
+    { sha = "51a8f5d28c5d55c3d4aebec099fc4bd54924e5a4", skip = true },
+    { sha = "a8c65e639a08c0e1c3fb3e00b08d1d54d6081757", skip = true },
+    { sha = "73405a03e9c8c50c28d456e6df39e963017327c4", skip = true },
+    { sha = "ef1b70665a4103e5450a920faecf779a108a9017", skip = true },
+    { sha = "6b6947174bbe58b4bec832956aa6faf68dbe320d", skip = true },
+    { sha = "11f28f1adc84c1601db58cafc0e4bd0a4319fdeb", skip = true },
+    { sha = "fbf6e806ddab0b3ded7154e54723b52d2b2b6983", skip = true },
+    { sha = "f226bbcfd3999da4cd7e308ad01c69bf3c4038ef", skip = true },
+    { sha = "5776cc10247b862aed28c8d363a5ac5685b6a042", skip = true },
+    { sha = "bf7a2915f50585266b1ef03d10b455b976691a68", skip = true },
+    { sha = "da24858fda145dab919d6d95c8905dc2ac3cd0fb", skip = true },
+    { sha = "152794a795c06780260cb62b2273812d44b036ad", skip = true },
     { message = "^feat", group = "<!-- 0 -->Features" },
     { message = "^fix", group = "<!-- 1 -->Fixes" },
     { message = "^perf", group = "<!-- 2 -->Performance" },
