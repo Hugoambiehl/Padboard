@@ -1,0 +1,1 @@
+The PC now updates the tablet app: over USB, or over Wi-Fi in kiosk mode. The tablet says when the paired PC is visible but does not answer (guest network, client isolation). The kiosk exit gesture moves to the bottom-left corner (hold 5 s), with a clearer confirmation. Tablets of another version can still connect to be updated.
