@@ -228,7 +228,8 @@ SM-T580, always measure in release builds.
   `scripts/tests/test_nsis_template.py`, changes marked `; Padboard:`):
   the installed version is always uninstalled with `/UPDATE /P` (Tauri's
   plain uninstall offered "Delete the application data" during an update,
-  and removed the `Run` value). A CLI bump means re-applying them
+  and removed the `Run` value), and the directory page is skipped when
+  Padboard is installed (issue #12). A CLI bump means re-applying them
   (`docs/releasing.md`). Header and sidebar BMPs come from `icons.mjs`.
   Tauri plugins follow their own versions but require a minimum `@tauri-apps/api`:
   `tauri-plugin-dialog` / `@tauri-apps/plugin-dialog` stay on `~2.7` (2.8 needs 2.12).

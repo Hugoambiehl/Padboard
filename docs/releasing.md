@@ -206,13 +206,18 @@ After `scripts/sign-release.sh`, before publishing:
   `package-lock.json` (its `; Base:` line), with Padboard's changes
   marked `; Padboard:`: an installed version is always uninstalled as an
   update (`/UPDATE /P`: never *Delete the application data*, the autostart
-  `Run` value and the shortcuts kept), after asking to close Padboard.
+  `Run` value and the shortcuts kept), after asking to close Padboard;
+  the directory page (*Choose Install Location*) is skipped when Padboard
+  is installed, whatever the reinstall page's choice (`PadboardSkipDirectory`,
+  `$PadboardInstalled` read in `.onInit`), and still shown for a first
+  installation.
   When `@tauri-apps/cli` is upgraded, `scripts/tests/test_nsis_template.py`
   fails (CI): take the new version's
   `crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi` (tag
   `tauri-cli-vX`), apply the marked changes again, update the `; Base:`
   line, and check an update by hand on Windows (*Désinstaller avant
-  d'installer*: no checkbox, configuration kept).
+  d'installer*: no directory page, no checkbox, configuration kept) and a
+  first installation (directory page shown).
 
 - **Later: automatic window close tests.** WebKitWebDriver never finishes
   a command whose effect hides the window (and once crashed, segfault,

@@ -65,6 +65,37 @@ class NsisTemplateTest(unittest.TestCase):
             r"\$\{If\} \$DeleteAppDataCheckboxState = 1\s*\n\s*\$\{AndIf\} \$UpdateMode <> 1",
         )
 
+    def test_no_directory_page_when_installed(self):
+        t = self.template
+        page = t.index("!insertmacro MUI_PAGE_DIRECTORY")
+        # The directory page has our PRE function (declared just before it).
+        self.assertEqual(
+            t.rindex("!define MUI_PAGE_CUSTOMFUNCTION_PRE", 0, page),
+            t.index("!define MUI_PAGE_CUSTOMFUNCTION_PRE PadboardSkipDirectory"),
+        )
+        self.assertLess(t.index("Var PadboardInstalled"), t.index("Function .onInit"))
+        skip = t[t.index("Function PadboardSkipDirectory") :]
+        skip = skip[: skip.index("FunctionEnd")]
+        # Passive mode still skips it, as Tauri's SkipIfPassive did.
+        self.assertIn("$PassiveMode = 1", skip)
+        self.assertIn("$PadboardInstalled = 1", skip)
+        self.assertIn("Abort", skip)
+        # Read at start, before the reinstall page may uninstall: same
+        # Uninstall key as PageReinstall, and the folder to restore.
+        init = t[t.index("Function .onInit") :]
+        init = init[: init.index("FunctionEnd")]
+        found = init.index("StrCpy $PadboardInstalled 1")
+        for read_key in (
+            'ReadRegStr $0 SHCTX "${UNINSTKEY}" ""',
+            'ReadRegStr $1 SHCTX "${UNINSTKEY}" "UninstallString"',
+            'ReadRegStr $1 SHCTX "${MANUPRODUCTKEY}" ""',
+        ):
+            self.assertLess(init.index(read_key), found, read_key)
+        self.assertLess(init.index("!insertmacro SetContext"), found)
+        # The registers used later (PageReinstall, EarlyChecks) are kept.
+        self.assertIn("Push $0", init)
+        self.assertIn("Pop $0", init)
+
 
 def read_bytes(path):
     with open(path, "rb") as f:

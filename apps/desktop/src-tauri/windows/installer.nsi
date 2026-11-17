@@ -16,6 +16,10 @@
 ; /UPDATE /P: no confirmation page, no checkbox, data, Run value and
 ; shortcuts kept. Installed uninstallers understand both options since
 ; Padboard 0.1.0 (same Tauri logic).
+;
+; Also: the directory page is skipped when Padboard is installed (choosing
+; another folder in an update left the shortcuts, the taskbar pin and the
+; antivirus rules on the old one, issue #12).
 
 Unicode true
 ManifestDPIAware true
@@ -409,7 +413,10 @@ Function PageLeaveReinstall
 FunctionEnd
 
 ; 5. Choose install directory page
-!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
+; Padboard: never shown when Padboard is installed (an update stays in its
+; folder: shortcuts, taskbar pin and antivirus rules point to it).
+Var PadboardInstalled
+!define MUI_PAGE_CUSTOMFUNCTION_PRE PadboardSkipDirectory
 !insertmacro MUI_PAGE_DIRECTORY
 
 ; 6. Start menu shortcut page
@@ -521,6 +528,21 @@ Function .onInit
   !endif
 
   !insertmacro SetContext
+
+  ; Padboard: installed (same check as PageReinstall) with a known folder?
+  ; See PadboardSkipDirectory.
+  Push $0
+  Push $1
+  ReadRegStr $0 SHCTX "${UNINSTKEY}" ""
+  ReadRegStr $1 SHCTX "${UNINSTKEY}" "UninstallString"
+  StrCpy $0 "$0$1"
+  ReadRegStr $1 SHCTX "${MANUPRODUCTKEY}" ""
+  ${If} $0 != ""
+  ${AndIf} $1 != ""
+    StrCpy $PadboardInstalled 1
+  ${EndIf}
+  Pop $1
+  Pop $0
 
   ${If} $INSTDIR == "${PLACEHOLDER_INSTALL_DIR}"
     ; Set default install location
@@ -932,6 +954,18 @@ FunctionEnd
 
 Function SkipIfPassive
   ${IfThen} $PassiveMode = 1  ${|} Abort ${|}
+FunctionEnd
+
+; Padboard: the directory page (5) is skipped in passive mode, as in Tauri,
+; and when Padboard is installed, whatever the choice on the reinstall
+; page (uninstalling first deletes the Uninstall key, so this is read in
+; .onInit): the installation keeps its folder, restored by
+; RestorePreviousInstallLocation. A first installation still shows it.
+Function PadboardSkipDirectory
+  ${If} $PassiveMode = 1
+  ${OrIf} $PadboardInstalled = 1
+    Abort
+  ${EndIf}
 FunctionEnd
 Function un.SkipIfPassive
   ${IfThen} $PassiveMode = 1  ${|} Abort ${|}
