@@ -70,30 +70,14 @@ for `apksigner`; the GitHub CLI (`gh`).
 
    **Antiviruses**: the installer has no Authenticode signature (SignPath
    Foundation declined the request for now; SmartScreen warns on first
-   launch, expected). Before
-   publishing, upload the signed draft's `Padboard_X_x64-setup.exe` to
-   [VirusTotal](https://www.virustotal.com) (below), and **submit every
-   installer to Bitdefender**
-   ([bitdefender.com/submit](https://www.bitdefender.com/submit),
-   category *False Positive*; detection name if any, e.g. `Atc4.Detection`),
-   even when VirusTotal shows it clean: Bitdefender detects it only by
-   behaviour (ATC), which VirusTotal does not run. **A false positive
-   submission only covers the static detection** (Bitdefender's lab
-   answered for 0.2.0-rc.4: static analysis clean). For a behaviour
-   detection (ATC), go through **Bitdefender support** with a **BDSYS
-   log** (Bitdefender's support tool, run on the Windows PC where it was
-   detected), a description of what happened and screenshots of the
-   alert and the quarantine. Bitdefender's *Advanced
-   Threat Control* quarantined the 0.2.0-rc.2 installer started by Padboard
-   rc.1, and Padboard with it (`docs/windows-test-plan.md`, 8.5): since
-   rc.3 Padboard never starts an installer that is not validly signed by
-   `TRUSTED_PUBLISHER` (`updates/installer.rs`, empty until SignPath), it
-   shows it in the Explorer. `TRUSTED_PUBLISHER` stays empty while there
-   is no certificate. If one comes later: set that constant to the
-   certificate's name as Windows shows it, check its issuer too, and go
-   back from `basicUi` to `passive` (`installMode` in `tauri.conf.json`).
+   launch, expected). What to do depends on the version:
 
-   **VirusTotal**, step by step:
+   | | VirusTotal check | False positive reports |
+   |---|---|---|
+   | Release candidate | Before publishing | None |
+   | Release | Before publishing | Bitdefender and Microsoft, detected or not; another engine only if its verdict still holds 2 weeks after publishing |
+
+   **VirusTotal**, every release and release candidate, before publishing:
 
    1. Download the signed draft's installer
       (`gh release download vX --pattern 'Padboard_*_x64-setup.exe'`) and
@@ -105,32 +89,99 @@ for `apksigner`; the GitHub CLI (`gh`).
       generic verdicts of heuristic or machine learning engines on unknown
       unsigned programs (no family name), **at most 3**: SecureAge *Malicious*,
       CrowdStrike Falcon `Win/grayware_confidence_N%`, DeepInstinct
-      *MALICIOUS*, Sophos `Generic ML PUA (PUA)`. Note the result (count, engines, SHA-256) in the table
-      below and in the release's notes.
+      *MALICIOUS*, Sophos `Generic ML PUA (PUA)`. Note the result (count,
+      engines, SHA-256) in the table below and in the release's notes.
    4. Stop and do not publish before understanding why if Bitdefender or
       Microsoft detects it, if an engine gives a named detection (a family
       name, not a generic heuristic), or if there are more than 3 generic
       verdicts: rebuild nothing yet, look at what changed since the
       previous clean release.
-   5. Report each generic verdict as a false positive to its maker (the
-      addresses of [VirusTotal's list](https://docs.virustotal.com/docs/false-positive-contacts)),
-      in English: the VirusTotal report link, the SHA-256, the release
-      page, "open source (GPL-3.0), built by GitHub Actions from
-      github.com/Hugoambiehl/Padboard, unsigned NSIS installer". Send the
-      link, not the file: these mailboxes often refuse `.exe` and archives.
-      - CrowdStrike Falcon (its VirusTotal engine): `VTscanner@crowdstrike.com`.
-      - DeepInstinct: `vt-fps-requests@deepinstinct.com`.
-      - Sophos: the file through [SophosLabs Intelix](https://intelix.sophos.com)
-        (guest mode, no account), marked as a false positive; or by mail,
-        `samples@sophos.com`, the installer in a ZIP protected by the
-        password `infected` (their procedure for non-customers). Recheck
-        the verdict after about 15 days.
-      - SecureAge: the form at [secureage.com/contact-us](https://www.secureage.com/contact-us).
 
-      A VirusTotal verdict says nothing of the vendor's full product (a
-      lone static model there, more context on a customer's PC), so a
-      fixed model is checked by a *Reanalyze* on VirusTotal some days
-      later.
+   `verify-release` reads the report too, by the installer's SHA-256
+   (nothing is uploaded), when `VIRUSTOTAL_API_KEY` holds the public API
+   key of a free VirusTotal account (*API key* in the account menu; keep
+   it out of the repo and of shell history files, e.g. in a file read with
+   `export VIRUSTOTAL_API_KEY=$(cat ~/.config/virustotal-key)`). After the
+   upload (step 2):
+
+   ```sh
+   gh release download vX -D /tmp/padboard-X
+   cargo run -q -p padboard-desktop --example verify-release -- /tmp/padboard-X X
+   ```
+
+   It prints the detections and engines, and `STOP:` lines for
+   Bitdefender, Microsoft or more than 3 detections; whether a verdict is
+   generic stays your call. Informative only (exit status unchanged): in
+   `sign-release.sh` it says the installer is not on VirusTotal yet.
+
+   **Release (not a release candidate): false positive reports**, after
+   the VirusTotal check, detected or not:
+
+   - **Bitdefender**: [bitdefender.com/submit](https://www.bitdefender.com/submit),
+     category *False Positive* (detection name if any, e.g.
+     `Atc4.Detection`). Even when VirusTotal shows it clean: Bitdefender
+     detects it only by behaviour (ATC), which VirusTotal does not run.
+     **A false positive submission only covers the static detection**
+     (Bitdefender's lab answered for 0.2.0-rc.4: static analysis clean).
+     For a behaviour detection (ATC), go through **Bitdefender support**
+     with a **BDSYS log** (Bitdefender's support tool, run on the Windows
+     PC where it was detected), a description of what happened and
+     screenshots of the alert and the quarantine.
+   - **Microsoft**: [Microsoft Security Intelligence](https://www.microsoft.com/en-us/wdsi/filesubmission)
+     (sign in with a Microsoft account to follow the submission), as
+     *Software developer*, product *Microsoft Defender Antivirus*, *What do
+     you believe this file is?* → *Incorrectly detected as
+     malware/malicious*, the installer itself (≤ 50 MB), detection name:
+     the one shown, else `None`, and the text below in *Additional
+     information* (English, 1,900 characters at most).
+
+     ```text
+     Padboard X, installer of an open source (GPL-3.0) desktop app by
+     its author. Not detected by Microsoft Defender at the time of
+     submission (VirusTotal: <link>); submitted so the new release is
+     known before users download it. The installer is an unsigned NSIS
+     installer built by GitHub Actions from the public repository
+     https://github.com/Hugoambiehl/Padboard (tag vX), SHA-256 <hash>,
+     listed in the release's signed SHA256SUMS:
+     https://github.com/Hugoambiehl/Padboard/releases/tag/vX
+     Padboard turns an Android tablet into a control surface for the PC:
+     it sends keyboard shortcuts, controls media, volume, microphone and
+     OBS scenes when the user presses a button on the tablet, connected
+     by USB (adb) or the local network. No bundled offers, no advertising,
+     no telemetry; it only reaches GitHub to check for updates.
+     ```
+
+     If Defender detects it, replace the second sentence with the
+     detection name and definition version.
+
+   - **Other engines** (SecureAge, CrowdStrike Falcon, DeepInstinct,
+     Sophos…): only if a generic verdict still holds more than 2 weeks
+     after a release is published (a *Reanalyze* on VirusTotal first:
+     machine learning models often change in that time). Then report it
+     to its maker (the addresses of [VirusTotal's list](https://docs.virustotal.com/docs/false-positive-contacts)),
+     in English: the VirusTotal report link, the SHA-256, the release
+     page, "open source (GPL-3.0), built by GitHub Actions from
+     github.com/Hugoambiehl/Padboard, unsigned NSIS installer". Send the
+     link, not the file, unless the maker asks for it: these mailboxes
+     often refuse `.exe` and archives.
+     - CrowdStrike Falcon (its VirusTotal engine): `VTscanner@crowdstrike.com`.
+     - DeepInstinct: `vt-fps-requests@deepinstinct.com`.
+     - SecureAge: the form at [secureage.com/contact-us](https://www.secureage.com/contact-us).
+     - Sophos: the file through [SophosLabs Intelix](https://intelix.sophos.com)
+       (guest mode, no account), marked as a false positive; or by mail,
+       `samples@sophos.com`, the installer in a ZIP protected by the
+       password `infected` (their procedure for non-customers). Recheck
+       the verdict after about 15 days.
+
+   Bitdefender's *Advanced Threat Control* quarantined the 0.2.0-rc.2
+   installer started by Padboard rc.1, and Padboard with it
+   (`docs/windows-test-plan.md`, 8.5): since rc.3 Padboard never starts an
+   installer that is not validly signed by `TRUSTED_PUBLISHER`
+   (`updates/installer.rs`, empty until SignPath), it shows it in the
+   Explorer. `TRUSTED_PUBLISHER` stays empty while there is no
+   certificate. If one comes later: set that constant to the certificate's
+   name as Windows shows it, check its issuer too, and go back from
+   `basicUi` to `passive` (`installMode` in `tauri.conf.json`).
 
    VirusTotal by version (the installer, `Padboard_X_x64-setup.exe`):
 
@@ -195,12 +246,14 @@ After `scripts/sign-release.sh`, before publishing:
 - [ ] `docs/tablet-test-plan.md` on the real tablet (the section of the
       release, e.g. the kiosk exit corner and Android's system gestures).
 - [ ] VirusTotal (step 4: Bitdefender and Microsoft undetected, only
-      generic heuristic or machine learning verdicts, at most 3), noted in the
-      table, each one reported to its maker.
-- [ ] While the installer is unsigned: **the installer submitted to
-      Bitdefender** as a false positive (step 4), every release and
-      release candidate, detected or not; a behaviour (ATC) detection
-      goes to Bitdefender support with a BDSYS log.
+      generic heuristic or machine learning verdicts, at most 3), noted in
+      the table. Release candidates: nothing to report.
+- [ ] Releases only, while the installer is unsigned: **the installer
+      submitted to Bitdefender and to Microsoft** (step 4), detected or
+      not; a behaviour (ATC) detection goes to Bitdefender support with a
+      BDSYS log.
+- [ ] Releases only, 2 weeks after publishing: VirusTotal *Reanalyze*;
+      a generic verdict still there is reported to its maker (step 4).
 - [ ] For a release candidate that follows another: the real update from
       the previous one, with Bitdefender active
       (`docs/windows-test-plan.md`, *Real update with an antivirus*).

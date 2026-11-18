@@ -470,7 +470,9 @@ SM-T580, always measure in release builds.
   feat/fix/perf only; 0.1.0 has a written summary instead), commits and tags without pushing. A pushed `v*` tag
   runs `release.yml`: NSIS installer (unsigned: SignPath Foundation declined
   the request for now, may be asked again later; SmartScreen warning
-  expected, every installer submitted to antivirus makers), .deb
+  expected; VirusTotal checked before publishing, also by `verify-release`
+  with `VIRUSTOTAL_API_KEY`; releases only reported to Bitdefender and
+  Microsoft, other engines only after 2 weeks), .deb
   (built on Ubuntu 22.04; an rc's package version gets a tilde,
   `0.2.1~rc.1`, by `scripts/deb-version.py`, so Debian sorts it before
   the release; file name unchanged), unsigned APK, draft release (pre-release for rc)
