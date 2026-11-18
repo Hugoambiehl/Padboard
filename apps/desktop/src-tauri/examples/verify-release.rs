@@ -140,6 +140,16 @@ const VIRUSTOTAL_KEY_VARIABLE: &str = "VIRUSTOTAL_API_KEY";
 const MAX_DETECTIONS: usize = 3;
 /// Engines that must never detect the installer.
 const WATCHED_ENGINES: [&str; 2] = ["BitDefender", "Microsoft"];
+/// Engines whose API name differs from the one VirusTotal's site shows.
+const ENGINE_NAMES: [(&str, &str); 1] = [("APEX", "SecureAge (APEX)")];
+
+/// The engine's name as VirusTotal's site (and `docs/releasing.md`) shows it.
+fn engine_name(api_name: &str) -> &str {
+    ENGINE_NAMES
+        .iter()
+        .find(|(api, _)| *api == api_name)
+        .map_or(api_name, |(_, shown)| shown)
+}
 
 /// Prints VirusTotal's latest analysis of the file `sha256`.
 fn virustotal(sha256: &str, api_key: &str) {
@@ -250,7 +260,7 @@ impl Report {
             self.engines
         )];
         for (engine, category, verdict) in &self.detections {
-            lines.push(format!("  {engine}: {verdict} ({category})"));
+            lines.push(format!("  {}: {verdict} ({category})", engine_name(engine)));
         }
         for watched in WATCHED_ENGINES {
             if self
@@ -286,7 +296,7 @@ mod tests {
     fn counts_engines_with_a_verdict() {
         let report = report(&serde_json::json!({
             "Sophos": { "category": "malicious", "result": "Generic ML PUA (PUA)" },
-            "SecureAge": { "category": "malicious", "result": "Malicious" },
+            "APEX": { "category": "malicious", "result": "Malicious" },
             "Acme": { "category": "suspicious", "result": null },
             "BitDefender": { "category": "undetected", "result": null },
             "Other": { "category": "harmless", "result": null },
@@ -297,8 +307,8 @@ mod tests {
         assert_eq!(
             report.detections,
             [
+                ("APEX".into(), "malicious".into(), "Malicious".into()),
                 ("Acme".into(), "suspicious".into(), "suspicious".into()),
-                ("SecureAge".into(), "malicious".into(), "Malicious".into()),
                 (
                     "Sophos".into(),
                     "malicious".into(),
@@ -308,6 +318,7 @@ mod tests {
         );
         let lines = report.lines();
         assert!(lines[0].starts_with("VirusTotal: 3/5 (analysed "));
+        assert_eq!(lines[1], "  SecureAge (APEX): Malicious (malicious)");
         assert_eq!(lines[3], "  Sophos: Generic ML PUA (PUA) (malicious)");
         assert!(!lines.iter().any(|l| l.starts_with("STOP")));
     }

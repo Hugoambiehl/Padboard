@@ -99,19 +99,23 @@ for `apksigner`; the GitHub CLI (`gh`).
 
    `verify-release` reads the report too, by the installer's SHA-256
    (nothing is uploaded), when `VIRUSTOTAL_API_KEY` holds the public API
-   key of a free VirusTotal account (*API key* in the account menu; keep
-   it out of the repo and of shell history files, e.g. in a file read with
-   `export VIRUSTOTAL_API_KEY=$(cat ~/.config/virustotal-key)`). After the
-   upload (step 2):
+   key of a free VirusTotal account (*API key* in the account menu), kept
+   in `~/.config/virustotal-key` (`chmod 600`, outside the repo, never
+   committed or printed). Tested with a real key on 2026-11-18
+   (0.2.1-rc.1: `VirusTotal: 3/71`, the three engines, the link). After
+   the signature and the upload to VirusTotal (step 2):
 
    ```sh
    gh release download vX -D /tmp/padboard-X
-   cargo run -q -p padboard-desktop --example verify-release -- /tmp/padboard-X X
+   VIRUSTOTAL_API_KEY=$(cat ~/.config/virustotal-key) \
+     cargo run -q -p padboard-desktop --example verify-release -- /tmp/padboard-X X
+   rm -r /tmp/padboard-X
    ```
 
-   It prints the detections and engines, and `STOP:` lines for
-   Bitdefender, Microsoft or more than 3 detections; whether a verdict is
-   generic stays your call. Informative only (exit status unchanged): in
+   It prints the detections and engines (with the names of VirusTotal's
+   site: the API calls SecureAge `APEX`, shown `SecureAge (APEX)`), and
+   `STOP:` lines for Bitdefender, Microsoft or more than 3 detections;
+   whether a verdict is generic stays your call. Informative only (exit status unchanged): in
    `sign-release.sh` it says the installer is not on VirusTotal yet.
 
    **Release (not a release candidate): false positive reports**, after
