@@ -3,6 +3,15 @@
 Notable changes of Padboard, generated from the commit history with
 [git-cliff](https://git-cliff.org). Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.1-rc.1 (2026-11-18)
+
+### Fixes
+
+- **obs**: Refresh the editor's scene and input lists when OBS sends them
+- **installer**: Skip the directory page when Padboard is installed
+- **installer**: Correct the French texts of the installer
+- **release**: Version release candidates' .deb with a tilde
+
 ## 0.2.0 (2026-11-17)
 
 ### Upgrading from 0.1.0
