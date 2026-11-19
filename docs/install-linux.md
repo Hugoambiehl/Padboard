@@ -137,7 +137,8 @@ command, which cuts the USB connection (and the other tools' devices).
 - **Lock** uses `loginctl lock-session`.
 - **OBS Studio**: *Tools* → *WebSocket Server Settings* → *Enable WebSocket
   server*, then copy the port and password into *Connections* → *OBS Studio*.
-- The configuration and the log of the last launch (`padboard.log`) are in
+- The configuration and the log of the last launch (`padboard.log`, the
+  launch before it in `padboard.log.1`) are in
   `~/.config/io.github.hugoambiehl.padboard/`.
 - **Shared PCs**: any program running on the PC can connect to the USB port
   without pairing, like the tablet does through adb. On a PC used by several

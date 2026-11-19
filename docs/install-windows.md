@@ -205,7 +205,8 @@ it (see *Updates*), but if it happens:
 - Keyboard shortcuts do not reach windows run as administrator (a Windows
   rule, UIPI).
 - The log of the last launch is `padboard.log` in
-  `%APPDATA%\io.github.hugoambiehl.padboard\`, with the configuration.
+  `%APPDATA%\io.github.hugoambiehl.padboard\`, with the configuration;
+  the launch before it is in `padboard.log.1`.
 - **Shared PCs**: any program running on the PC can connect to the USB
   port without pairing, like the tablet does through adb. On a PC used by
   several accounts at the same time, another account could send keyboard

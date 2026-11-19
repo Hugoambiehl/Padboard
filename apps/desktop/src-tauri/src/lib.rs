@@ -1112,9 +1112,11 @@ pub fn run() {
 }
 
 /// Logs to stderr and to a file: `<test dir>/app.log` in test mode, else
-/// `padboard.log` in the config directory, started afresh at each launch (on
-/// Windows the app has no console, so the file is the only log). The latter
-/// is opened by [`DeferredLog::open`] once single instance is settled.
+/// `padboard.log` in the config directory, started afresh at each launch, the
+/// previous launch's log kept as `padboard.log.1` (on Windows the app has no
+/// console, so the file is the only log; a launch after a problem must not
+/// erase it). The latter is opened by [`DeferredLog::open`] once single
+/// instance is settled.
 fn init_tracing(test_mode: Option<&TestMode>) {
     use tracing_subscriber::layer::SubscriberExt as _;
     use tracing_subscriber::util::SubscriberInitExt as _;
@@ -1163,12 +1165,16 @@ enum LogTarget {
 const PENDING_LOG_MAX: usize = 64 * 1024;
 
 impl DeferredLog {
-    /// Creates (truncates) the file and writes the lines logged so far.
+    /// Keeps the previous log as `<name>.1`, creates the file and writes the
+    /// lines logged so far.
     fn open(&self, path: &Path) {
         let mut target = self.0.lock().unwrap_or_else(PoisonError::into_inner);
         let LogTarget::Pending(pending) = &*target else {
             return;
         };
+        if let Err(e) = keep_previous_log(path) {
+            eprintln!("cannot keep the previous {}: {e}", path.display());
+        }
         *target = match std::fs::File::create(path) {
             Ok(mut file) => {
                 use std::io::Write as _;
@@ -1180,6 +1186,17 @@ impl DeferredLog {
                 LogTarget::Off
             }
         };
+    }
+}
+
+/// Renames `path` to `<path>.1`, replacing an older one (nothing to do on a
+/// first launch).
+fn keep_previous_log(path: &Path) -> std::io::Result<()> {
+    let mut previous = path.as_os_str().to_owned();
+    previous.push(".1");
+    match std::fs::rename(path, previous) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        other => other,
     }
 }
 
@@ -1237,5 +1254,28 @@ fn server_name() -> String {
         "Padboard".to_owned()
     } else {
         name
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_previous_log_is_kept_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("padboard.log");
+        let previous = dir.path().join("padboard.log.1");
+        // First launch: nothing to keep.
+        keep_previous_log(&log).unwrap();
+        assert!(!previous.exists());
+        std::fs::write(&log, "launch 1").unwrap();
+        keep_previous_log(&log).unwrap();
+        assert!(!log.exists());
+        assert_eq!(std::fs::read_to_string(&previous).unwrap(), "launch 1");
+        // Only the last launch before this one is kept.
+        std::fs::write(&log, "launch 2").unwrap();
+        keep_previous_log(&log).unwrap();
+        assert_eq!(std::fs::read_to_string(&previous).unwrap(), "launch 2");
     }
 }

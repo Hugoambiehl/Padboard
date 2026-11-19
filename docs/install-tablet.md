@@ -171,7 +171,8 @@ is updated.
   `leaving kiosk mode, asked by: hidden gesture on the tablet` or
   `… the PC (Libérer la tablette)`;
 - the PC's log (`padboard.log` in Padboard's configuration folder, see the
-  Windows or Linux guide; it starts over at each launch of Padboard):
+  Windows or Linux guide; it starts over at each launch of Padboard, the
+  previous launch's log being kept as `padboard.log.1`):
   `the tablet left kiosk mode by=Gesture` (or `by=Pc`) with `seconds_ago`.
   A tablet that left kiosk mode away from the PC tells it at its next
   connection, once. *Release the tablet* is logged too, when it is sent
