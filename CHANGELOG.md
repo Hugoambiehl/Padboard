@@ -3,7 +3,7 @@
 Notable changes of Padboard, generated from the commit history with
 [git-cliff](https://git-cliff.org). Versions follow [Semantic Versioning](https://semver.org).
 
-## 0.2.1-rc.2 (2026-11-19)
+## 0.2.1 (2026-11-19)
 
 ### Features
 
