@@ -39,7 +39,8 @@ npx tauri build --bundles nsis    # installer: ..\..\target\release\bundle\nsis\
 npm run tauri dev                 # or run it in development mode
 ```
 
-Configuration and the log of the last launch (`padboard.log`) live in
+Configuration and the log of the last launch (`padboard.log`; the one
+before in `padboard.log.1`, from 0.2.1-rc.2) live in
 `%APPDATA%\io.github.hugoambiehl.padboard\`. Padboard keeps the log open
 for writing while it runs, so `[IO.File]::ReadAllBytes` (which does not
 share writing) fails on it then; read it with shared access:
@@ -622,25 +623,27 @@ Remarks:
 3. Padboard uses Touch Portal's `adb` found in `PATH` (expected order:
    setting, `PATH`, SDK, our copy).
 
-## 11. Release candidate 0.2.1-rc.1: update from 0.2.0 (Bitdefender active)
+## 11. Release candidate 0.2.1-rc.2: update from 0.2.0 (Bitdefender active)
 
 Same PC and rules as section 10, 0.2.0 installed, Bitdefender active with
 no exception. 0.2.1 fixes: the folder page during an update (#12), the
-installer's French texts (#10), the OBS scene list (#13).
+installer's French texts (#10), the OBS scene list (#13), and OBS
+freezing while it starts when Padboard runs (#14, found in rc.1, which
+rc.2 replaces).
 
 ### 11.0 Before starting
 
 As 10.0. Copy `%APPDATA%\io.github.hugoambiehl.padboard` somewhere safe
-(11.3 deletes it). In 0.2.0: *Versions de test* **on**.
+(11.4 deletes it). In 0.2.0: *Versions de test* **on**.
 
-### 11.1 0.2.0 → 0.2.1-rc.1 by the new path
+### 11.1 0.2.0 → 0.2.1-rc.2 by the new path
 
 | Check | Do | Expect |
 |---|---|---|
-| Shown | *Rechercher*, *Télécharger* | The Explorer opens on `Padboard_0.2.1-rc.1_x64-setup.exe` in *Downloads*; `Get-FileHash` = `SHA256SUMS`; no Bitdefender event |
+| Shown | *Rechercher*, *Télécharger* | The Explorer opens on `Padboard_0.2.1-rc.2_x64-setup.exe` in *Downloads*; `Get-FileHash` = `SHA256SUMS`; no Bitdefender event |
 | French texts | *Quitter Padboard*, double-click the file | Page title **Déjà installé.**, subtitle **Choisissez comment installer Padboard.**, text **La version ancienne de Padboard est installée…**; no *déja*, *continer* |
 | No folder page | *Désinstaller avant d'installer* (default), *Suivant* | Straight to the installation: **no *Choisissez le dossier d'installation* page**; no *Supprimer les données de l'application* |
-| Kept | 0.2.1-rc.1 starts | Same folder (`%LOCALAPPDATA%\Padboard`); profiles, preferences, paired tablets kept; shortcuts, taskbar pin and the `Run` value kept; one entry in *Settings → Apps* |
+| Kept | 0.2.1-rc.2 starts | Same folder (`%LOCALAPPDATA%\Padboard`); profiles, preferences, paired tablets kept; shortcuts, taskbar pin and the `Run` value kept; one entry in *Settings → Apps* |
 | Other choice | Run the same installer again: **Ajouter/Réinstaller un composant**, *Suivant* | No folder page either; configuration kept |
 | Bitdefender | Whole section | **No ATC detection, no quarantine, no new firewall rule** |
 
@@ -652,20 +655,38 @@ As 10.0. Copy `%APPDATA%\io.github.hugoambiehl.padboard` somewhere safe
 | Created / renamed | In OBS: add a scene, rename another, remove a third | The list follows each change within a second |
 | Collection | In OBS: *Collection de scènes* → another one | The list shows the new collection's scenes |
 
-### 11.3 First installation on an empty folder
+### 11.3 OBS starting while Padboard runs (#14)
+
+OBS 33 with obs-websocket on, set up in Padboard (*Connexions* → OBS),
+GoPro Webcam and the rest as usual. In rc.1, OBS froze while starting
+(`AppHangB1`); rc.2 asks nothing while OBS loads, then waits 10 s after
+its scenes are loaded before connecting for real.
+
+| Check | Do | Expect |
+|---|---|---|
+| 5 starts | Padboard running, OBS closed. Start OBS, wait until it is fully open and *Connexions* says OBS is connected, use one OBS button from the tablet, close OBS; **5 times** | **OBS never freezes** (no *ne répond pas*, no `AppHangB1` in *Observateur d'événements → Journaux Windows → Application* at those times); each time OBS is connected about 10–20 s after it opens, the buttons follow it |
+| Log | `padboard.log`, for one start | *OBS not reachable* (once), then *connecting to OBS at ws://… (only checking that it has loaded)*, *OBS is still loading (207 not ready)* (maybe a few times), *OBS has loaded its scenes: waiting 10 s for it to finish starting*, *connecting to OBS at ws://…*, *connected to OBS*, the *OBS request* / *OBS answered* lines, *OBS request GetInputMute (one batch)* then *OBS answered GetInputMute* with the input count; no *OBS refused an initial request* |
+| Previous log | Quit and start Padboard again | `padboard.log.1` next to `padboard.log` holds the previous launch's log |
+
+If OBS freezes: note the time, do not restart Padboard first (its log
+would move to `padboard.log.1`, which is kept, but a second restart would
+erase it), copy both `padboard.log` files and the OBS log of that start
+(*Aide → Fichiers journaux → Afficher les fichiers journaux*).
+
+### 11.4 First installation on an empty folder
 
 | Check | Do | Expect |
 |---|---|---|
 | Removed | *Settings → Apps* → Padboard → *Désinstaller*, tick **Supprimer les données de l'application** | Padboard, its folder and its data gone |
-| Folder page | Run the 0.2.1-rc.1 installer | No *Déjà installé* page; the **folder page shows**, on `%LOCALAPPDATA%\Padboard`; install, Padboard starts as new (demo profile) |
+| Folder page | Run the 0.2.1-rc.2 installer | No *Déjà installé* page; the **folder page shows**, on `%LOCALAPPDATA%\Padboard`; install, Padboard starts as new (demo profile) |
 | Restored | Quit Padboard, copy the saved folder back to `%APPDATA%\io.github.hugoambiehl.padboard`, start Padboard | Your profiles and pairings are back |
 
-### 11.4 Tablet
+### 11.5 Tablet
 
-8.3 to **0.2.1-rc.1** (versionCode 20101), the tablet in kiosk mode:
+8.3 to **0.2.1-rc.2** (versionCode 20102), the tablet in kiosk mode:
 updated from the PC, kiosk mode back by itself.
 
-### 11.5 Afterwards
+### 11.6 Afterwards
 
 Restore the autostart state noted in 11.0, the sound, then send the
 report with the `padboard.log` files.
