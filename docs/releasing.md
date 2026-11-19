@@ -175,7 +175,10 @@ for `apksigner`; the GitHub CLI (`gh`).
        (guest mode, no account), marked as a false positive; or by mail,
        `samples@sophos.com`, the installer in a ZIP protected by the
        password `infected` (their procedure for non-customers). Recheck
-       the verdict after about 15 days.
+       the verdict after about 15 days. The mail route worked for
+       0.2.1-rc.1: classified as a false positive the same day (case
+       03641915). Their fix covers that file's hash only: a later
+       version detected again needs a new case, sent the same way.
 
    Bitdefender's *Advanced Threat Control* quarantined the 0.2.0-rc.2
    installer started by Padboard rc.1, and Padboard with it
@@ -196,7 +199,7 @@ for `apksigner`; the GitHub CLI (`gh`).
    | 0.2.0-rc.3 | 1/70 | SecureAge | |
    | 0.2.0-rc.4 | 3/71 | SecureAge, CrowdStrike Falcon (`Win/grayware_confidence_60%`), DeepInstinct (`MALICIOUS`) | SHA-256 `50ae2a3e0c751939110c422f9ed1e39fd6025310386194868478b226b9cbc01f`; the two new ones are static machine learning models, probably reacting to the custom NSIS template (first release with it); Bitdefender undetected |
    | 0.2.0 | 1/70 | SecureAge | SHA-256 `599289e651793f93f4ee92e2bdc7eb3a0a32a49b386d582524a47596aaf4ed08`; CrowdStrike Falcon and DeepInstinct no longer detect it (same NSIS template as rc.4) |
-   | 0.2.1-rc.1 | 3/71 | SecureAge, DeepInstinct (`MALICIOUS`), Sophos (`Generic ML PUA (PUA)`) | SHA-256 `3feac4ac2883fdb87ab80c9a0f40c5863440ce041980c19b40a359ae39dc77aa`; first release with the directory page skip and the French strings (#10, #12); DeepInstinct back, Sophos new (machine learning, PUA); Bitdefender and Microsoft undetected |
+   | 0.2.1-rc.1 | 3/71 | SecureAge, DeepInstinct (`MALICIOUS`), Sophos (`Generic ML PUA (PUA)`) | SHA-256 `3feac4ac2883fdb87ab80c9a0f40c5863440ce041980c19b40a359ae39dc77aa`; first release with the directory page skip and the French strings (#10, #12); DeepInstinct back, Sophos new (machine learning, PUA); Bitdefender and Microsoft undetected; Sophos: false positive confirmed the same day (case 03641915, ZIP to `samples@sophos.com`) |
 
    And on Windows, Bitdefender active with no exception for Padboard
    (`docs/windows-test-plan.md`, section 7): nothing detected during the
