@@ -36,10 +36,26 @@ const failureText = computed(() => {
       return t(`platformTools.error.${f.code}`, { detail: f.detail });
     case "signature":
       return t("platformTools.error.signature", { file: f.file });
+    case "checksum":
+      return t(`platformTools.error.checksum.${f.reason}`, {
+        version: props.version,
+        received: megabytes(f.received),
+        expected: megabytes(f.expected),
+      });
     default:
       return t(`platformTools.error.${f.code}`);
   }
 });
+
+/** Google's archive or what was received, in MB with one decimal. */
+function megabytes(bytes: number): string {
+  return (bytes / 1_000_000).toFixed(1);
+}
+
+/** Install adb another way: choose one, or get it from Google's page. */
+const offerManual = computed(
+  () => failure.value?.code === "unavailable" || failure.value?.code === "checksum",
+);
 
 function close() {
   if (!installing.value) emit("close");
@@ -112,7 +128,10 @@ async function install() {
       data-platform-tools-error
     >
       <p class="text-[#F5C2C2]">{{ failureText }}</p>
-      <div v-if="failure.code === 'unavailable'" class="flex flex-wrap gap-2">
+      <p v-if="failure.code === 'checksum'" class="text-muted-2">
+        {{ t("platformTools.error.fallback") }}
+      </p>
+      <div v-if="offerManual" class="flex flex-wrap gap-2">
         <button
           type="button"
           class="flex items-center gap-1.5 rounded-lg border border-line-2 bg-surface-2 px-2.5 py-1.5 text-xs transition-colors hover:bg-surface-active"

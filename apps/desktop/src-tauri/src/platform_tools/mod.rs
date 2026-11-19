@@ -84,15 +84,37 @@ pub enum PlatformToolsError {
     /// No connection, or cut.
     #[error("download failed: {detail}")]
     Network { detail: String },
-    /// Not the pinned file.
-    #[error("the download does not match its SHA-256")]
-    Checksum,
+    /// Not the pinned file (details in the log).
+    #[error("the download is not the pinned archive ({reason:?}, {received} of {expected} bytes)")]
+    Checksum {
+        reason: Mismatch,
+        received: u64,
+        expected: u64,
+    },
     /// An executable is not validly signed by Google.
     #[error("{file} is not signed by {SIGNER}: {detail}")]
     Signature { file: String, detail: String },
     /// Unreadable archive, or a file that cannot be written.
     #[error("cannot install: {detail}")]
     Install { detail: String },
+}
+
+/// Why a download is not the pinned archive, guessed from what was received
+/// so the user is told what to do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Mismatch {
+    /// A web page instead of the archive: a Wi-Fi portal, a proxy, a filter.
+    Html,
+    /// The transfer was cut: fewer bytes than the archive, or a network error
+    /// on the way.
+    Truncated,
+    /// A whole zip archive, but not the pinned one: Google republished the
+    /// file under the same version (37.0.3, 2026-11-19). A new Padboard
+    /// version must pin it.
+    Changed,
+    /// Anything else.
+    Unexpected,
 }
 
 /// What the USB card shows about the downloadable tools.
@@ -149,12 +171,30 @@ pub async fn install(
     dir: &Path,
     verify: impl Fn(&Path) -> Result<(), String>,
 ) -> Result<PathBuf, PlatformToolsError> {
-    let bytes = download(http, archive).await?;
-    let digest = Sha256::digest(&bytes);
-    if !hex(&digest).eq_ignore_ascii_case(&archive.sha256) {
-        tracing::error!("platform-tools: SHA-256 mismatch");
-        return Err(PlatformToolsError::Checksum);
+    let received = download(http, archive).await?;
+    let sha256 = hex(&Sha256::digest(&received.bytes));
+    if received.cut.is_some() || !sha256.eq_ignore_ascii_case(&archive.sha256) {
+        let reason = mismatch(&received, archive.size);
+        tracing::error!(
+            ?reason,
+            received = received.bytes.len(),
+            expected = archive.size,
+            %sha256,
+            expected_sha256 = %archive.sha256,
+            status = %received.status,
+            content_type = received.content_type.as_deref().unwrap_or("-"),
+            url = %received.final_url,
+            cut = received.cut.as_deref().unwrap_or("-"),
+            start = %preview(&received.bytes),
+            "platform-tools: the download is not the pinned archive"
+        );
+        return Err(PlatformToolsError::Checksum {
+            reason,
+            received: received.bytes.len() as u64,
+            expected: archive.size,
+        });
     }
+    let bytes = received.bytes;
     let staging = sibling(dir, "new");
     let result = extract(&bytes, &staging).and_then(|()| check_executables(&staging, &verify));
     if let Err(e) = result {
@@ -185,10 +225,22 @@ pub fn remove(dir: &Path) -> Result<(), PlatformToolsError> {
     }
 }
 
+/// What the server sent, kept to explain a refused download in the log.
+struct Received {
+    bytes: Vec<u8>,
+    status: reqwest::StatusCode,
+    content_type: Option<String>,
+    /// After redirections.
+    final_url: String,
+    /// Why the transfer stopped early: a network error after some bytes, or
+    /// the size limit.
+    cut: Option<String>,
+}
+
 async fn download(
     http: &reqwest::Client,
     archive: &Archive,
-) -> Result<Vec<u8>, PlatformToolsError> {
+) -> Result<Received, PlatformToolsError> {
     let network = |e: reqwest::Error| PlatformToolsError::Network {
         detail: e.to_string(),
     };
@@ -206,15 +258,79 @@ async fn download(
             }
         });
     }
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .map(|value| String::from_utf8_lossy(value.as_bytes()).into_owned());
+    let final_url = response.url().to_string();
     let limit = archive.size.saturating_mul(2);
     let mut bytes = Vec::with_capacity(usize::try_from(archive.size).unwrap_or(0));
-    while let Some(chunk) = response.chunk().await.map_err(network)? {
-        bytes.extend_from_slice(&chunk);
-        if bytes.len() as u64 > limit {
-            return Err(PlatformToolsError::Checksum);
+    let mut cut = None;
+    loop {
+        match response.chunk().await {
+            Ok(Some(chunk)) => {
+                bytes.extend_from_slice(&chunk);
+                if bytes.len() as u64 > limit {
+                    cut = Some(format!("more than {limit} bytes"));
+                    break;
+                }
+            }
+            Ok(None) => break,
+            Err(e) if bytes.is_empty() => return Err(network(e)),
+            Err(e) => {
+                cut = Some(e.to_string());
+                break;
+            }
         }
     }
-    Ok(bytes)
+    Ok(Received {
+        bytes,
+        status,
+        content_type,
+        final_url,
+        cut,
+    })
+}
+
+/// Guesses why `received` is not the pinned archive of `expected` bytes.
+fn mismatch(received: &Received, expected: u64) -> Mismatch {
+    let bytes = &received.bytes;
+    let html_type = received
+        .content_type
+        .as_deref()
+        .is_some_and(|t| t.trim_start().to_ascii_lowercase().starts_with("text/html"));
+    let text = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
+    let starts_with_tag = text.iter().find(|b| !b.is_ascii_whitespace()) == Some(&b'<');
+    if html_type || starts_with_tag {
+        Mismatch::Html
+    } else if received.cut.is_some() {
+        Mismatch::Truncated
+    } else if bytes.starts_with(b"PK\x03\x04")
+        && zip::ZipArchive::new(std::io::Cursor::new(bytes.as_slice())).is_ok()
+    {
+        Mismatch::Changed
+    } else if (bytes.len() as u64) < expected {
+        Mismatch::Truncated
+    } else {
+        Mismatch::Unexpected
+    }
+}
+
+/// The first bytes of a download, for the log: in hex, followed by the text
+/// when they read as text (a portal's page often says who sent it).
+fn preview(bytes: &[u8]) -> String {
+    let head = &bytes[..bytes.len().min(16)];
+    let mut out = hex(head);
+    if !head.is_empty()
+        && head
+            .iter()
+            .all(|b| b.is_ascii_graphic() || b.is_ascii_whitespace() || *b >= 0x80)
+    {
+        let text = String::from_utf8_lossy(&bytes[..bytes.len().min(200)]);
+        let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        let _ = std::fmt::Write::write_fmt(&mut out, format_args!(" {text:?}"));
+    }
+    out
 }
 
 /// Extracts the files under `platform-tools/` into `to` (created afresh).
@@ -361,6 +477,18 @@ mod tests {
 
     /// Serves `body` with `status` to every request.
     async fn serve(status: u16, body: Vec<u8>) -> String {
+        let length = body.len();
+        serve_with(status, "", body, length).await
+    }
+
+    /// Serves `body` with `status`, extra `headers` (`name: value\r\n`) and a
+    /// declared `length` (above the body's: the transfer is cut).
+    async fn serve_with(
+        status: u16,
+        headers: &'static str,
+        body: Vec<u8>,
+        length: usize,
+    ) -> String {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!(
             "http://{}/platform-tools.zip",
@@ -374,8 +502,7 @@ mod tests {
                 let mut buffer = [0u8; 4096];
                 let _ = socket.read(&mut buffer).await;
                 let head = format!(
-                    "HTTP/1.1 {status} X\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                    body.len()
+                    "HTTP/1.1 {status} X\r\ncontent-length: {length}\r\n{headers}connection: close\r\n\r\n"
                 );
                 let _ = socket.write_all(head.as_bytes()).await;
                 let _ = socket.write_all(&body).await;
@@ -440,8 +567,131 @@ mod tests {
         std::fs::write(dir.join("adb.exe"), "old").unwrap();
 
         let result = install(&http(), &archive(url, &bytes), &dir, |_| Ok(())).await;
-        assert_eq!(result, Err(PlatformToolsError::Checksum));
+        assert!(
+            matches!(
+                result,
+                Err(PlatformToolsError::Checksum {
+                    reason: Mismatch::Changed,
+                    expected,
+                    ..
+                }) if expected == bytes.len() as u64
+            ),
+            "{result:?}"
+        );
         assert_eq!(std::fs::read(dir.join("adb.exe")).unwrap(), b"old");
+    }
+
+    /// Installs from `url` an archive expected to be `bytes`; returns why it
+    /// was refused.
+    async fn refused(url: String, bytes: &[u8]) -> PlatformToolsError {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("platform-tools");
+        let result = install(&http(), &archive(url, bytes), &dir, |_| Ok(())).await;
+        assert!(!dir.exists());
+        result.unwrap_err()
+    }
+
+    /// A Wi-Fi portal or a proxy answering with its own page.
+    #[tokio::test]
+    async fn a_web_page_is_recognised() {
+        let bytes = archive_bytes(&[]);
+        let page = b"\n<!DOCTYPE html><html><title>Hotspot login</title></html>".to_vec();
+        let url = serve(200, page.clone()).await;
+        assert_eq!(
+            refused(url, &bytes).await,
+            PlatformToolsError::Checksum {
+                reason: Mismatch::Html,
+                received: page.len() as u64,
+                expected: bytes.len() as u64,
+            }
+        );
+        // Recognised by its type too, whatever it starts with.
+        let url = serve_with(
+            200,
+            "content-type: text/html; charset=utf-8\r\n",
+            b"x".to_vec(),
+            1,
+        )
+        .await;
+        assert!(matches!(
+            refused(url, &bytes).await,
+            PlatformToolsError::Checksum {
+                reason: Mismatch::Html,
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_cut_download_is_recognised() {
+        let bytes = archive_bytes(&[]);
+        let half = bytes[..bytes.len() / 2].to_vec();
+        // The server stops early (more bytes announced).
+        let url = serve_with(200, "", half.clone(), bytes.len()).await;
+        assert_eq!(
+            refused(url, &bytes).await,
+            PlatformToolsError::Checksum {
+                reason: Mismatch::Truncated,
+                received: half.len() as u64,
+                expected: bytes.len() as u64,
+            }
+        );
+        // Or announces and sends only part of the file.
+        let url = serve(200, half).await;
+        assert!(matches!(
+            refused(url, &bytes).await,
+            PlatformToolsError::Checksum {
+                reason: Mismatch::Truncated,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn mismatches_are_told_apart() {
+        let received = |bytes: &[u8], content_type: Option<&str>| Received {
+            bytes: bytes.to_vec(),
+            status: reqwest::StatusCode::OK,
+            content_type: content_type.map(str::to_owned),
+            final_url: "https://example.invalid/a.zip".into(),
+            cut: None,
+        };
+        let zip = archive_bytes(&[]);
+        // A whole archive, even smaller than the pinned one: republished.
+        assert_eq!(mismatch(&received(&zip, None), 1 << 30), Mismatch::Changed);
+        assert_eq!(
+            mismatch(&received(&zip, Some("application/zip")), 10),
+            Mismatch::Changed
+        );
+        assert_eq!(
+            mismatch(&received(&zip[..zip.len() - 1], None), 1 << 30),
+            Mismatch::Truncated
+        );
+        assert_eq!(
+            mismatch(&received(b"\xEF\xBB\xBF  <html>", None), 1),
+            Mismatch::Html
+        );
+        assert_eq!(
+            mismatch(&received(b"PK", Some(" TEXT/HTML")), 1),
+            Mismatch::Html
+        );
+        assert_eq!(
+            mismatch(&received(&[7; 64], None), 64),
+            Mismatch::Unexpected
+        );
+        let mut over = received(&zip, None);
+        over.cut = Some("more than 10 bytes".into());
+        assert_eq!(mismatch(&over, 5), Mismatch::Truncated);
+    }
+
+    #[test]
+    fn the_log_shows_the_first_bytes() {
+        assert_eq!(preview(b""), "");
+        assert_eq!(preview(b"PK\x03\x04\x14\x00"), "504b03041400");
+        assert_eq!(
+            preview(b"<html>\n  <title>Portal</title>"),
+            "3c68746d6c3e0a20203c7469746c653e \"<html> <title>Portal</title>\""
+        );
     }
 
     #[tokio::test]

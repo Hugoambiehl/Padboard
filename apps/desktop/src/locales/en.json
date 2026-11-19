@@ -749,7 +749,13 @@
       "notAccepted": "The license was not accepted: nothing was downloaded.",
       "unavailable": "Google no longer offers version {version}, the one Padboard can check. Install adb yourself (Platform-Tools page, or winget install Google.PlatformTools), then choose its location; a next version of Padboard will offer the current one.",
       "network": "Download failed: {detail}",
-      "checksum": "The downloaded file is not the expected one (different SHA-256): nothing was installed.",
+      "checksum": {
+        "html": "The network sent a web page instead of Google's archive (a Wi-Fi login portal, a proxy or a filter). Nothing was installed. If a portal asks you to sign in, open a page in your browser, then try again.",
+        "truncated": "The download was cut ({received} MB of {expected} MB received). Nothing was installed: try again.",
+        "changed": "Google changed the Platform-Tools {version} archive: it no longer matches the one this version of Padboard can check. Nothing was installed; a next version of Padboard will take the new archive.",
+        "unexpected": "The file received is not Google's archive (unexpected content, maybe altered by the network). Nothing was installed."
+      },
+      "fallback": "The tablet works over Wi-Fi without adb. For USB, you can also download Platform-Tools from Google's page, extract the archive, then choose adb.exe.",
       "signature": "{file} is not signed by Google LLC: nothing was installed.",
       "install": "Cannot install: {detail}"
     }

@@ -102,7 +102,8 @@ const status: Snapshot = {
       : [],
   usb: {
     // `&adb=missing`: Windows without adb ("Installer adb", see
-    // `&tools=gone` for Google having removed the pinned version).
+    // `&tools=gone` for Google having removed the pinned version, `&tools=html`,
+    // `truncated`, `changed` or `unexpected` for a download refused as such).
     // `&adb=conflict`: another adb's server; `&adb=unstable`: it keeps stopping.
     adb:
       params.get("adb") === "missing"
@@ -236,11 +237,20 @@ export function install() {
               () =>
                 params.get("tools") === "gone"
                   ? reject({ code: "unavailable", status: 404 })
-                  : resolve({
-                      offered: true,
-                      version: "37.0.3",
-                      installed: "C:\\platform-tools\\adb.exe",
-                    }),
+                  : ["html", "truncated", "changed", "unexpected"].includes(
+                        params.get("tools") ?? "",
+                      )
+                    ? reject({
+                        code: "checksum",
+                        reason: params.get("tools"),
+                        received: params.get("tools") === "truncated" ? 3_145_728 : 8_188_601,
+                        expected: 8_188_601,
+                      })
+                    : resolve({
+                        offered: true,
+                        version: "37.0.3",
+                        installed: "C:\\platform-tools\\adb.exe",
+                      }),
               1200,
             ),
           );

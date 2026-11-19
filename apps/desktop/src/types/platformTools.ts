@@ -16,6 +16,11 @@ export type PlatformToolsError =
   /** Google no longer serves the pinned version. */
   | { code: "unavailable"; status: number }
   | { code: "network"; detail: string }
-  | { code: "checksum" }
+  /** Not the pinned archive; `reason` guessed from what was received. */
+  | { code: "checksum"; reason: ChecksumMismatch; received: number; expected: number }
   | { code: "signature"; file: string; detail: string }
   | { code: "install"; detail: string };
+
+/** `Mismatch`: a web page (portal, proxy), a cut transfer, another archive
+ * (Google republished it), anything else. */
+export type ChecksumMismatch = "html" | "truncated" | "changed" | "unexpected";

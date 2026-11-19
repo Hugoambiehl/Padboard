@@ -749,7 +749,13 @@
       "notAccepted": "La licence n’a pas été acceptée : rien n’a été téléchargé.",
       "unavailable": "Google ne propose plus la version {version} que Padboard sait vérifier. Installe adb toi-même (page des Platform-Tools, ou winget install Google.PlatformTools) puis indique son emplacement ; une prochaine version de Padboard proposera la version à jour.",
       "network": "Téléchargement impossible : {detail}",
-      "checksum": "Le fichier téléchargé n’est pas celui attendu (empreinte SHA-256 différente) : rien n’a été installé.",
+      "checksum": {
+        "html": "Le réseau a renvoyé une page web au lieu de l’archive de Google (portail de connexion Wi-Fi, proxy ou filtre). Rien n’a été installé. Si un portail demande de se connecter, ouvre une page dans ton navigateur, puis réessaie.",
+        "truncated": "Le téléchargement a été interrompu ({received} Mo reçus sur {expected} Mo). Rien n’a été installé : réessaie.",
+        "changed": "Google a modifié l’archive des Platform-Tools {version} : elle ne correspond plus à celle que cette version de Padboard sait vérifier. Rien n’a été installé ; une prochaine version de Padboard prendra la nouvelle archive.",
+        "unexpected": "Le fichier reçu n’est pas l’archive de Google (contenu inattendu, peut-être modifié par le réseau). Rien n’a été installé."
+      },
+      "fallback": "La tablette fonctionne en Wi-Fi sans adb. Pour l’USB, tu peux aussi télécharger les Platform-Tools sur la page de Google, extraire l’archive, puis indiquer adb.exe.",
       "signature": "{file} n’est pas signé par Google LLC : rien n’a été installé.",
       "install": "Installation impossible : {detail}"
     }

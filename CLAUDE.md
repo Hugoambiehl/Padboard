@@ -61,7 +61,12 @@ Same WebSocket protocol over two transports:
   `authenticode.rs`, Windows-only, cross-checked by CI's Windows job;
   extracted to `%LOCALAPPDATA%\io.github.hugoambiehl.padboard\platform-tools`;
   a 4xx from Google = `unavailable`, the UI then offers the manual
-  choice). Linux: the `.deb` depends on the distribution's free `adb`
+  choice; a download that is not the pinned archive is logged in detail
+  (sizes, SHA-256s, status, type, final URL, first bytes) and told apart
+  (`Mismatch`: web page, cut, another zip, other), with the manual choice
+  too. Google republishes an archive under the same version (37.0.3 on
+  2026-11-19: every download refused): `platform-tools-pin.sh --check`
+  compares the index's size and SHA-1 with the pin, weekly in CI). Linux: the `.deb` depends on the distribution's free `adb`
   package (`bundle.linux.deb.depends`), which recommends the udev rules.
   Windows drivers: not known whether Windows 11 needs one for the SM-T580
   (the test PC had Samsung's driver, installed by something else): the
