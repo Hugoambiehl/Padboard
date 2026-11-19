@@ -240,10 +240,17 @@ export class App {
   /**
    * Starts the `fake-obs` example on `port` with these scenes (top-down);
    * the app must run with PADBOARD_TEST_OBS=1 and an `obs.json` pointing
-   * to that port.
+   * to that port. `loading`: seconds during which it answers 207, as OBS
+   * does while it loads its scene collection.
    */
-  async startObs(port: number, scenes: string[]): Promise<FakeObs> {
-    const obs = new FakeObs(FAKE_OBS(), ["--port", String(port), ...scenes]);
+  async startObs(port: number, scenes: string[], loading = 0): Promise<FakeObs> {
+    const obs = new FakeObs(FAKE_OBS(), [
+      "--port",
+      String(port),
+      "--loading",
+      String(loading),
+      ...scenes,
+    ]);
     this.fakeObs.push(obs);
     await obs.waitFor(/^listening /);
     return obs;

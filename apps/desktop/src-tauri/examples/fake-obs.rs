@@ -3,18 +3,23 @@
 //! audio input, answering the requests Padboard sends.
 //!
 //! ```sh
-//! cargo run -p padboard-desktop --example fake-obs -- --port 4455 Jeu Pause
+//! cargo run -p padboard-desktop --example fake-obs -- --port 4455 [--loading 4] Jeu Pause
 //! ```
 //!
 //! Scenes are given top-down, as OBS shows them (the first one is the
-//! current scene). Once it listens it prints `listening <port>`, then
-//! `identified` for each client. Commands on stdin, one per line (scene
-//! names without spaces), each sent to the clients as OBS events:
-//! `create <scene>`, `rename <old> <new>`, `remove <scene>`.
+//! current scene). `--loading N`: for its first N seconds every request is
+//! refused with 207, as OBS does while it loads its scene collection. Once
+//! it listens it prints `listening <port>`, then `identified
+//! subscriptions=<n>` for each client, `request <type>` for each request
+//! (`not ready <type>` while loading) and `batch <n>` for each
+//! `RequestBatch`. Commands on stdin, one per line (scene names without
+//! spaces), each sent to the clients as OBS events: `create <scene>`,
+//! `rename <old> <new>`, `remove <scene>`.
 
 #![allow(clippy::print_stdout, clippy::print_stderr, clippy::unwrap_used)]
 
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
@@ -32,6 +37,8 @@ struct Obs {
     /// Top-down, as OBS shows them.
     scenes: Vec<String>,
     current: Option<String>,
+    /// Requests are refused with 207 until then.
+    loaded_at: Option<Instant>,
 }
 
 type Shared = Arc<Mutex<Obs>>;
@@ -39,12 +46,18 @@ type Shared = Arc<Mutex<Obs>>;
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut port = 4455;
+    let mut loading = 0;
     let mut scenes = Vec::new();
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         if arg == "--port" {
             port = args.next().and_then(|p| p.parse().ok()).unwrap_or_else(|| {
                 eprintln!("usage: fake-obs [--port N] [scene ...]");
+                std::process::exit(2);
+            });
+        } else if arg == "--loading" {
+            loading = args.next().and_then(|p| p.parse().ok()).unwrap_or_else(|| {
+                eprintln!("usage: fake-obs [--port N] [--loading SECONDS] [scene ...]");
                 std::process::exit(2);
             });
         } else {
@@ -54,6 +67,7 @@ async fn main() -> Result<()> {
     let obs: Shared = Arc::new(Mutex::new(Obs {
         current: scenes.first().cloned(),
         scenes,
+        loaded_at: Some(Instant::now() + Duration::from_secs(loading)),
     }));
     let (events, _) = broadcast::channel::<Value>(64);
 
@@ -148,7 +162,7 @@ async fn client(
                     Some(1) => {
                         identified = true;
                         ws.send(send(json!({ "op": 2, "d": { "negotiatedRpcVersion": 1 } }))).await?;
-                        println!("identified");
+                        println!("identified subscriptions={}", message["d"]["eventSubscriptions"]);
                     }
                     Some(6) if identified => {
                         let (answer, event) = request(&obs, &message["d"]);
@@ -156,6 +170,20 @@ async fn client(
                         if let Some(event) = event {
                             ws.send(send(event)).await?;
                         }
+                    }
+                    // RequestBatch: answered in order, its events dropped.
+                    Some(8) if identified => {
+                        let d = &message["d"];
+                        let list = d["requests"].as_array().cloned().unwrap_or_default();
+                        println!("batch {}", list.len());
+                        let results: Vec<Value> = list
+                            .iter()
+                            .map(|r| request(&obs, r).0["d"].clone())
+                            .collect();
+                        ws.send(send(json!({ "op": 9, "d": {
+                            "requestId": d["requestId"],
+                            "results": results,
+                        }}))).await?;
                     }
                     _ => {}
                 }
@@ -174,8 +202,27 @@ async fn client(
 fn request(obs: &Shared, d: &Value) -> (Value, Option<Value>) {
     let mut obs = obs.lock().unwrap();
     let data = &d["requestData"];
+    let kind = d["requestType"].as_str().unwrap_or_default();
+    if obs.loaded_at.is_some_and(|at| Instant::now() < at) {
+        println!("not ready {kind}");
+        let answer = json!({ "op": 7, "d": {
+            "requestType": kind,
+            "requestId": d["requestId"],
+            "requestStatus": {
+                "result": false,
+                "code": 207,
+                "comment": "OBS is not ready to perform the request.",
+            },
+        }});
+        return (answer, None);
+    }
+    obs.loaded_at = None;
+    println!("request {kind}");
     let mut event = None;
-    let response = match d["requestType"].as_str().unwrap_or_default() {
+    let response = match kind {
+        "GetVersion" => {
+            Some(json!({ "obsVersion": "33.0.1-fake", "obsWebSocketVersion": "5.7.6-fake" }))
+        }
         "GetCurrentProgramScene" => Some(json!({
             "currentProgramSceneName": obs.current,
             "sceneName": obs.current,

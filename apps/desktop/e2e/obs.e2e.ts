@@ -78,10 +78,27 @@ describe("OBS scene list", () => {
     await choose(field("command"), "set_scene");
     // OBS not running: the name would be typed.
     if ((await scenes()) !== null) throw new Error("the target should be a text field");
-    obs = await app.startObs(obsPort, ["Jeu", "Pause"]);
-    // The app retries every 3 s; no reload of the editor.
-    await obs.waitFor(/^identified/, 0, 10_000);
+    // OBS starts: 207 for 4 s, as while it loads its scene collection.
+    obs = await app.startObs(obsPort, ["Jeu", "Pause"], 4);
+    // The app retries every 3 s; no reload of the editor. While OBS loads it
+    // only asks GetVersion, then leaves (issue #14).
+    await obs.waitFor(/^not ready GetVersion/, 0, 10_000);
+    // Loaded: checked once, subscribed to nothing.
+    const check = await obs.waitFor(/^request GetVersion/, 0, 15_000);
+    const loaded = obs.lines.indexOf(check);
+    if (obs.lines[loaded - 1] !== "identified subscriptions=0") {
+      throw new Error(`the check should subscribe to nothing:\n${obs.lines.join("\n")}`);
+    }
+    // The real session 10 s later, the mute states in one batch.
+    await obs.waitFor(/^identified subscriptions=78/, loaded, 15_000);
     await expectScenes(["Jeu", "Pause"]);
+    const asked = obs.lines.slice(
+      0,
+      obs.lines.findIndex((l) => l === "identified subscriptions=78"),
+    );
+    const early = asked.filter((l) => /^(request|not ready) /.test(l) && !/ GetVersion$/.test(l));
+    if (early.length > 0) throw new Error(`asked OBS before it finished starting: ${early}`);
+    await obs.waitFor(/^batch 1/, loaded);
     await app.shot("90-obs-scenes");
   });
 

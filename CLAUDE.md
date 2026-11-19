@@ -165,7 +165,18 @@ add/adjust round-trip serialization tests.
   connections view. One task owns the connection, retries every 3 s while
   OBS is closed (buttons unavailable meanwhile), waits for new settings after
   a wrong password, publishes scene / recording / streaming / muted inputs
-  once all initial answers are in (OBS answers in any order). Tests use an
+  once all initial answers are in (OBS answers in any order).
+  **Never ask OBS anything while it starts** (issue #14: OBS 33 froze on
+  Windows, `AppHangB1`, when Padboard was already running): obs-websocket
+  accepts clients during the load, answers 207 until the scene collection
+  is loaded, then serves requests while OBS's UI thread is still in
+  `OBSInit` (until `FINISHED_LOADING`, invisible to clients), a window
+  where requests can deadlock OBS. Each session first asks `GetVersion`:
+  207 = disconnect, retry in 3 s; when OBS was closed or loading at the
+  last attempt, that check connects subscribed to no event and the real
+  session comes `STARTUP_SETTLE` (10 s) later. Mute states: one
+  `RequestBatch`. Attempts and initial requests logged at INFO (a
+  repeated failure at DEBUG). Tests use an
   isolated OBS: `XDG_CONFIG_HOME=<dir> xvfb-run obs` with obs-websocket on
   another port and its recording path in that dir. The editor's scene and
   input lists (`get_obs`) are re-read on the `obs` event, sent when the
@@ -660,7 +671,8 @@ SM-T580, always measure in release builds.
   config dir, `RecordingExecutor` (actions written to `actions.jsonl`, never
   injected), no adb, Wi-Fi forced off (except `PADBOARD_TEST_SYSTEM=1` with
   `PADBOARD_BIND=lan`), logs to `app.log` (normal mode: `padboard.log` in the
-  config dir, truncated at launch), and a runtime
+  config dir, started afresh at launch, the previous one kept as
+  `padboard.log.1`), and a runtime
   simulated button states from `state.json` (`observe::start_from_file`),
   and a runtime capability letting the page close its window (WebDriver kills the process
   when it ends a session, so "close the app" goes through the page).
