@@ -647,6 +647,19 @@ As 10.0. Copy `%APPDATA%\io.github.hugoambiehl.padboard` somewhere safe
 | Other choice | Run the same installer again: **Ajouter/Réinstaller un composant**, *Suivant* | No folder page either; configuration kept |
 | Bitdefender | Whole section | **No ATC detection, no quarantine, no new firewall rule** |
 
+**Result (2026-11-19)**: passed. The update was made from rc.1
+(section 10), installed in `D:\Programme Files\Padboard`: *Rechercher*,
+*Télécharger*, SHA-256 checked; rc.2 stayed in that folder, no
+`%LOCALAPPDATA%\Padboard`; `Run`, `StartupApproved`, install key and
+shortcuts unchanged, one entry in *Settings → Apps*; every configuration
+file's hash unchanged (`update-pending.json` removed);
+`padboard.log.1` present. *Other choice* passed too (same checks, no
+folder page, no data checkbox). Bitdefender: no detection, quarantine
+empty, during and 5 min after; one new firewall rule, automatic and
+temporary (*allow*), for rc.1's `padboard-desktop.exe` while it
+downloaded rc.2 (not seen from 0.2.0 to rc.1), and one for GoPro
+Webcam, unrelated.
+
 ### 11.2 OBS scene list (#13)
 
 | Check | Do | Expect |
@@ -654,6 +667,12 @@ As 10.0. Copy `%APPDATA%\io.github.hugoambiehl.padboard` somewhere safe
 | OBS after Padboard | OBS closed; start Padboard, open the editor on an OBS *Changer de scène* button; then start OBS | Once *Connexions* says OBS is connected, the *Scène* list shows OBS's scenes, in OBS's order, **without reopening anything** |
 | Created / renamed | In OBS: add a scene, rename another, remove a third | The list follows each change within a second |
 | Collection | In OBS: *Collection de scènes* → another one | The list shows the new collection's scenes |
+
+**Result (2026-11-19, rc.2)**: *OBS after Padboard* passed: free text
+while OBS was closed, then the 8 scenes without reopening anything, once
+Padboard connected (OBS's window frozen, obs-websocket answering, see
+11.3). *Created / renamed* postponed while OBS freezes at start (done in
+OBS's window); *Collection* skipped.
 
 ### 11.3 OBS starting while Padboard runs (#14)
 
@@ -673,6 +692,37 @@ would move to `padboard.log.1`, which is kept, but a second restart would
 erase it), copy both `padboard.log` files and the OBS log of that start
 (*Aide → Fichiers journaux → Afficher les fichiers journaux*).
 
+**Result (2026-11-19, rc.2): OBS froze, without Padboard too.** The first
+start froze (`AppHangB1`) although rc.2 behaved as designed: check
+connection (`GetVersion` only, no 207) about 4 s after OBS opened, real
+session 10 s later, answered at once while OBS's window was already
+frozen. OBS's wait chain: its own threads waiting on each other, no other
+process. Then two series of 3 starts, a watcher listing every TCP client
+of port 4455 every 250 ms:
+
+| Series | Padboard | Clients of 4455 | Frozen |
+|---|---|---|---|
+| A | Quit | None | **3 / 3** (`AppHangB1`) |
+| B | Running, *Piloter OBS* off | None | **3 / 3** (`AppHangB1`) |
+
+Every start froze the same way, 8–9 s after OBS opened: OBS starts GoPro
+Webcam (≈ 5 s), the StreamElements plugin removes the scene *Scene* and
+reloads its sources, the media source *Trailer Ligue F1 1* reads its
+settings twice (*UDTA parsing failed*), and that is the last line of
+OBS's UI thread; *ne répond pas* about 5 s later, still frozen after
+2 minutes. Plugins besides OBS's own: StreamElements (obs-streamelements-core
+26.9.4), Stream Deck (5.5.4.2), Logitech (`logi_obs_plugin_x64`); OBS
+33.0.1 runs as administrator. So this freeze is OBS's (or a plugin's, in
+this scene collection), not Padboard's: **it does not block 0.2.1**. The
+rc.2 changes stay (check before connecting, 10 s wait, one
+`GetInputMute` batch, `padboard.log.1`): they ask nothing during the
+load. The 5 starts with a tablet button could not be run (OBS frozen
+every time).
+
+To do (Linux session): the check connection is cut instead of closed
+(OBS logs close code 1006 *End of File*): send a WebSocket close and
+wait for OBS's before dropping it.
+
 ### 11.4 First installation on an empty folder
 
 | Check | Do | Expect |
@@ -681,10 +731,30 @@ erase it), copy both `padboard.log` files and the OBS log of that start
 | Folder page | Run the 0.2.1-rc.2 installer | No *Déjà installé* page; the **folder page shows**, on `%LOCALAPPDATA%\Padboard`; install, Padboard starts as new (demo profile) |
 | Restored | Quit Padboard, copy the saved folder back to `%APPDATA%\io.github.hugoambiehl.padboard`, start Padboard | Your profiles and pairings are back |
 
+**Result (2026-11-19, rc.2)**: passed. The uninstall with the data
+removed the program folder, both data folders (`%APPDATA%` and
+`%LOCALAPPDATA%\io.github.hugoambiehl.padboard`), the `Run` value, the
+install and uninstall keys and the shortcuts; only Windows's own
+`StartupApproved\Run` value stayed (harmless without `Run`). The folder
+page showed `%LOCALAPPDATA%\Padboard`, changed to `D:\Programme
+Files\Padboard`; Padboard started as new (*Démo*, autostart and test
+versions off). Both data folders restored (hashes checked): profiles,
+pairings and settings back, the `Run` value written again at launch
+(logged as *removed by another program*: here, our uninstaller), the
+tablet reconnected over USB once its app ran (11.5).
+
 ### 11.5 Tablet
 
 8.3 to **0.2.1-rc.2** (versionCode 20102), the tablet in kiosk mode:
 updated from the PC, kiosk mode back by itself.
+
+**Result (2026-11-19)**: passed, without touching the tablet. Kiosk mode
+turned on from the USB card (no secure lock screen, no account: the lock
+screen went away by itself, tablet connected 2 s later), then the USB
+update 20099 → 20102 (APK checked, `adb install -r`), kiosk mode back by
+itself, connected again 2 s later (`adb exec-out screencap`). The tray
+(tooltip, menu, *Ouvrir Padboard*, closing hides, second launch shows
+the running window) passed too.
 
 ### 11.6 Afterwards
 
