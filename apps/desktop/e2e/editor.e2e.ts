@@ -214,8 +214,15 @@ describe("editor", () => {
     await app.clickText(t("profiles.delete.confirm"), "button");
     await app.session.gone(withText(`${t("profiles.label")} Démo bis`, "button"));
 
-    const saved = await app.savedConfig();
-    expect(saved.profiles.map((p) => p.name).sort()).toEqual(["Démo", "Vidéo"]);
+    // Saved after a debounce: wait for the file to catch up.
+    let names: string[] = [];
+    await app.session
+      .waitUntil(async () => {
+        names = (await app.savedConfig()).profiles.map((p) => p.name).sort();
+        return names.length === 2;
+      }, "the deleted profile saved")
+      .catch(() => undefined);
+    expect(names).toEqual(["Démo", "Vidéo"]);
   });
 
   it("keeps everything after closing the app", async () => {
