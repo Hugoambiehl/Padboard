@@ -133,12 +133,17 @@ for `apksigner`; the GitHub CLI (`gh`).
      screenshots of the alert and the quarantine. This worked for the ATC
      detection of the rc.2 installer started by Padboard (8.5 of the
      Windows test plan): false positive confirmed and the detection fixed
-     on 2026-11-19 (case 1011719053, after the BDSYS log). Whether the fix
-     covers every version or only those files: answer awaited; until
-     then, assume a new version may be detected again.
+     on 2026-11-19 (case 1011719053, after the BDSYS log). Scope of the
+     fix (their answer for the same case): it targets the behaviour that
+     triggered the false positive, so later versions may pass, but
+     nothing is guaranteed while Padboard is unsigned. They advise
+     submitting every stable installer before publishing, which this step
+     already does.
    - **Microsoft**: [Microsoft Security Intelligence](https://www.microsoft.com/en-us/wdsi/filesubmission)
-     (sign in with a Microsoft account to follow the submission), as
-     *Software developer*, product *Microsoft Defender Antivirus*, *What do
+     (sign in with a **personal Microsoft account**: a school or work
+     account asks for an administrator's approval), as *Software
+     developer*, product *Microsoft Defender Antivirus*, the required
+     *Company Name* field: `Padboard (open source project)`, *What do
      you believe this file is?* → *Incorrectly detected as
      malware/malicious*, the installer itself (≤ 50 MB), detection name:
      the one shown, else `None`, and the text below in *Additional
@@ -206,6 +211,7 @@ for `apksigner`; the GitHub CLI (`gh`).
    | 0.2.0 | 1/70 | SecureAge | SHA-256 `599289e651793f93f4ee92e2bdc7eb3a0a32a49b386d582524a47596aaf4ed08`; CrowdStrike Falcon and DeepInstinct no longer detect it (same NSIS template as rc.4) |
    | 0.2.1-rc.1 | 3/71 | SecureAge, DeepInstinct (`MALICIOUS`), Sophos (`Generic ML PUA (PUA)`) | SHA-256 `3feac4ac2883fdb87ab80c9a0f40c5863440ce041980c19b40a359ae39dc77aa`; first release with the directory page skip and the French strings (#10, #12); DeepInstinct back, Sophos new (machine learning, PUA); Bitdefender and Microsoft undetected; Sophos: false positive confirmed the same day (case 03641915, ZIP to `samples@sophos.com`) |
    | 0.2.1-rc.2 | 2/71 | SecureAge (APEX), Sophos (`Generic ML PUA (PUA)`) | SHA-256 `fbe2712a6f3aa161e8676ae19d696a5088958e8c8ab6349c355325473484b0f3`; checked by `verify-release` with the API key (no `STOP`); DeepInstinct gone; Sophos detects it again, as expected (its rc.1 fix covered that hash only); Bitdefender and Microsoft undetected |
+   | 0.2.1 | 1/70 | SecureAge | SHA-256 `ee3f724c9a7068ac9ae7ec5fc84143db877f4b84c4efa97d6e2c45cd3de554c3`; checked by `verify-release` with the API key (no `STOP`); Sophos no longer detects it; Bitdefender and Microsoft undetected; submitted before publishing to Bitdefender (false positive form) and, for the first time, to Microsoft (Security Intelligence portal) |
 
    And on Windows, Bitdefender active with no exception for Padboard
    (`docs/windows-test-plan.md`, section 7): nothing detected during the
