@@ -3,7 +3,12 @@
 Notable changes of Padboard, generated from the commit history with
 [git-cliff](https://git-cliff.org). Versions follow [Semantic Versioning](https://semver.org).
 
-## 0.2.1-rc.1 (2026-11-18)
+## 0.2.1-rc.2 (2026-11-19)
+
+### Features
+
+- **release**: Show SecureAge under its VirusTotal site name in verify-release
+- **desktop**: Keep the previous launch's log as padboard.log.1
 
 ### Fixes
 
@@ -11,6 +16,7 @@ Notable changes of Padboard, generated from the commit history with
 - **installer**: Skip the directory page when Padboard is installed
 - **installer**: Correct the French texts of the installer
 - **release**: Version release candidates' .deb with a tilde
+- **obs**: Ask OBS nothing until it has finished starting
 
 ## 0.2.0 (2026-11-17)
 
