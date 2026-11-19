@@ -130,7 +130,12 @@ for `apksigner`; the GitHub CLI (`gh`).
      For a behaviour detection (ATC), go through **Bitdefender support**
      with a **BDSYS log** (Bitdefender's support tool, run on the Windows
      PC where it was detected), a description of what happened and
-     screenshots of the alert and the quarantine.
+     screenshots of the alert and the quarantine. This worked for the ATC
+     detection of the rc.2 installer started by Padboard (8.5 of the
+     Windows test plan): false positive confirmed and the detection fixed
+     on 2026-11-19 (case 1011719053, after the BDSYS log). Whether the fix
+     covers every version or only those files: answer awaited; until
+     then, assume a new version may be detected again.
    - **Microsoft**: [Microsoft Security Intelligence](https://www.microsoft.com/en-us/wdsi/filesubmission)
      (sign in with a Microsoft account to follow the submission), as
      *Software developer*, product *Microsoft Defender Antivirus*, *What do
@@ -200,6 +205,7 @@ for `apksigner`; the GitHub CLI (`gh`).
    | 0.2.0-rc.4 | 3/71 | SecureAge, CrowdStrike Falcon (`Win/grayware_confidence_60%`), DeepInstinct (`MALICIOUS`) | SHA-256 `50ae2a3e0c751939110c422f9ed1e39fd6025310386194868478b226b9cbc01f`; the two new ones are static machine learning models, probably reacting to the custom NSIS template (first release with it); Bitdefender undetected |
    | 0.2.0 | 1/70 | SecureAge | SHA-256 `599289e651793f93f4ee92e2bdc7eb3a0a32a49b386d582524a47596aaf4ed08`; CrowdStrike Falcon and DeepInstinct no longer detect it (same NSIS template as rc.4) |
    | 0.2.1-rc.1 | 3/71 | SecureAge, DeepInstinct (`MALICIOUS`), Sophos (`Generic ML PUA (PUA)`) | SHA-256 `3feac4ac2883fdb87ab80c9a0f40c5863440ce041980c19b40a359ae39dc77aa`; first release with the directory page skip and the French strings (#10, #12); DeepInstinct back, Sophos new (machine learning, PUA); Bitdefender and Microsoft undetected; Sophos: false positive confirmed the same day (case 03641915, ZIP to `samples@sophos.com`) |
+   | 0.2.1-rc.2 | 2/71 | SecureAge (APEX), Sophos (`Generic ML PUA (PUA)`) | SHA-256 `fbe2712a6f3aa161e8676ae19d696a5088958e8c8ab6349c355325473484b0f3`; checked by `verify-release` with the API key (no `STOP`); DeepInstinct gone; Sophos detects it again, as expected (its rc.1 fix covered that hash only); Bitdefender and Microsoft undetected |
 
    And on Windows, Bitdefender active with no exception for Padboard
    (`docs/windows-test-plan.md`, section 7): nothing detected during the
