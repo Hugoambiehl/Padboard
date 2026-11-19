@@ -27,6 +27,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib/clean-snap-env.sh
 source "$ROOT/scripts/lib/clean-snap-env.sh"
+# GTK's own input method for the tested app: through the session's IBus,
+# WebKitWebDriver's keystrokes were lost while someone typed on the PC.
+export GTK_IM_MODULE=gtk-im-context-simple
 
 build=1
 if [[ "${1:-}" == "--no-build" ]]; then
