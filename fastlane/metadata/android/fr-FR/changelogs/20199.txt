@@ -1,0 +1,1 @@
+Aucun changement dans l'application de la tablette : cette version corrige l'application du PC (liste des scènes OBS dans l'éditeur, OBS qui démarre pendant que Padboard tourne, mise à jour et textes français de l'installeur Windows). Mettez à jour le PC, puis la tablette depuis le PC comme d'habitude.

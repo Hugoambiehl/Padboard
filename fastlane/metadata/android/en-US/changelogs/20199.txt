@@ -1,0 +1,1 @@
+No change in the tablet app: this version fixes the PC app (OBS's scene list in the editor, OBS starting while Padboard runs, the Windows installer's update and French texts). Update the PC, then the tablet from the PC as usual.
