@@ -6,7 +6,13 @@
 # then its SHA-256 computed and written.
 #
 #   scripts/platform-tools-pin.sh          # print the newest and update the file
-#   scripts/platform-tools-pin.sh --check  # only say whether the pin is the newest
+#   scripts/platform-tools-pin.sh --check  # only say whether the pin is still right
+#
+# --check fails when Google's newest version is another one, or when the
+# archive changed under the same version (Google republished 37.0.3 on
+# 2026-11-19: every download was refused): the index's size and SHA-1 are
+# compared with the pin, then the archive is downloaded and its SHA-256
+# compared too. Run weekly by .github/workflows/platform-tools.yml.
 #
 # Then check the new archive's signatures on Windows (docs/windows-test-plan.md,
 # "Installer adb") before releasing.
@@ -35,18 +41,30 @@ for archive in re.findall(r"<archive>.*?</archive>", block, re.S):
         break
 PY
 )
-current="$(sed -n 's/^pub const VERSION: &str = "\(.*\)";/\1/p' "$file")"
-echo "Pinned: $current; newest from Google: $version ($archive)"
-if [[ "${1:-}" == "--check" ]]; then
-  [[ "$current" == "$version" ]]
-  exit
-fi
+pinned() { sed -n "s/^pub const $1: [^=]* = \"\\{0,1\\}\\([^\";]*\\)\"\\{0,1\\};/\\1/p" "$file"; }
+current="$(pinned VERSION)"
+echo "Pinned: $current; newest from Google: $version ($archive, $size bytes, SHA-1 $sha1)"
 [[ "$archive" =~ ^platform-tools_r[0-9.]+-win\.zip$ ]] || { echo "unexpected archive name: $archive" >&2; exit 1; }
 
 curl -sSfL -o "$work/archive.zip" "$base/$archive"
-echo "$sha1  $work/archive.zip" | sha1sum -c --quiet -
-[[ "$(stat -c %s "$work/archive.zip")" == "$size" ]] || { echo "size differs from the index" >&2; exit 1; }
+echo "$sha1  $work/archive.zip" | sha1sum -c --quiet - || { echo "the archive's SHA-1 differs from the index" >&2; exit 1; }
+[[ "$(stat -c %s "$work/archive.zip")" == "$size" ]] || { echo "the archive's size differs from the index" >&2; exit 1; }
 sha256="$(sha256sum "$work/archive.zip" | cut -d' ' -f1)"
+
+if [[ "${1:-}" == "--check" ]]; then
+  ok=1
+  [[ "$current" == "$version" ]] || { echo "OUTDATED: Google's newest is $version, $current is pinned" >&2; ok=0; }
+  [[ "$(pinned URL)" == "$base/$archive" ]] || { echo "CHANGED: the URL is now $base/$archive" >&2; ok=0; }
+  pinned_size="$(pinned SIZE)"; pinned_size="${pinned_size//_/}"
+  [[ "$pinned_size" == "$size" ]] || { echo "CHANGED: the index says $size bytes, $pinned_size are pinned" >&2; ok=0; }
+  [[ "$(pinned SHA256)" == "$sha256" ]] || { echo "CHANGED: the archive's SHA-256 is $sha256, $(pinned SHA256) is pinned" >&2; ok=0; }
+  if (( ok )); then
+    echo "The pin is Google's current archive (size, SHA-1 of the index and SHA-256 checked)."
+    exit 0
+  fi
+  echo "Every \"Installer adb\" download is refused: pin again (this script without --check), check the signatures on Windows, release." >&2
+  exit 1
+fi
 
 python3 -I - "$file" "$version" "$base/$archive" "$sha256" "$size" <<'PY'
 import re, sys

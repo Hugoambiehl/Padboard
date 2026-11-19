@@ -1,0 +1,30 @@
+# Checks every week that the Platform-Tools archive pinned for "Installer adb"
+# (Windows) is still the one Google serves: the version, the size and SHA-1 of
+# Google's index, and the archive's SHA-256. Google republished 37.0.3 under
+# the same version on 2026-11-19 and every download was refused; a failed run
+# here says so before users do (GitHub mails the failure of a scheduled run).
+# Also runs when the pin or the script changes.
+name: Platform-Tools pin
+
+on:
+  schedule:
+    # Mondays, 06:17 UTC.
+    - cron: "17 6 * * 1"
+  push:
+    paths:
+      - scripts/platform-tools-pin.sh
+      - apps/desktop/src-tauri/src/platform_tools/mod.rs
+      - .github/workflows/platform-tools.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Pin is Google's current archive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - run: scripts/platform-tools-pin.sh --check

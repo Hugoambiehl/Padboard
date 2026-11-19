@@ -252,7 +252,9 @@ Before `scripts/release.sh`:
 - [ ] `scripts/tablet-ui-tests.sh` (tablet UI tests on an emulator at the
       SM-T580's size, e.g. the kiosk exit corner left empty on every screen).
 - [ ] `scripts/platform-tools-pin.sh --check` (the "Installer adb" pin is
-      Google's newest; if not, pin it and check it on Windows).
+      Google's newest and current archive: version, size and SHA-1 of the
+      index, SHA-256; also run every week by the *Platform-Tools pin*
+      workflow). If not, pin it again and check its signatures on Windows.
 - [ ] The fastlane changelog of the release's versionCode (releases only).
 
 After `scripts/sign-release.sh`, before publishing:
