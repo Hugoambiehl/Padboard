@@ -761,6 +761,51 @@ the running window) passed too.
 Restore the autostart state noted in 11.0, the sound, then send the
 report with the `padboard.log` files.
 
+## 12. Release candidate 0.2.2-rc.1: "Installer adb" again (Bitdefender active)
+
+Same PC and rules as section 11, 0.2.1 installed. On 2026-11-19 Google
+republished the Platform-Tools 37.0.3 archive under the same version:
+0.2.1 refuses every download (*SHA-256 mismatch*, reported by a user).
+0.2.2 pins the new archive (8 188 601 bytes, SHA-256 `89d10836…4f09d`)
+and explains a refused download in the dialog and in `padboard.log`.
+
+### 12.0 Before starting
+
+As 11.0 (no folder deleted here). In 0.2.1: *Versions de test* **on**.
+No other adb in `PATH` (the USB card must offer *Installer adb…*): if
+Padboard's copy is installed, *Supprimer adb* first.
+
+### 12.1 0.2.1 → 0.2.2-rc.1
+
+| Check | Do | Expect |
+|---|---|---|
+| Update | *Rechercher*, *Télécharger*, *Quitter Padboard*, run the file | As 11.1: no folder page, configuration and `Run` value kept, one entry in *Settings → Apps* |
+| Bitdefender | Whole section | No detection, no quarantine |
+
+### 12.2 Installer adb
+
+| Check | Do | Expect |
+|---|---|---|
+| Install | *Installer adb…*, tick, *Télécharger et installer* | Within seconds the card shows *Platform-Tools 37.0.3 de Google, téléchargés par Padboard.*; the tablet connects over USB |
+| Signatures | `Get-AuthenticodeSignature "$env:LOCALAPPDATA\io.github.hugoambiehl.padboard\platform-tools\*.exe","$env:LOCALAPPDATA\io.github.hugoambiehl.padboard\platform-tools\*.dll"` | `Valid`, signer `CN=Google LLC` for every file |
+| Log | `padboard.log` | *the user accepted the Android SDK license*, then *platform-tools installed*; no *not the pinned archive* |
+| Again | *Supprimer adb*, then *Installer adb…* again | Removed then installed again without error |
+
+The refused cases (web page, cut transfer, archive changed by Google)
+are covered by unit tests; their texts can be seen in the mock
+(`?mock&view=connections&adb=missing&tools=changed`, or `html`,
+`truncated`, `unexpected`).
+
+### 12.3 Tablet
+
+8.3 to **0.2.2-rc.1** (versionCode 20201), the tablet in kiosk mode:
+updated from the PC, kiosk mode back by itself.
+
+### 12.4 Afterwards
+
+Restore the autostart state noted in 12.0, the sound, then send the
+report with the `padboard.log` files.
+
 ## Known Windows limits
 
 - Keys cannot be sent to elevated (administrator) windows.
