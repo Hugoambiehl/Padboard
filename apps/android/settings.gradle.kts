@@ -34,3 +34,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Padboard"
 include(":app")
+include(":mirrorproto")
