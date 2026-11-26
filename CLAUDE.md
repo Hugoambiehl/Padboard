@@ -474,10 +474,11 @@ SM-T580, always measure in release builds.
   branch (no Windows job) before reaching `main`.
   Gradle steps (CI and release APK) go through `scripts/gradle-retry.sh`:
   run again, up to 3 times, only when a repository did not answer (Maven
-  Central rate-limits GitHub's runners with 429s; #22). The release APK job
-  restores main's Gradle cache by key prefix (`actions/cache/restore`):
-  setup-gradle's basic cache only matches exactly, and a tag's versionCode
-  changes the key. Portal-only plugins (foojay, ktlint) are resolved from
+  Central rate-limits GitHub's runners with 429s; #22). setup-gradle's basic
+  cache is keyed on a hash of the Gradle files (exact match only): the
+  Android version lives in `app/version.properties`, outside them (#23),
+  so a version change keeps the key and the release APK job (read-only)
+  restores main's entry. Portal-only plugins (foojay, ktlint) are resolved from
   the plugin portal only (`exclusiveContent` in `settings.gradle.kts`).
 - **License**: GPL-3.0-or-later (`LICENSE`, `license` in the workspace
   `Cargo.toml`, `package.json`, `tauri.conf.json`). Third-party licenses must
@@ -503,7 +504,7 @@ SM-T580, always measure in release builds.
 - **Releases** (`docs/releasing.md`): one SemVer version for everything,
   `-rc.N` for release candidates. `scripts/release.sh X` writes it everywhere
   (Android versionCode = MAJOR*1e6 + MINOR*1e4 + PATCH*100 + rc number, 99
-  for the release), regenerates `CHANGELOG.md` (git-cliff, `cliff.toml`:
+  for the release, in `apps/android/app/version.properties`), regenerates `CHANGELOG.md` (git-cliff, `cliff.toml`:
   feat/fix/perf only; 0.1.0 has a written summary instead), commits and tags without pushing. A pushed `v*` tag
   runs `release.yml`: NSIS installer (unsigned: SignPath Foundation declined
   the request for now, may be asked again later; SmartScreen warning

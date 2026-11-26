@@ -8,6 +8,11 @@ plugins {
     alias(libs.plugins.licensee)
 }
 
+// The app's version, written by scripts/release.sh (version.properties is
+// not one of the files setup-gradle's CI cache key is computed from, #23).
+val appVersion: Properties =
+    Properties().apply { file("version.properties").inputStream().use(::load) }
+
 // Release signing key: a properties file outside the repo (storeFile, keyAlias,
 // storePassword), named by the `padboard.signing` Gradle property (in
 // ~/.gradle/gradle.properties) or PADBOARD_SIGNING. Without it, release APKs
@@ -28,8 +33,8 @@ android {
         applicationId = "io.github.hugoambiehl.padboard"
         minSdk = 24
         targetSdk = 37
-        versionCode = 40000
-        versionName = "0.4.0-dev"
+        versionCode = appVersion.getProperty("versionCode").toInt()
+        versionName = appVersion.getProperty("versionName")
         // Tests of updates only (docs/development.md): another version for
         // a test APK, e.g. -Ppadboard.testVersionCode=20002
         // -Ppadboard.testVersionName=0.2.0-rc.2. Never used for a release.

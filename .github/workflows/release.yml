@@ -237,28 +237,15 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      # main's Gradle cache (#22). setup-gradle's "basic" cache is keyed on a
-      # hash of the Gradle files and restored on an exact match only; a tag
-      # never matches, since release.sh writes the versionCode into
-      # app/build.gradle.kts, so this job downloaded every dependency and
-      # plugin, the most exposed to Maven Central's 429s. Restore the latest
-      # entry by prefix instead. Same paths and key prefix as setup-gradle's
-      # basic provider (gradle/actions v6, sources/src/cache-service-basic.ts):
-      # if they change, nothing is restored and the job just downloads as
-      # before. Read-only: a tag never saves a cache.
-      - name: Restore main's Gradle cache
-        uses: actions/cache/restore@v6
-        with:
-          path: |
-            /home/runner/.gradle/caches
-            /home/runner/.gradle/wrapper
-          key: setup-java-Linux-x64-gradle-release-${{ github.sha }}
-          restore-keys: setup-java-Linux-x64-gradle-
-
+      # main's Gradle cache (#22, #23). setup-gradle's "basic" cache is keyed
+      # on a hash of the Gradle files and restored on an exact match only.
+      # The version lives in app/version.properties, outside those files, so
+      # a tag has the same key as the main commit it was cut from and
+      # restores its entry. Read-only: a tag never saves a cache.
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-provider: basic
-          cache-disabled: true
+          cache-read-only: true
 
       # No signing key in CI: the APK is signed on the maintainer's PC.
       # Run again when a repository did not answer, never after a real

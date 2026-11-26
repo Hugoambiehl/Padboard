@@ -49,16 +49,16 @@ write_version() {
     lock.packages[""].version = version;
     fs.writeFileSync(lockFile, JSON.stringify(lock, null, 2) + "\n");
   ' "$version"
-  # Tablet app.
+  # Tablet app (outside the Gradle files, #23).
   sed -i -E \
-    -e 's/^(\s*versionCode = ).*/\1'"$version_code"'/' \
-    -e 's/^(\s*versionName = ).*/\1"'"$version"'"/' \
-    apps/android/app/build.gradle.kts
+    -e 's/^versionCode=.*/versionCode='"$version_code"'/' \
+    -e 's/^versionName=.*/versionName='"$version"'/' \
+    apps/android/app/version.properties
 }
 
 VERSION_FILES=(Cargo.toml Cargo.lock
   apps/desktop/src-tauri/tauri.conf.json apps/desktop/package.json apps/desktop/package-lock.json
-  apps/android/app/build.gradle.kts)
+  apps/android/app/version.properties)
 
 # The development version that follows the release $1: the same X.Y.Z
 # after a release candidate (the release is still to come), X.(Y+1).0

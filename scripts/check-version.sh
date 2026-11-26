@@ -21,8 +21,8 @@ check() { # what found
 check "Cargo.toml" "$(sed -n '/^\[workspace\.package\]/,/^\[/ s/^version = "\(.*\)"/\1/p' Cargo.toml)"
 check "package.json" "$(node -p 'require("./apps/desktop/package.json").version')"
 check "package-lock.json" "$(node -p 'require("./apps/desktop/package-lock.json").version')"
-check "build.gradle.kts versionName" "$(sed -n 's/^\s*versionName = "\(.*\)"/\1/p' apps/android/app/build.gradle.kts)"
-code="$(sed -n 's/^\s*versionCode = \([0-9]*\)$/\1/p' apps/android/app/build.gradle.kts)"
+check "version.properties versionName" "$(sed -n 's/^versionName=\(.*\)$/\1/p' apps/android/app/version.properties)"
+code="$(sed -n 's/^versionCode=\([0-9]*\)$/\1/p' apps/android/app/version.properties)"
 if [[ "$code" != "$version_code" ]]; then
   echo "error: versionCode is $code, $version needs $version_code" >&2
   fail=1

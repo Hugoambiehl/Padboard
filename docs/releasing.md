@@ -33,8 +33,9 @@ for `apksigner`; the GitHub CLI (`gh`).
    ```
 
    It sets the version in `Cargo.toml` (+ `Cargo.lock`), `tauri.conf.json`,
-   `package.json` (+ lock) and `app/build.gradle.kts` (versionName and a
-   growing versionCode), regenerates `CHANGELOG.md`, commits
+   `package.json` (+ lock) and `apps/android/app/version.properties`
+   (versionName and a growing versionCode; kept out of the Gradle files so
+   CI's Gradle cache survives a version change), regenerates `CHANGELOG.md`, commits
    `chore(release): v0.1.0-rc.1` and creates the annotated tag. Then a
    second commit, `chore: start X.Y.Z-dev`, moves `main` to the next
    development version (the same X.Y.Z after a release candidate,
