@@ -36,10 +36,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val endLockTask: () -> Unit = { runCatching { stopLockTask() } }
+
     override fun onResume() {
         super.onResume()
+        Kiosk.stopLockTask = endLockTask
         // Device owner set or removed with adb while the app was away.
         Kiosk.refresh(this)
+    }
+
+    override fun onPause() {
+        if (Kiosk.stopLockTask === endLockTask) Kiosk.stopLockTask = null
+        super.onPause()
     }
 
     /** Kiosk mode: locked in front, screen kept on (the screensaver dims it). */

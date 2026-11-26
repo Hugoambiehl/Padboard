@@ -37,6 +37,15 @@ object Kiosk {
     /** The app is the device owner, so kiosk mode is on. */
     val active: StateFlow<Boolean> = _active.asStateFlow()
 
+    /**
+     * Ends the lock task of the activity in front, set by it while it is
+     * resumed. Called before the allow-list is cleared: Android 7 closes a
+     * locked task that is no longer allowed, and the system launcher came
+     * to the front (#24); a task no longer locked is left alone.
+     */
+    @Volatile
+    var stopLockTask: (() -> Unit)? = null
+
     private fun dpm(context: Context) = context.getSystemService(DevicePolicyManager::class.java)
 
     private fun admin(context: Context) = ComponentName(context, KioskAdmin::class.java)
@@ -70,9 +79,10 @@ object Kiosk {
     }
 
     /**
-     * Leaves kiosk mode for good. The lock task ends with the allow-list
-     * cleared; the caller's activity then shows as a normal app. [by] is
-     * logged here and kept until the PC is told ([KioskExits]).
+     * Leaves kiosk mode for good. The activity in front first ends its lock
+     * task ([stopLockTask]), then the policies and the allow-list are
+     * cleared: the app stays in front as a normal app. [by] is logged here
+     * and kept until the PC is told ([KioskExits]).
      */
     fun exit(context: Context, by: KioskExitOrigin) {
         val dpm = dpm(context)
@@ -83,6 +93,7 @@ object Kiosk {
         log.info("leaving kiosk mode, asked by: ${describe(by)}")
         KioskExits(context).record(by)
         val admin = admin(context)
+        stopLockTask?.invoke()
         runCatching {
             dpm.clearPackagePersistentPreferredActivities(admin, context.packageName)
             dpm.setKeyguardDisabled(admin, false)

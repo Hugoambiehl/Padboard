@@ -990,7 +990,7 @@ package"). Note its model and Android version (*Paramètres → À propos*).
 | USB | USB debugging on, the tablet plugged in | It connects; the grid shows; a button acts on the PC |
 | Wi-Fi | *Appairer un appareil* on the PC, the PIN on the tablet | Paired (same short fingerprint on both); unplugged, it stays connected over Wi-Fi |
 | Screensaver | Delay 30 s, wait | Clock and date as on the SM-T580 |
-| Kiosk (only if the tablet has **no account**) | *Activer le mode kiosque* in the USB card | Kiosk mode on, shown on in the card; leave it with the corner gesture (5 s, then confirm). On Android 7 the system launcher then comes in front (#24, expected); Padboard still opens from it |
+| Kiosk (only if the tablet has **no account**) | *Activer le mode kiosque* in the USB card | Kiosk mode on, shown on in the card; leave it with the corner gesture (5 s, then confirm). On Android 7 with 0.3.x the system launcher then comes in front (#24, expected, fixed in 0.4); Padboard still opens from it |
 
 If the tablet cannot run kiosk mode (accounts on it, or a manufacturer
 that refuses `set-device-owner`), note Android's message: everything else
