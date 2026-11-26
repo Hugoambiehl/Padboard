@@ -782,6 +782,23 @@ Padboard's copy is installed, *Supprimer adb* first.
 | Update | *Rechercher*, *Télécharger*, *Quitter Padboard*, run the file | As 11.1: no folder page, configuration and `Run` value kept, one entry in *Settings → Apps* |
 | Bitdefender | Whole section | No detection, no quarantine |
 
+**Result (2026-11-26)**: passed. Before: both data folders saved
+(`%APPDATA%` and `%LOCALAPPDATA%\io.github.hugoambiehl.padboard`, 304
+files, every SHA-256 checked, Padboard quit: WebView2 locks four cache
+files while it runs). *Rechercher*: *update available
+version=0.2.2-rc.1*; *Télécharger*: *installer downloaded and checked*,
+*not started by Padboard* (`no trusted publisher in this build`), SHA-256
+`e3fb89c7…b4779ab3d5b` = `SHA256SUMS`. *Quitter Padboard* in the card,
+double-click: nothing unusual (no folder page, no data checkbox).
+Still in `D:\Programme Files\Padboard`, no `%LOCALAPPDATA%\Padboard`;
+`identity`, `obs`, `paired-devices`, `preferences`, `profiles`, `tls-key`
+unchanged byte for byte, `update-pending.json` removed; one entry in
+*Settings → Apps* (0.2.2-rc.1); `Run` value and `StartupApproved` (`02…`)
+unchanged (*entry refreshed*); Start menu and desktop shortcuts kept;
+*update installed version=0.2.2-rc.1*, tablet reconnected over USB 2 s
+after launch. Bitdefender: no change in quarantine, ATC feedback or
+firewall rules for the whole section (12.1 to 12.3).
+
 ### 12.2 Installer adb
 
 | Check | Do | Expect |
@@ -796,15 +813,47 @@ are covered by unit tests; their texts can be seen in the mock
 (`?mock&view=connections&adb=missing&tools=changed`, or `html`,
 `truncated`, `unexpected`).
 
+**Result (2026-11-26)**: passed. Two adb were in `PATH` (Touch Portal's
+and a WinGet `Google.PlatformTools`, both in the user `PATH`, Touch
+Portal's also in the machine one), so Padboard was quit and started from
+a PowerShell window whose `PATH` dropped both (`where.exe adb`: nothing);
+Windows's `PATH` and Touch Portal untouched, its adb server kept running.
+*Install*: *the user accepted the Android SDK license: downloading
+platform-tools version="37.0.3"*, *platform-tools installed* 1.6 s later,
+then *tracking USB devices* with our copy and *adb reverse active*; no
+*not the pinned archive*; the card as expected. *Signatures*: the 8
+`.exe` and 2 `.dll` `Valid`, `CN=Google LLC`. Our 37.0.3 client used
+Touch Portal's running server (port 5037) without conflict. *Again*:
+*adb server started by another program: left running* (Touch Portal's
+`adb.exe`), *platform-tools removed*, then installed again without
+error, signatures `Valid` again. The refused cases' texts: **verified
+under Linux** (unit tests and the mock), not run on this PC. Padboard
+then started again from the Start menu (usual `PATH`): it uses Touch
+Portal's adb found in `PATH`, as expected (setting, `PATH`, SDK, our
+copy).
+
 ### 12.3 Tablet
 
 8.3 to **0.2.2-rc.1** (versionCode 20201), the tablet in kiosk mode:
 updated from the PC, kiosk mode back by itself.
 
+**Result (2026-11-26)**: passed. Tablet on 0.2.1 (20199) in kiosk mode;
+*Mettre à jour vers 0.2.2-rc.1*: *tablet APK downloaded and checked*,
+*tablet updated over USB from=20199 to=20201* in 5 s, reconnected 2 s
+later. Still device owner, lock task `LOCKED`, Padboard in front, no
+kiosk exit in `logcat -s Kiosk`; `<config>/updates` keeps only the
+0.2.2-rc.1 APK and `SHA256SUMS` (+ `.sig`).
+
 ### 12.4 Afterwards
 
 Restore the autostart state noted in 12.0, the sound, then send the
 report with the `padboard.log` files.
+
+**Result (2026-11-26)**: autostart unchanged (`Run` value,
+`StartupApproved` `02…`), no step touched it. Sound: playback Logitech
+PRO X Gaming Headset 100 %, recording Shure MV6 100 %, neither muted,
+noted by hand (no audio action run, nothing to restore). The backup of
+12.1 is kept until the tester deletes it.
 
 ## Known Windows limits
 
