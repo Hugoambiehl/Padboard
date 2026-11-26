@@ -219,3 +219,9 @@ Quit Padboard (notification area icon → *Quit Padboard*), then *Settings* →
 application data* to remove your configuration too
 (`%APPDATA%\io.github.hugoambiehl.padboard\`); otherwise it stays for a
 later install. Turn *Startup* off first if you enabled it.
+
+After uninstalling, Windows may keep a `Padboard` value under
+`HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run`.
+It is Windows's own record of the *Startup apps* switch (Task Manager,
+*Settings*), never written by Padboard, and it does nothing without
+Padboard's `Run` entry, which the uninstaller removes: you can leave it.
