@@ -38,7 +38,7 @@ semver = "1.0.28"
 # Release lookups and downloads (GitHub), with our rustls (ring).
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "system-proxy", "stream"] }
 getrandom = "0.4.3"
-mdns-sd = "0.21.7"
+mdns-sd = "0.22.0"
 rcgen = { version = "0.14.10", default-features = false, features = ["crypto", "pem", "ring"] }
 rustls = { version = "0.23.46", default-features = false, features = ["logging", "ring", "std", "tls12"] }
 # Google's repository index, read when a republished archive is checked (#18).
