@@ -474,11 +474,16 @@ SM-T580, always measure in release builds.
   branch (no Windows job) before reaching `main`.
   Gradle steps (CI and release APK) go through `scripts/gradle-retry.sh`:
   run again, up to 3 times, only when a repository did not answer (Maven
-  Central rate-limits GitHub's runners with 429s; #22). setup-gradle's basic
-  cache is keyed on a hash of the Gradle files (exact match only): the
-  Android version lives in `app/version.properties`, outside them (#23),
-  so a version change keeps the key and the release APK job (read-only)
-  restores main's entry. Portal-only plugins (foojay, ktlint) are resolved from
+  Central rate-limits GitHub's runners with 429s; #22). Retries add
+  `--refresh-dependencies` (Gradle caches a module's absence: retries on
+  the same runner never passed) and `--info`, whose failed HTTP requests
+  are printed. Gradle's cache is ours (`actions/cache` restore / save, key
+  `gradle-<OS>-<hash of the Gradle files>`, falls back to the latest
+  entry), saved only after a successful build on `main`: setup-gradle's
+  basic provider (its cache now off) saved a failed run's stub for good.
+  The Android version lives in `app/version.properties`, outside the key
+  (#23); the release APK job restores the same key, read-only.
+  Portal-only plugins (foojay, ktlint) are resolved from
   the plugin portal only (`exclusiveContent` in `settings.gradle.kts`).
 - **License**: GPL-3.0-or-later (`LICENSE`, `license` in the workspace
   `Cargo.toml`, `package.json`, `tauri.conf.json`). Third-party licenses must

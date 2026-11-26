@@ -9,7 +9,7 @@ plugins {
 }
 
 // The app's version, written by scripts/release.sh (version.properties is
-// not one of the files setup-gradle's CI cache key is computed from, #23).
+// not one of the files the CI's Gradle cache key is computed from, #23).
 val appVersion: Properties =
     Properties().apply { file("version.properties").inputStream().use(::load) }
 

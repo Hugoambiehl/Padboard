@@ -215,11 +215,29 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      # "basic" = the MIT provider built on actions/cache (the default one is
-      # proprietary, see CLAUDE.md).
+      # Gradle's cache is ours (actions/cache), not setup-gradle's: its
+      # "basic" provider saved the cache even when the build failed, and a
+      # key is never saved twice, so a run that died on a repository left a
+      # 129 MB stub every later run restored (#22, #23). Here it is saved
+      # only after a successful build on main. The key covers the Gradle
+      # files only; the version is in app/version.properties (#23). Another
+      # key falls back to the latest entry. Same key in release.yml.
+      - name: Restore the Gradle cache
+        id: gradle-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('apps/android/**/*.gradle.kts', 'apps/android/gradle/libs.versions.toml', 'apps/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      # "basic" = the MIT provider (the default one is proprietary, see
+      # CLAUDE.md); its cache is off, the steps around it handle it.
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-provider: basic
+          cache-disabled: true
 
       # The runner image ships the Android SDK (ANDROID_HOME) with accepted
       # licenses; AGP downloads a missing platform if needed.
@@ -227,6 +245,16 @@ jobs:
       # plugin portal outages), never after a real failure (#22).
       - name: ktlint, unit tests, Android Lint, debug APK
         run: ../../scripts/gradle-retry.sh ./gradlew --stacktrace ktlintCheck testDebugUnitTest lintDebug assembleDebug
+
+      # Only a build that succeeded, only on main (branches read main's).
+      - name: Save the Gradle cache
+        if: success() && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
 
       - name: Upload reports on failure
         if: failure()
