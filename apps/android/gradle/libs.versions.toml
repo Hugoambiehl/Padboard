@@ -1,7 +1,7 @@
 [versions]
-agp = "9.5.1"
+agp = "9.5.3"
 kotlin = "2.2.21"
-composeBom = "2026.09.00"
+composeBom = "2026.11.01"
 # All libraries below support minSdk 24 (checked in their AAR manifests: 21–24).
 coreKtx = "1.19.1"
 lifecycle = "2.11.0"
