@@ -33,7 +33,7 @@ tracing.workspace = true
 typeshare.workspace = true
 base64 = "0.23.1"
 # Update signatures (minisign, the same as tauri-plugin-updater).
-minisign-verify = "0.2.5"
+minisign-verify = "0.3.0"
 semver = "1.0.28"
 # Release lookups and downloads (GitHub), with our rustls (ring).
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "system-proxy", "stream"] }
