@@ -227,6 +227,7 @@ for `apksigner`; the GitHub CLI (`gh`).
    | 0.2.1 | 1/70 | SecureAge | SHA-256 `ee3f724c9a7068ac9ae7ec5fc84143db877f4b84c4efa97d6e2c45cd3de554c3`; checked by `verify-release` with the API key (no `STOP`); Sophos no longer detects it; Bitdefender and Microsoft undetected; submitted before publishing to Bitdefender (false positive form) and, for the first time, to Microsoft (Security Intelligence portal) |
    | 0.2.2-rc.1 | 1/70 | SecureAge | SHA-256 `e3fb89c7913f2863eb142b829ac9c2f5f118ce710faccfc03db54b4779ab3d5b`; Platform-Tools 37.0.3 repinned (Google republished it); Bitdefender and Microsoft undetected |
    | 0.2.2 | 2/69 | SecureAge, CrowdStrike Falcon (`Win/grayware_confidence_60% (D)`) | SHA-256 `948803f3c40eb98ad4c21fb97cb58198995db7fca2b2685b83e8058f2ed38abe`; checked by `verify-release` with the API key (no `STOP`); Bitdefender and Microsoft undetected; not submitted to them (no systematic submission since 0.2.2) |
+   | 0.3.0-rc.1 | 2/68 | CrowdStrike Falcon (`Win/grayware_confidence_60% (D)`), SecureAge | SHA-256 `a6d03fb5d68ff7b37adc8c09f01366f01ffdfee5d9c058107ca275cc31388293`; checked by `verify-release` with the API key (no `STOP`); Bitdefender and Microsoft undetected; same engines as 0.2.2 |
 
    And on Windows, Bitdefender active with no exception for Padboard
    (`docs/windows-test-plan.md`, section 7): nothing detected during the
