@@ -265,7 +265,7 @@ jobs:
       # failure (#22).
       - name: Release APK
         run: |
-          ../../scripts/gradle-retry.sh ./gradlew assembleRelease
+          ../../scripts/gradle-retry.sh ./gradlew --stacktrace assembleRelease
           mv app/build/outputs/apk/release/app-release-unsigned.apk \
             "padboard-${{ needs.notices.outputs.version }}-unsigned.apk"
 
