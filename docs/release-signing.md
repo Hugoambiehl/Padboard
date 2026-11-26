@@ -22,10 +22,27 @@ Where things are (never in the repo):
 |---|---|
 | Keystore (PKCS12, RSA 4096, alias `padboard`, valid 30 years) | `~/.padboard-signing/padboard-release.p12` |
 | Properties read by Gradle (`storeFile`, `keyAlias`, `storePassword`) | `~/.padboard-signing/signing.properties` |
-| Pointer to the properties | `padboard.signing=…` in `~/.gradle/gradle.properties` (or `PADBOARD_SIGNING=<path>`) |
+| Pointer to the properties | `padboard.signing=…` in `~/.gradle/gradle.properties` (or `PADBOARD_SIGNING=<path>`); `scripts/sign-apk.sh` also falls back to `~/.padboard-signing/signing.properties` |
 
 Both files are owner-only (`chmod 600`, folder `700`). Without the pointer,
 `assembleRelease` builds an unsigned APK.
+
+`scripts/sign-apk.sh` (run by `sign-release.sh`) looks for the properties
+in that order: `PADBOARD_SIGNING`, `padboard.signing`, then
+`~/.padboard-signing/signing.properties`, and prints which one it used.
+Gradle does not take the default: a local `assembleRelease` signs with the
+release key only when told to. If a tool rewrites `gradle.properties` (it
+happened on 2026-11-26: the `padboard.signing` line was gone), signing a
+release still works; local release builds come out unsigned until the line
+is back:
+
+```sh
+echo "padboard.signing=$HOME/.padboard-signing/signing.properties" >> ~/.gradle/gradle.properties
+```
+
+When nothing is found, the error names the path it tried and the command
+to run:
+`PADBOARD_SIGNING="$HOME/.padboard-signing/signing.properties" scripts/sign-release.sh X`.
 
 Certificate SHA-256 (to check a backup or an APK with
 `apksigner verify --print-certs`):

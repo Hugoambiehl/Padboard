@@ -58,7 +58,12 @@ for `apksigner`; the GitHub CLI (`gh`).
    updater, writes `latest.json`, writes and signs `SHA256SUMS` again,
    checks the result with the app's own code (example `verify-release`),
    then uploads it and removes the unsigned APK. It asks for the update
-   key's password once. If Authenticode signing is added to the workflow
+   key's password once. The APK key's properties are found through
+   `PADBOARD_SIGNING`, else `padboard.signing` in
+   `~/.gradle/gradle.properties`, else
+   `~/.padboard-signing/signing.properties` (the script prints which one;
+   0.2.2-rc.1 failed when `gradle.properties` had lost its line, before
+   that default existed). If Authenticode signing is added to the workflow
    one day (SignPath declined the first request; it can be asked again
    later), nothing changes here: the installer is final before the draft
    exists, and the script refuses one without its Authenticode signature
@@ -212,6 +217,7 @@ for `apksigner`; the GitHub CLI (`gh`).
    | 0.2.1-rc.1 | 3/71 | SecureAge, DeepInstinct (`MALICIOUS`), Sophos (`Generic ML PUA (PUA)`) | SHA-256 `3feac4ac2883fdb87ab80c9a0f40c5863440ce041980c19b40a359ae39dc77aa`; first release with the directory page skip and the French strings (#10, #12); DeepInstinct back, Sophos new (machine learning, PUA); Bitdefender and Microsoft undetected; Sophos: false positive confirmed the same day (case 03641915, ZIP to `samples@sophos.com`) |
    | 0.2.1-rc.2 | 2/71 | SecureAge (APEX), Sophos (`Generic ML PUA (PUA)`) | SHA-256 `fbe2712a6f3aa161e8676ae19d696a5088958e8c8ab6349c355325473484b0f3`; checked by `verify-release` with the API key (no `STOP`); DeepInstinct gone; Sophos detects it again, as expected (its rc.1 fix covered that hash only); Bitdefender and Microsoft undetected |
    | 0.2.1 | 1/70 | SecureAge | SHA-256 `ee3f724c9a7068ac9ae7ec5fc84143db877f4b84c4efa97d6e2c45cd3de554c3`; checked by `verify-release` with the API key (no `STOP`); Sophos no longer detects it; Bitdefender and Microsoft undetected; submitted before publishing to Bitdefender (false positive form) and, for the first time, to Microsoft (Security Intelligence portal) |
+   | 0.2.2-rc.1 | 1/70 | SecureAge | SHA-256 `e3fb89c7913f2863eb142b829ac9c2f5f118ce710faccfc03db54b4779ab3d5b`; Platform-Tools 37.0.3 repinned (Google republished it); Bitdefender and Microsoft undetected |
 
    And on Windows, Bitdefender active with no exception for Padboard
    (`docs/windows-test-plan.md`, section 7): nothing detected during the

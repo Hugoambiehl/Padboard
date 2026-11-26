@@ -4,10 +4,10 @@
 #
 #   scripts/sign-apk.sh padboard-0.1.0-unsigned.apk      -> padboard-0.1.0.apk
 #
-# The key is found like Gradle does (docs/release-signing.md): the
-# `padboard.signing` property of ~/.gradle/gradle.properties, or
-# PADBOARD_SIGNING, names a properties file with storeFile, keyAlias,
-# storePassword (and optionally keyPassword). Passwords go to apksigner
+# The key (docs/release-signing.md): PADBOARD_SIGNING, else the `padboard.signing` property of
+# ~/.gradle/gradle.properties, else ~/.padboard-signing/signing.properties,
+# names a properties file with storeFile, keyAlias, storePassword (and
+# optionally keyPassword). Passwords go to apksigner
 # through environment variables, never on the command line.
 # Needs the Android SDK build-tools (ANDROID_HOME, or ~/Android/Sdk).
 set -euo pipefail
@@ -21,12 +21,30 @@ signed="${unsigned%-unsigned.apk}.apk"
 
 # A property's value, empty when absent (keyPassword is optional).
 prop() { { grep -E "^$1=" "$2" || true; } | tail -n1 | cut -d= -f2-; }
+default_signing="$HOME/.padboard-signing/signing.properties"
 signing="${PADBOARD_SIGNING:-}"
+from="PADBOARD_SIGNING"
 if [[ -z "$signing" && -f "$HOME/.gradle/gradle.properties" ]]; then
   signing="$(prop padboard.signing "$HOME/.gradle/gradle.properties")"
+  from="padboard.signing in ~/.gradle/gradle.properties"
+fi
+# The documented place: found even when gradle.properties lost its line
+# (rewritten on 2026-11-26, the 0.2.2-rc.1 signing failed).
+if [[ -z "$signing" ]]; then
+  signing="$default_signing"
+  from="the default location"
 fi
 signing="${signing/#\~/$HOME}"
-[[ -f "$signing" ]] || { echo "error: signing properties not found (padboard.signing / PADBOARD_SIGNING)" >&2; exit 1; }
+if [[ ! -f "$signing" ]]; then
+  {
+    echo "error: signing properties not found: $signing (from $from)"
+    echo "Point to them with, for example:"
+    echo "  PADBOARD_SIGNING=\"\$HOME/.padboard-signing/signing.properties\" scripts/sign-release.sh <version>"
+    echo "(docs/release-signing.md, \"Tablet APK key\")"
+  } >&2
+  exit 1
+fi
+echo "Signing properties: $signing (from $from)"
 
 store="$(prop storeFile "$signing")"
 store="${store/#\~/$HOME}"
