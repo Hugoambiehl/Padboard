@@ -199,7 +199,7 @@ fn get_autostart(backend: tauri::State<'_, Backend>) -> Result<bool, String> {
 fn set_autostart(backend: tauri::State<'_, Backend>, enabled: bool) -> Result<(), String> {
     tracing::info!(enabled, "start with the session");
     backend.autostart.set(enabled)?;
-    // Remembered, so an entry removed by another program is written again.
+    // Remembered, so an entry removed outside Padboard is written again.
     let mut preferences = backend
         .preferences
         .lock()

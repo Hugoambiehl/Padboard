@@ -574,7 +574,7 @@ Quit Padboard (tray → *Quitter Padboard*) before each registry change.
 | Check | Do | Expect |
 |---|---|---|
 | Choice recorded | First launch of rc.4 (10.1) | `padboard.log`: *start with the session: choice recorded from the entry* `on=true` (once; later launches: *entry refreshed*) |
-| Written again | `Remove-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name Padboard`, start Padboard | `padboard.log`: *the entry had disappeared (removed by another program), written again*; the value is back: `"…\padboard-desktop.exe" --hidden`; *Démarrage* on |
+| Written again | `Remove-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name Padboard`, start Padboard | `padboard.log`: *the entry was missing (removed outside Padboard: uninstaller, security software, Task Manager…), written again* (up to 0.2.x: *the entry had disappeared (removed by another program)*); the value is back: `"…\padboard-desktop.exe" --hidden`; *Démarrage* on |
 | Task Manager respected | *Task Manager* → *Startup apps* → Padboard **Disabled**; quit; remove the `Run` value again; start Padboard | The value is written again (log as above), but Padboard **stays Disabled** in the Task Manager; restart the PC: Padboard does not start. Then set it back to **Enabled** |
 | Turned off | *Démarrage* off, quit, start Padboard | No `Run` value, nothing written again |
 | Restart | *Démarrage* on, restart the PC | Padboard starts hidden in the tray |

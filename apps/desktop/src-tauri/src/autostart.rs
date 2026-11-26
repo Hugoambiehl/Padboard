@@ -40,7 +40,8 @@ pub enum Autostart {
 pub enum AtLaunch {
     /// No choice recorded (saved by an older version): the entry tells.
     Record(bool),
-    /// Chosen, but the entry is gone: write it again.
+    /// Chosen, but the entry is gone (removed outside Padboard: we cannot
+    /// know by whom): write it again.
     Restore,
     /// Chosen and there: rewrite it (the program may have moved).
     Refresh,
@@ -170,11 +171,11 @@ impl Autostart {
             AtLaunch::Restore => {
                 match self.rewrite() {
                     Ok(()) => tracing::warn!(
-                        "start with the session: the entry had disappeared \
-                         (removed by another program), written again"
+                        "start with the session: the entry was missing (removed outside \
+                         Padboard: uninstaller, security software, Task Manager…), written again"
                     ),
                     Err(e) => tracing::error!(
-                        "start with the session: the entry had disappeared and cannot be written again: {e}"
+                        "start with the session: the entry was missing and cannot be written again: {e}"
                     ),
                 }
                 None
@@ -300,7 +301,7 @@ mod tests {
         assert_eq!(at_launch(None, true, true), AtLaunch::Record(true));
         assert_eq!(at_launch(None, false, true), AtLaunch::Record(false));
         assert_eq!(at_launch(Some(true), true, true), AtLaunch::Refresh);
-        // Removed by another program (Windows): written again.
+        // Removed outside Padboard (Windows): written again.
         assert_eq!(at_launch(Some(true), false, true), AtLaunch::Restore);
         // Removed by the user (Linux): the choice follows.
         assert_eq!(at_launch(Some(true), false, false), AtLaunch::Forget);
