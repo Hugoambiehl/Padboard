@@ -3,6 +3,14 @@
 Notable changes of Padboard, generated from the commit history with
 [git-cliff](https://git-cliff.org). Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.2-rc.1 (2026-11-26)
+
+### Fixes
+
+- **desktop**: Explain refused Platform-Tools downloads
+- **desktop**: Pin the republished Platform-Tools 37.0.3 archive
+- **deps**: Update cookie and url for RUSTSEC-2026-0594 and RUSTSEC-2026-0592
+
 ## 0.2.1 (2026-11-19)
 
 ### Features
