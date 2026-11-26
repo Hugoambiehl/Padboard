@@ -3,6 +3,16 @@
 Notable changes of Padboard, generated from the commit history with
 [git-cliff](https://git-cliff.org). Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.4.0-rc.1 (2026-11-26)
+
+### Features
+
+- **desktop**: Accept a republished Platform-Tools archive from Google's index
+
+### Fixes
+
+- **android**: Stay in front after leaving kiosk mode on Android 7
+
 ## 0.3.0 (2026-11-26)
 
 ### Features
