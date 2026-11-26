@@ -307,10 +307,22 @@ fn shell_args(serial: &str, command: &str) -> Vec<String> {
     args
 }
 
-/// Reads the device owner with `dpm list-owners`.
+/// Reads the device owner with `dpm list-owners`. Android 7.0 has no such
+/// command (it prints its usage and "Error: unknown command 'list-owners'",
+/// and adb still reports a success): the owner is then read from
+/// `dumpsys device_policy`.
 pub async fn kiosk_state<R: Runner>(runner: &R, adb: &Path, serial: &str) -> KioskState {
-    match runner.run(adb, shell_args(serial, "dpm list-owners")).await {
-        Ok(out) => parse_owners(&out),
+    let out = match runner.run(adb, shell_args(serial, "dpm list-owners")).await {
+        Ok(out) if !out.contains("unknown command") => return parse_owners(&out),
+        Ok(_) => {
+            runner
+                .run(adb, shell_args(serial, "dumpsys device_policy"))
+                .await
+        }
+        Err(e) => Err(e),
+    };
+    match out {
+        Ok(out) => parse_device_policy(&out),
         Err(e) => {
             tracing::info!(serial, error = %e, "cannot read the device owner");
             KioskState::Unknown
@@ -332,6 +344,29 @@ fn parse_owners(out: &str) -> KioskState {
         None => KioskState::Off,
         Some(package) if package == PACKAGE => KioskState::On,
         Some(owner) => KioskState::OtherOwner { owner },
+    }
+}
+
+/// `dumpsys device_policy` (Android 7.0: no `dpm list-owners`) → the device
+/// owner, from its `Device Owner:` section (`package=<package>`). No section:
+/// no owner. A section without a package: unknown, never guessed.
+fn parse_device_policy(out: &str) -> KioskState {
+    let mut lines = out
+        .lines()
+        .skip_while(|line| !line.trim_start().starts_with("Device Owner:"));
+    if lines.next().is_none() {
+        return KioskState::Off;
+    }
+    let package = lines
+        .take_while(|line| !line.trim().is_empty())
+        .find_map(|line| line.trim().strip_prefix("package="))
+        .map(str::trim);
+    match package {
+        None | Some("") => KioskState::Unknown,
+        Some(package) if package == PACKAGE => KioskState::On,
+        Some(owner) => KioskState::OtherOwner {
+            owner: owner.to_owned(),
+        },
     }
 }
 
@@ -1018,6 +1053,33 @@ java.lang.IllegalStateException: Trying to set the device owner, but device owne
 \tat com.android.server.devicepolicy.DevicePolicyManagerService.enforceCanSetDeviceOwnerLocked(DevicePolicyManagerService.java:9520)
 \tat android.os.Binder.execTransact(Binder.java:1143)";
 
+    /// What `dpm list-owners` prints on Android 7.0 (API 24 emulator).
+    const DPM_USAGE_7: &str = "usage: dpm [subcommand] [options]
+usage: dpm set-device-owner [ --user <USER_ID> | current *EXPERIMENTAL* ] [ --name <NAME> ] <COMPONENT>
+
+dpm set-device-owner: Sets the given component as active admin, and its package as device owner.
+
+Error: unknown command 'list-owners'
+";
+
+    /// `dumpsys device_policy` on Android 7.0 without a device owner (excerpt).
+    const DEVICE_POLICY_7: &str = "Current Device Policy Manager state:
+
+  Enabled Device Admins (User 0, provisioningState: 0):
+";
+
+    /// `dumpsys device_policy` on Android 7.0 with `component` as the
+    /// device owner (as seen on the API 24 emulator).
+    fn device_policy_7(component: &str) -> String {
+        let (package, class) = component.split_once('/').unwrap();
+        let class = class
+            .strip_prefix('.')
+            .map_or_else(|| class.to_owned(), |c| format!("{package}.{c}"));
+        format!(
+            "Current Device Policy Manager state:\n  Device Owner: \n    admin=ComponentInfo{{{package}/{class}}}\n    name=\n    package={package}\n    User ID: 0\n\n  Enabled Device Admins (User 0, provisioningState: 3):\n    {package}/{class}:\n      uid=10079\n"
+        )
+    }
+
     fn owners_output(component: &str) -> String {
         format!("1 owner:\nUser  0: admin={component},DeviceOwner,Affiliated\n")
     }
@@ -1035,6 +1097,9 @@ java.lang.IllegalStateException: Trying to set the device owner, but device owne
         /// `list-owners` calls answered "no owners" whatever the truth
         /// (the owner was set in the meantime).
         stale_lists: Arc<Mutex<u32>>,
+        /// Serials on Android 7.0: no `dpm list-owners`, the owner is in
+        /// `dumpsys device_policy`.
+        android_7: Arc<Mutex<Vec<String>>>,
         /// The installed Padboard's `versionCode`.
         version_code: Arc<Mutex<u32>>,
         /// What `adb install` prints.
@@ -1076,6 +1141,14 @@ java.lang.IllegalStateException: Trying to set the device owner, but device owne
                         }
                     }
                     ["reverse", _, _] => Ok(String::new()),
+                    ["shell", "dpm", "list-owners"]
+                        if self.android_7.lock().unwrap().contains(serial) =>
+                    {
+                        Ok(DPM_USAGE_7.into())
+                    }
+                    ["shell", "dumpsys", "device_policy"] => Ok(self
+                        .owner(serial)
+                        .map_or_else(|| DEVICE_POLICY_7.into(), |c| device_policy_7(&c))),
                     ["shell", "dpm", "list-owners"] => {
                         let mut stale = self.stale_lists.lock().unwrap();
                         if *stale > 0 {
@@ -1222,6 +1295,43 @@ java.lang.IllegalStateException: Trying to set the device owner, but device owne
             parse_owners("1 owner:\nUser 10: admin=com.example.work/.Admin,ProfileOwner\n"),
             KioskState::Off
         );
+    }
+
+    #[test]
+    fn reads_the_device_owner_on_android_7() {
+        assert_eq!(parse_device_policy(DEVICE_POLICY_7), KioskState::Off);
+        assert_eq!(parse_device_policy(&device_policy_7(OWNER)), KioskState::On);
+        assert_eq!(
+            parse_device_policy(&device_policy_7("com.example.mdm/.Admin")),
+            KioskState::OtherOwner {
+                owner: "com.example.mdm".into()
+            }
+        );
+        // A section without its package is not guessed.
+        assert_eq!(
+            parse_device_policy("  Device Owner: \n    name=\n\n"),
+            KioskState::Unknown
+        );
+    }
+
+    #[tokio::test]
+    async fn kiosk_mode_on_android_7() {
+        let runner = FakeRunner::default();
+        runner.android_7.lock().unwrap().push("TABLET".into());
+        assert_eq!(
+            kiosk_state(&runner, Path::new("adb"), "TABLET").await,
+            KioskState::Off,
+            "no owner yet, although list-owners is missing"
+        );
+        enable_kiosk(&runner, Path::new("adb"), "TABLET")
+            .await
+            .unwrap();
+        assert_eq!(runner.calls_matching("set-device-owner"), 1);
+        assert_eq!(
+            kiosk_state(&runner, Path::new("adb"), "TABLET").await,
+            KioskState::On
+        );
+        assert_eq!(runner.calls_matching("dumpsys device_policy"), 3);
     }
 
     #[test]
