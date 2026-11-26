@@ -179,6 +179,42 @@ are not touched; see the script for the API 37 image's quirks):
 scripts/tablet-ui-tests.sh
 ```
 
+Two more androidTests are skipped unless given their arguments, since they
+need a PC or change the device. They were run on an Android 7.0 (API 24)
+emulator for #21.
+
+- `PinnedTlsTest`: a real TLS handshake with a Padboard desktop, pinned
+  like the app does: accepted with the PC's key, refused with another
+  one. Start the desktop in test mode with Wi-Fi on
+  (`PADBOARD_TEST_DIR=… PADBOARD_TEST_SYSTEM=1 PADBOARD_BIND=lan`), then,
+  from an emulator (`10.0.2.2` is the host):
+
+  ```sh
+  adb shell am instrument -w -e class io.github.hugoambiehl.padboard.connection.PinnedTlsTest \
+    -e padboardHost 10.0.2.2 -e padboardPort 47322 \
+    io.github.hugoambiehl.padboard.test/androidx.test.runner.AndroidJUnitRunner
+  adb logcat -d -s PinnedTlsTest:I   # the TLS version and cipher suite
+  ```
+
+- `SilentUpdateTest`: the silent update of a kiosk tablet (device owner,
+  `AndroidUpdater`). The app must be the device owner
+  (`adb shell dpm set-device-owner io.github.hugoambiehl.padboard/.kiosk.KioskAdmin`
+  on a throwaway emulator), with a newer build of it in its cache folder:
+
+  ```sh
+  ./gradlew assembleDebug -Ppadboard.testVersionCode=30001   # then copy the APK aside
+  adb push update.apk /data/local/tmp/
+  adb shell "cat /data/local/tmp/update.apk | run-as io.github.hugoambiehl.padboard sh -c 'cat > cache/update-test.apk'"
+  adb shell am instrument -w -e class io.github.hugoambiehl.padboard.update.SilentUpdateTest \
+    -e padboardUpdateApk update-test.apk \
+    io.github.hugoambiehl.padboard.test/androidx.test.runner.AndroidJUnitRunner
+  ```
+
+  When the update succeeds, Android replaces the app and ends the test's
+  process, so the instrumentation reports "Process crashed". Check the
+  result afterwards: `dumpsys package` shows the new versionCode, and the
+  app is back in front, still locked (`mLockTaskModeState=LOCKED`).
+
 Measure the tablet's performance on **release** builds only
 (`dumpsys gfxinfo <package> framestats`): debug builds are several times
 slower.
