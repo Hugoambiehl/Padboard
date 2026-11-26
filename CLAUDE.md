@@ -27,7 +27,7 @@ an exception.
 ## Targets
 
 - **Desktop**: Windows 10/11 (main target), Linux (dev + local tests, with real
-  Linux implementations of actions, not stubs). Dev machine: Ubuntu 24.04, GNOME
+  Linux implementations of actions, not stubs). Dev machine: Ubuntu 26.04, GNOME
   **Wayland**. Windows installers are built by GitHub Actions on a Windows runner.
 - **Tablet**: Samsung Galaxy Tab A 10.1 (SM-T580), 2 GB RAM, 1920×1200
   (≈ 1280×800 dp), landscape. LineageOS 19.1 = Android 12L (API 32), **no Play

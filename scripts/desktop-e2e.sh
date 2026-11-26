@@ -20,7 +20,8 @@
 #   PADBOARD_E2E_NATIVE_DRIVER    path of WebKitWebDriver if not in PATH
 #   PADBOARD_E2E_KEEP=1           keep the test directories (printed paths)
 #
-# Requirements (once): `sudo apt install webkit2gtk-driver` and
+# Requirements (once): `sudo apt install webkitgtk-webdriver` (Ubuntu 24.04:
+# webkit2gtk-driver) and
 # `cargo install tauri-driver --locked`.
 set -euo pipefail
 
@@ -43,7 +44,7 @@ if ! command -v tauri-driver > /dev/null; then
   missing=1
 fi
 if [[ -z "${PADBOARD_E2E_NATIVE_DRIVER:-}" ]] && ! command -v WebKitWebDriver > /dev/null; then
-  echo "desktop-e2e: WebKitWebDriver is missing: sudo apt install webkit2gtk-driver" >&2
+  echo "desktop-e2e: WebKitWebDriver is missing: sudo apt install webkitgtk-webdriver (Ubuntu 24.04: webkit2gtk-driver)" >&2
   missing=1
 fi
 runner=()

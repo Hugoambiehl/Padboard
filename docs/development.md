@@ -126,7 +126,7 @@ cargo run -p padboard-actions --example fake-player   # an MPRIS player for medi
 in test mode and runs `apps/desktop/e2e/*.e2e.ts`. They are **not run in CI**.
 
 ```sh
-sudo apt install webkit2gtk-driver xvfb    # once (xvfb: optional)
+sudo apt install webkitgtk-webdriver xvfb  # once (xvfb: optional; Ubuntu 24.04: webkit2gtk-driver)
 cargo install tauri-driver --locked        # once
 scripts/desktop-e2e.sh                     # build (frontend embedded), then every test
 scripts/desktop-e2e.sh --no-build profiles # reuse the build, only matching files
