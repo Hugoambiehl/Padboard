@@ -200,6 +200,9 @@ class ConnectionManagerTest {
         pc.usbAvailable = true
         manager.start(DEVICE_ID)
         connected(Transport.Usb)
+        // Connected comes before the layout: wait for it, or "the grid stays"
+        // below checks a grid that never arrived.
+        await(manager.layout, "layout") { it != null }
         pc.usbAvailable = false
         pc.dropUsb()
         val searching = await(manager.state, "searching over USB") { it is LinkState.Searching } as LinkState.Searching
