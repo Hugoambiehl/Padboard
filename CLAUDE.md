@@ -487,8 +487,9 @@ SM-T580, always measure in release builds.
   runs `release.yml`: NSIS installer (unsigned: SignPath Foundation declined
   the request for now, may be asked again later; SmartScreen warning
   expected; VirusTotal checked before publishing, also by `verify-release`
-  with `VIRUSTOTAL_API_KEY`; releases only reported to Bitdefender and
-  Microsoft, other engines only after 2 weeks), .deb
+  with `VIRUSTOTAL_API_KEY`; reported to Bitdefender or Microsoft only
+  when one detects it (`STOP:`) or a user reports a block, no longer
+  systematically since 0.2.2; other engines only after 2 weeks), .deb
   (built on Ubuntu 22.04; an rc's package version gets a tilde,
   `0.2.1~rc.1`, by `scripts/deb-version.py`, so Debian sorts it before
   the release; file name unchanged), unsigned APK, draft release (pre-release for rc)

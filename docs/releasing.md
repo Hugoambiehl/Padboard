@@ -79,8 +79,12 @@ for `apksigner`; the GitHub CLI (`gh`).
 
    | | VirusTotal check | False positive reports |
    |---|---|---|
-   | Release candidate | Before publishing | None |
-   | Release | Before publishing | Bitdefender and Microsoft, detected or not; another engine only if its verdict still holds 2 weeks after publishing |
+   | Release candidate | Before publishing | Bitdefender or Microsoft only if it detects the installer (`STOP:`) or a user reports it blocked |
+   | Release | Before publishing | The same; another engine only if its verdict still holds 2 weeks after publishing |
+
+   No systematic submission since 0.2.2 (decided on 2026-11-26): up to
+   0.2.1 every release was sent to Bitdefender and Microsoft before
+   publishing, detected or not.
 
    **VirusTotal**, every release and release candidate, before publishing:
 
@@ -123,13 +127,16 @@ for `apksigner`; the GitHub CLI (`gh`).
    whether a verdict is generic stays your call. Informative only (exit status unchanged): in
    `sign-release.sh` it says the installer is not on VirusTotal yet.
 
-   **Release (not a release candidate): false positive reports**, after
-   the VirusTotal check, detected or not:
+   **False positive reports to Bitdefender and Microsoft**, only when one
+   of them detects the installer (Bitdefender or Microsoft on VirusTotal,
+   a `STOP:` line of `verify-release`, step 4) or when a user reports
+   Padboard blocked or quarantined by one of them:
 
    - **Bitdefender**: [bitdefender.com/submit](https://www.bitdefender.com/submit),
      category *False Positive* (detection name if any, e.g.
-     `Atc4.Detection`). Even when VirusTotal shows it clean: Bitdefender
-     detects it only by behaviour (ATC), which VirusTotal does not run.
+     `Atc4.Detection`). VirusTotal does not run Bitdefender's behaviour
+     detection (ATC): such a detection only shows up through a user (or
+     the Windows test plan), and is handled as below.
      **A false positive submission only covers the static detection**
      (Bitdefender's lab answered for 0.2.0-rc.4: static analysis clean).
      For a behaviour detection (ATC), go through **Bitdefender support**
@@ -142,8 +149,8 @@ for `apksigner`; the GitHub CLI (`gh`).
      fix (their answer for the same case): it targets the behaviour that
      triggered the false positive, so later versions may pass, but
      nothing is guaranteed while Padboard is unsigned. They advise
-     submitting every stable installer before publishing, which this step
-     already does.
+     submitting every stable installer before publishing: done up to
+     0.2.1, no longer systematic since 0.2.2 (only on a detection).
    - **Microsoft**: [Microsoft Security Intelligence](https://www.microsoft.com/en-us/wdsi/filesubmission)
      (sign in with a **personal Microsoft account**: a school or work
      account asks for an administrator's approval), as *Software
@@ -156,9 +163,9 @@ for `apksigner`; the GitHub CLI (`gh`).
 
      ```text
      Padboard X, installer of an open source (GPL-3.0) desktop app by
-     its author. Not detected by Microsoft Defender at the time of
-     submission (VirusTotal: <link>); submitted so the new release is
-     known before users download it. The installer is an unsigned NSIS
+     its author. Detected by Microsoft Defender as <detection name>
+     (definition version <version>; VirusTotal: <link>), a false
+     positive. The installer is an unsigned NSIS
      installer built by GitHub Actions from the public repository
      https://github.com/Hugoambiehl/Padboard (tag vX), SHA-256 <hash>,
      listed in the release's signed SHA256SUMS:
@@ -170,8 +177,9 @@ for `apksigner`; the GitHub CLI (`gh`).
      no telemetry; it only reaches GitHub to check for updates.
      ```
 
-     If Defender detects it, replace the second sentence with the
-     detection name and definition version.
+     For a block reported by a user without a detection on VirusTotal,
+     replace the second sentence with what the user saw (detection name,
+     definition version) and the date.
 
    - **Other engines** (SecureAge, CrowdStrike Falcon, DeepInstinct,
      Sophos…): only if a generic verdict still holds more than 2 weeks
@@ -218,6 +226,7 @@ for `apksigner`; the GitHub CLI (`gh`).
    | 0.2.1-rc.2 | 2/71 | SecureAge (APEX), Sophos (`Generic ML PUA (PUA)`) | SHA-256 `fbe2712a6f3aa161e8676ae19d696a5088958e8c8ab6349c355325473484b0f3`; checked by `verify-release` with the API key (no `STOP`); DeepInstinct gone; Sophos detects it again, as expected (its rc.1 fix covered that hash only); Bitdefender and Microsoft undetected |
    | 0.2.1 | 1/70 | SecureAge | SHA-256 `ee3f724c9a7068ac9ae7ec5fc84143db877f4b84c4efa97d6e2c45cd3de554c3`; checked by `verify-release` with the API key (no `STOP`); Sophos no longer detects it; Bitdefender and Microsoft undetected; submitted before publishing to Bitdefender (false positive form) and, for the first time, to Microsoft (Security Intelligence portal) |
    | 0.2.2-rc.1 | 1/70 | SecureAge | SHA-256 `e3fb89c7913f2863eb142b829ac9c2f5f118ce710faccfc03db54b4779ab3d5b`; Platform-Tools 37.0.3 repinned (Google republished it); Bitdefender and Microsoft undetected |
+   | 0.2.2 | 2/69 | SecureAge, CrowdStrike Falcon (`Win/grayware_confidence_60% (D)`) | SHA-256 `948803f3c40eb98ad4c21fb97cb58198995db7fca2b2685b83e8058f2ed38abe`; checked by `verify-release` with the API key (no `STOP`); Bitdefender and Microsoft undetected; not submitted to them (no systematic submission since 0.2.2) |
 
    And on Windows, Bitdefender active with no exception for Padboard
    (`docs/windows-test-plan.md`, section 7): nothing detected during the
@@ -274,11 +283,11 @@ After `scripts/sign-release.sh`, before publishing:
       release, e.g. the kiosk exit corner and Android's system gestures).
 - [ ] VirusTotal (step 4: Bitdefender and Microsoft undetected, only
       generic heuristic or machine learning verdicts, at most 3), noted in
-      the table. Release candidates: nothing to report.
-- [ ] Releases only, while the installer is unsigned: **the installer
-      submitted to Bitdefender and to Microsoft** (step 4), detected or
-      not; a behaviour (ATC) detection goes to Bitdefender support with a
-      BDSYS log.
+      the table.
+- [ ] Bitdefender or Microsoft detects the installer (`STOP:`), or a
+      user reports it blocked: **report it to that one** (step 4, texts
+      and links), a behaviour (ATC) detection to Bitdefender support with
+      a BDSYS log. Otherwise nothing to submit.
 - [ ] Releases only, 2 weeks after publishing: VirusTotal *Reanalyze*;
       a generic verdict still there is reported to its maker (step 4).
 - [ ] For a release candidate that follows another: the real update from
