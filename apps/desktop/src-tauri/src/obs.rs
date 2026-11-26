@@ -22,6 +22,8 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio_tungstenite::tungstenite::Message as WsMessage;
+use tokio_tungstenite::tungstenite::protocol::CloseFrame;
+use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 
 use crate::appearance::{Observed, SystemState};
 use crate::storage::Document;
@@ -41,6 +43,8 @@ const STARTUP_SETTLE: Duration = Duration::from_millis(500);
 /// obs-websocket's `NotReady` request status.
 const NOT_READY: u64 = 207;
 const TIMEOUT: Duration = Duration::from_secs(3);
+/// How long a closing connection waits for OBS's own close frame.
+const CLOSE_TIMEOUT: Duration = Duration::from_secs(1);
 /// Config (scene collection changes), scenes, inputs and outputs events.
 const EVENT_SUBSCRIPTIONS: u32 = 2 | 4 | 8 | 64;
 /// What the state starts from; asked again when the scene collection
@@ -384,6 +388,24 @@ async fn recv_json(ws: &mut Ws) -> Result<Value, ObsError> {
     }
 }
 
+/// Closes the connection as OBS expects: a close frame with 1000 (normal
+/// closure), then OBS's own close frame read before the socket is dropped
+/// (at most [`CLOSE_TIMEOUT`]). Dropping it right after sending the close
+/// made OBS log 1006, "End of File", for every check connection (#15).
+async fn close(mut ws: Ws) {
+    let frame = CloseFrame {
+        code: CloseCode::Normal,
+        reason: "".into(),
+    };
+    if ws.close(Some(frame)).await.is_err() {
+        return;
+    }
+    let _ = tokio::time::timeout(CLOSE_TIMEOUT, async {
+        while let Some(Ok(_)) = ws.next().await {}
+    })
+    .await;
+}
+
 async fn send_json(ws: &mut Ws, value: &Value) -> Result<(), ObsError> {
     ws.send(WsMessage::text(value.to_string()))
         .await
@@ -495,7 +517,7 @@ async fn session(
     let version = handshake(&mut ws, settings, subscriptions).await?;
     let ready = obs_ready(&mut ws).await?;
     if !ready || starting {
-        let _ = ws.close(None).await;
+        close(ws).await;
         return Ok(if ready {
             Outcome::Starting
         } else {
@@ -615,7 +637,7 @@ async fn session(
                 pending.insert(id, reply);
             }
             changed = settings_rx.changed() => {
-                let _ = ws.close(None).await;
+                close(ws).await;
                 return if changed.is_ok() { Ok(Outcome::SettingsChanged) } else { Err(ObsError::NotConnected) };
             }
         }
@@ -979,6 +1001,8 @@ mod tests {
         subscriptions: u64,
         requests: Vec<String>,
         at: Option<std::time::Instant>,
+        /// The close code the client sent, if it closed the connection.
+        closed_with: Option<u16>,
     }
 
     /// A scripted obs-websocket: the first connection is answered 207, the
@@ -1012,6 +1036,10 @@ mod tests {
                 .await
                 .unwrap();
                 while let Some(Ok(frame)) = ws.next().await {
+                    if let WsMessage::Close(close) = &frame {
+                        visits.lock().unwrap()[index].closed_with =
+                            Some(close.as_ref().map_or(1005, |f| u16::from(f.code)));
+                    }
                     let WsMessage::Text(text) = frame else {
                         continue;
                     };
@@ -1108,6 +1136,9 @@ mod tests {
         // Loaded: checked once, subscribed to nothing, then left alone.
         assert_eq!(visits[1].subscriptions, 0);
         assert_eq!(visits[1].requests, ["GetVersion"]);
+        // Both checks closed normally, not dropped (#15).
+        assert_eq!(visits[0].closed_with, Some(1000), "{visits:?}");
+        assert_eq!(visits[1].closed_with, Some(1000), "{visits:?}");
         // The real session, STARTUP_SETTLE later: the mutes in one batch.
         assert!(visits[2].at.unwrap() - visits[1].at.unwrap() >= STARTUP_SETTLE);
         assert_eq!(visits[2].subscriptions, u64::from(EVENT_SUBSCRIPTIONS));
