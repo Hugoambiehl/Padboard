@@ -465,6 +465,13 @@ SM-T580, always measure in release builds.
   (MIT) — its default provider is proprietary. Bump `TYPESHARE_VERSION` in the
   workflow together with `scripts/gen-types.sh`. A CI change is validated on a
   branch (no Windows job) before reaching `main`.
+  Gradle steps (CI and release APK) go through `scripts/gradle-retry.sh`:
+  run again, up to 3 times, only when a repository did not answer (Maven
+  Central rate-limits GitHub's runners with 429s; #22). The release APK job
+  restores main's Gradle cache by key prefix (`actions/cache/restore`):
+  setup-gradle's basic cache only matches exactly, and a tag's versionCode
+  changes the key. Portal-only plugins (foojay, ktlint) are resolved from
+  the plugin portal only (`exclusiveContent` in `settings.gradle.kts`).
 - **License**: GPL-3.0-or-later (`LICENSE`, `license` in the workspace
   `Cargo.toml`, `package.json`, `tauri.conf.json`). Third-party licenses must
   be GPL-compatible and are enforced at build time: Rust by cargo-deny

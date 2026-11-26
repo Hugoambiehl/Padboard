@@ -223,8 +223,10 @@ jobs:
 
       # The runner image ships the Android SDK (ANDROID_HOME) with accepted
       # licenses; AGP downloads a missing platform if needed.
+      # Run again when a repository did not answer (Maven Central's 429s,
+      # plugin portal outages), never after a real failure (#22).
       - name: ktlint, unit tests, Android Lint, debug APK
-        run: ./gradlew ktlintCheck testDebugUnitTest lintDebug assembleDebug
+        run: ../../scripts/gradle-retry.sh ./gradlew ktlintCheck testDebugUnitTest lintDebug assembleDebug
 
       - name: Upload reports on failure
         if: failure()
