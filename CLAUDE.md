@@ -15,6 +15,13 @@ version + SHA-256 pinned in the code and every `.exe`/`.dll` checked for a
 valid "Google LLC" Authenticode signature; listed in the app's
 "Licences" dialog as downloaded on request. No other exception.
 
+**One install only (durable rule, decided by Hugo).** The user installs
+Padboard and nothing else. Every feature or integration must work without
+any other software installed beside it: the components it needs are built
+into Padboard, or downloaded and installed by Padboard itself on demand
+(like "Installer adb"), always free and open source, unless Hugo decides
+an exception.
+
 ## Targets
 
 - **Desktop**: Windows 10/11 (main target), Linux (dev + local tests, with real
