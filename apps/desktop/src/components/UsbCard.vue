@@ -216,6 +216,14 @@ async function automatic() {
         <span v-if="usingTools" class="text-xs" data-platform-tools-installed>
           {{ t("platformTools.inUse", { version: tools!.version }) }}
         </span>
+        <span
+          v-if="usingTools && tools!.fromIndex"
+          class="mt-1 text-xs text-cat-orange"
+          :title="`SHA-1 ${tools!.fromIndex.sha1}\nSHA-256 ${tools!.fromIndex.sha256}`"
+          data-platform-tools-from-index
+        >
+          {{ t("platformTools.fromIndex") }}
+        </span>
       </p>
       <div class="flex flex-wrap gap-2">
         <button

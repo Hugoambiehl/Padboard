@@ -81,6 +81,16 @@ use another Windows account. Normal mode (not test mode: adb is off there).
 | Remove | Back to the downloaded copy (uninstall winget's), **Supprimer adb** | The folder is gone, the offer is back, the USB connection stops; no error; `padboard.log`: *our adb server stopped* |
 | Remove, another program's server | Install again; stop the server (`…\platform-tools\adb.exe kill-server`), start another adb's (Touch Portal's, or any adb in another folder: `<that adb> start-server`), wait for the card to be ready, **Supprimer adb** | The folder is gone; the other server still runs: `<that adb> devices` answers at once, without *daemon started*; `padboard.log`: *adb server started by another program: left running* with its path (from 0.2.0-rc.2; rc.1 stopped it) |
 | Licences | *À propos* → *Licences* | *Téléchargé à la demande, non inclus dans Padboard: Android SDK Platform-Tools 37.0.3 · Google LLC* |
+| Pinned archive (from 0.4) | After *Install* | No orange line under the path; `padboard.log` has no *accepted from Google's index*; no `padboard-from-index.json` in the folder |
+
+A republished archive accepted from Google's index (#18, from 0.4) cannot
+be produced on demand: the unit tests of `platform_tools` cover it (index
+read, same version / file name / size / SHA-1 required, signatures still
+checked). If it ever happens for real: orange line *Archive republiée par
+Google…* under the path, `padboard.log` at WARN *NOT the pinned archive,
+accepted from Google's index* with both SHA-256s and the SHA-1, and
+`padboard-from-index.json` next to `adb.exe`; then pin the new archive
+(`scripts/platform-tools-pin.sh`) in the next release.
 
 ## 3. Tablet over Wi-Fi
 

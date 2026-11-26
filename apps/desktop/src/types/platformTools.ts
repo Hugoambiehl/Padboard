@@ -8,6 +8,18 @@ export interface PlatformToolsInfo {
   version: string;
   /** `adb` of the downloaded copy, when there is one. */
   installed: string | null;
+  /** That copy is not the pinned archive: Google republished it, and it was
+   * accepted from Google's index (same version, size and SHA-1; #18). */
+  fromIndex: FromIndex | null;
+}
+
+/** `FromIndex`: what Google's index confirmed. */
+export interface FromIndex {
+  version: string;
+  size: number;
+  sha1: string;
+  sha256: string;
+  pinnedSha256: string;
 }
 
 export type PlatformToolsError =

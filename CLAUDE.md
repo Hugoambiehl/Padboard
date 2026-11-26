@@ -11,8 +11,10 @@ downloads Google's Platform-Tools (not free, Android SDK License) on the
 user's request, after an honest acceptance dialog (link to the license,
 §3.1 and §3.4 summed up, "Padboard n'est pas affilié à Google"). Never
 bundled or redistributed, always optional (Wi-Fi works without adb),
-version + SHA-256 pinned in the code and every `.exe`/`.dll` checked for a
-valid "Google LLC" Authenticode signature; listed in the app's
+version + SHA-256 pinned in the code (fallback for an archive Google
+republished under the same version: Google's index, same size + SHA-1,
+#18) and every `.exe`/`.dll` checked for a valid "Google LLC" Authenticode
+signature; listed in the app's
 "Licences" dialog as downloaded on request. No other exception.
 
 **One install only (durable rule, decided by Hugo).** The user installs
@@ -73,7 +75,14 @@ Same WebSocket protocol over two transports:
   (`Mismatch`: web page, cut, another zip, other), with the manual choice
   too. Google republishes an archive under the same version (37.0.3 on
   2026-11-19: every download refused): `platform-tools-pin.sh --check`
-  compares the index's size and SHA-1 with the pin, weekly in CI). Linux: the `.deb` depends on the distribution's free `adb`
+  compares the index's size and SHA-1 with the pin, weekly in CI). Since
+  0.4 (#18) a whole zip that is not the pinned one is accepted when
+  `repository2-3.xml` (`INDEX_URL`, read with quick-xml) lists, for the
+  pinned version, the pinned file name with that size and SHA-1; never
+  another version; Authenticode unchanged; logged at WARN ("NOT the pinned
+  archive, accepted from Google's index", both SHA-256s, the SHA-1),
+  recorded next to the tools (`padboard-from-index.json`) and shown in
+  orange in the USB card (`PlatformToolsInfo.fromIndex`). Linux: the `.deb` depends on the distribution's free `adb`
   package (`bundle.linux.deb.depends`), which recommends the udev rules.
   Windows drivers: not known whether Windows 11 needs one for the SM-T580
   (the test PC had Samsung's driver, installed by something else): the

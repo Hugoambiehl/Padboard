@@ -735,13 +735,14 @@
     "notFree": "The rest of Padboard is free software (GPL-3.0); on Linux, adb comes from your distribution's free package.",
     "notAffiliated": "Padboard is not affiliated with Google.",
     "readLicense": "Read the full license (Google's site)",
-    "checks": "Padboard checks the archive's SHA-256 (pinned for this version) and the “Google LLC” signature of each program before installing them.",
+    "checks": "Padboard checks the archive's SHA-256 (pinned for this version) and the “Google LLC” signature of each program before installing them. If Google republished the archive under the same version, Padboard accepts it from Google's official index (same size, same SHA-1) and tells you; the “Google LLC” signature is still required.",
     "accept": "I have read this summary and I accept Google's Android SDK License Agreement.",
     "cancel": "Cancel",
     "install": "Download and install",
     "installing": "Downloading and checking…",
     "googlePage": "Google's Platform-Tools page",
     "inUse": "Google's Platform-Tools {version}, downloaded by Padboard.",
+    "fromIndex": "Archive republished by Google: it does not match the fingerprint pinned in Padboard and was accepted from Google's index (same version, same size, same SHA-1), “Google LLC” signatures checked.",
     "remove": "Remove adb",
     "removeHint": "Removes the tools Padboard downloaded (the USB connection stops).",
     "error": {
@@ -752,7 +753,7 @@
       "checksum": {
         "html": "The network sent a web page instead of Google's archive (a Wi-Fi login portal, a proxy or a filter). Nothing was installed. If a portal asks you to sign in, open a page in your browser, then try again.",
         "truncated": "The download was cut ({received} MB of {expected} MB received). Nothing was installed: try again.",
-        "changed": "Google changed the Platform-Tools {version} archive: it no longer matches the one this version of Padboard can check. Nothing was installed; a next version of Padboard will take the new archive.",
+        "changed": "Google changed the Platform-Tools {version} archive: it no longer matches the one this version of Padboard can check, and Google's index did not confirm it (or could not be read). Nothing was installed; a next version of Padboard will take the new archive.",
         "unexpected": "The file received is not Google's archive (unexpected content, maybe altered by the network). Nothing was installed."
       },
       "fallback": "The tablet works over Wi-Fi without adb. For USB, you can also download Platform-Tools from Google's page, extract the archive, then choose adb.exe.",

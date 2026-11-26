@@ -41,6 +41,10 @@ USB is optional: over Wi-Fi (section 3) you need nothing else.
      it, Padboard downloads a fixed version from Google (about 8 MB),
      checks its SHA-256 and the *Google LLC* signature of every program,
      and puts it in `%LOCALAPPDATA%\io.github.hugoambiehl.padboard\platform-tools\`.
+     If Google republished that version's archive (it happened to 37.0.3),
+     Padboard 0.4 and later accept the new file when Google's own index
+     lists it with the same size and SHA-1, still require Google's
+     signatures, and say so in orange under the path.
      *Remove adb* deletes it, after stopping its adb server, only if that
      server was started from this copy: another program's adb server
      (Touch Portal, Android Studio…) keeps running. If Google no longer

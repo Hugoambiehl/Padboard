@@ -12,6 +12,11 @@
 //! What is downloaded is pinned: one version, its URL and SHA-256 (from
 //! Google's repository index, `scripts/platform-tools-pin.sh`). Each `.exe`
 //! and `.dll` must also carry a valid Authenticode signature by "Google LLC".
+//! Fallback (#18): Google republishes an archive under the same version
+//! (37.0.3 on 2026-11-19), so a whole zip that is not the pinned one is
+//! accepted when Google's index lists it for the pinned version, with the
+//! same size and SHA-1; the signatures are still checked, and the log, the
+//! dialog and the USB card say the fallback was used.
 //! Extracted to `%LOCALAPPDATA%\io.github.hugoambiehl.padboard\platform-tools`,
 //! found by [`crate::adb::locate`] after `PATH` (an `adb` the user installed
 //! wins: two adb servers of different versions fight over the port).
@@ -25,7 +30,8 @@ pub use server_owner::{same_program, server_owner};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use sha1::Sha1;
 use sha2::{Digest as _, Sha256};
 
 /// The version downloaded.
@@ -44,24 +50,53 @@ pub const PAGE_URL: &str = "https://developer.android.com/tools/releases/platfor
 pub const SIGNER: &str = "Google LLC";
 /// The folder of the archive holding the tools.
 const ARCHIVE_DIR: &str = "platform-tools/";
+/// Google's repository index (what Android Studio's SDK manager reads): the
+/// fallback when the archive is not the pinned one (#18).
+pub const INDEX_URL: &str = "https://dl.google.com/android/repository/repository2-3.xml";
+/// The index is about 430 kB; anything far larger is not it.
+const INDEX_LIMIT: usize = 8 << 20;
+/// Written into the installed folder when the archive was accepted from the
+/// index, read by [`info`].
+const FROM_INDEX_FILE: &str = "padboard-from-index.json";
 
 /// The archive to download (the pinned one, or a test one).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Archive {
+    pub version: String,
     pub url: String,
     pub sha256: String,
     pub size: u64,
+    /// Google's index, asked when the download is another archive.
+    pub index_url: String,
 }
 
 impl Archive {
     #[must_use]
     pub fn pinned() -> Self {
         Self {
+            version: VERSION.to_owned(),
             url: URL.to_owned(),
             sha256: SHA256.to_owned(),
             size: SIZE,
+            index_url: INDEX_URL.to_owned(),
         }
     }
+
+    /// The archive's file name, as the index names it.
+    fn file_name(&self) -> &str {
+        self.url.rsplit('/').next().unwrap_or_default()
+    }
+}
+
+/// An archive accepted from Google's index instead of the pin (#18).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FromIndex {
+    pub version: String,
+    pub size: u64,
+    pub sha1: String,
+    pub sha256: String,
+    pub pinned_sha256: String,
 }
 
 /// Why the tools were not installed (codes translated by the UI).
@@ -126,6 +161,9 @@ pub struct PlatformToolsInfo {
     pub version: &'static str,
     /// `adb` of the downloaded copy, when there is one.
     pub installed: Option<String>,
+    /// That copy is not the pinned archive: Google republished it, and it
+    /// was accepted from Google's index (#18).
+    pub from_index: Option<FromIndex>,
 }
 
 /// Where the tools are extracted (Windows only).
@@ -151,17 +189,30 @@ pub fn installed_adb() -> Option<PathBuf> {
 
 #[must_use]
 pub fn info() -> PlatformToolsInfo {
+    let installed = installed_adb();
     PlatformToolsInfo {
         offered: cfg!(windows),
         version: VERSION,
-        installed: installed_adb().map(|adb| adb.display().to_string()),
+        from_index: installed
+            .as_ref()
+            .and_then(|adb| adb.parent())
+            .and_then(read_from_index),
+        installed: installed.map(|adb| adb.display().to_string()),
     }
 }
 
-/// Downloads `archive`, checks its SHA-256, extracts its `platform-tools/`
-/// folder into `dir` (replacing what was there only once everything is
-/// checked), and checks each executable with `verify` (Authenticode on
-/// Windows). Returns the path of `adb`.
+/// How the copy in `dir` was accepted, when it came from the index.
+fn read_from_index(dir: &Path) -> Option<FromIndex> {
+    let text = std::fs::read_to_string(dir.join(FROM_INDEX_FILE)).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+/// Downloads `archive`, checks its SHA-256 (or, for another whole zip, its
+/// size and SHA-1 against Google's index, [`check_index`]), extracts its
+/// `platform-tools/` folder into `dir` (replacing what was there only once
+/// everything is checked), and checks each executable with `verify`
+/// (Authenticode on Windows). Returns the path of `adb`, and how the
+/// archive was accepted when the index was used.
 ///
 /// # Errors
 /// See [`PlatformToolsError`]; nothing is left behind on failure.
@@ -170,41 +221,250 @@ pub async fn install(
     archive: &Archive,
     dir: &Path,
     verify: impl Fn(&Path) -> Result<(), String>,
-) -> Result<PathBuf, PlatformToolsError> {
+) -> Result<(PathBuf, Option<FromIndex>), PlatformToolsError> {
     let received = download(http, archive).await?;
     let sha256 = hex(&Sha256::digest(&received.bytes));
+    let mut from_index = None;
     if received.cut.is_some() || !sha256.eq_ignore_ascii_case(&archive.sha256) {
         let reason = mismatch(&received, archive.size);
-        tracing::error!(
-            ?reason,
-            received = received.bytes.len(),
-            expected = archive.size,
-            %sha256,
-            expected_sha256 = %archive.sha256,
-            status = %received.status,
-            content_type = received.content_type.as_deref().unwrap_or("-"),
-            url = %received.final_url,
-            cut = received.cut.as_deref().unwrap_or("-"),
-            start = %preview(&received.bytes),
-            "platform-tools: the download is not the pinned archive"
-        );
-        return Err(PlatformToolsError::Checksum {
-            reason,
-            received: received.bytes.len() as u64,
-            expected: archive.size,
-        });
+        let index = if reason == Mismatch::Changed {
+            check_index(http, archive, &received.bytes).await
+        } else {
+            Err("not a whole zip archive: Google's index not asked".to_owned())
+        };
+        match index {
+            Ok(entry) => {
+                tracing::warn!(
+                    version = %entry.version,
+                    size = entry.size,
+                    sha1 = %entry.sha1,
+                    %sha256,
+                    pinned_sha256 = %archive.sha256,
+                    url = %received.final_url,
+                    "platform-tools: NOT the pinned archive, accepted from Google's index \
+                     (same version, size and SHA-1: Google republished it); \
+                     every executable's signature is checked next"
+                );
+                from_index = Some(entry);
+            }
+            Err(index) => {
+                tracing::error!(
+                    ?reason,
+                    received = received.bytes.len(),
+                    expected = archive.size,
+                    %sha256,
+                    expected_sha256 = %archive.sha256,
+                    status = %received.status,
+                    content_type = received.content_type.as_deref().unwrap_or("-"),
+                    url = %received.final_url,
+                    cut = received.cut.as_deref().unwrap_or("-"),
+                    start = %preview(&received.bytes),
+                    %index,
+                    "platform-tools: the download is not the pinned archive"
+                );
+                return Err(PlatformToolsError::Checksum {
+                    reason,
+                    received: received.bytes.len() as u64,
+                    expected: archive.size,
+                });
+            }
+        }
     }
     let bytes = received.bytes;
     let staging = sibling(dir, "new");
-    let result = extract(&bytes, &staging).and_then(|()| check_executables(&staging, &verify));
+    let result = extract(&bytes, &staging)
+        .and_then(|()| check_executables(&staging, &verify))
+        .and_then(|()| record_from_index(&staging, from_index.as_ref()));
     if let Err(e) = result {
         let _ = std::fs::remove_dir_all(&staging);
         return Err(e);
     }
     replace(&staging, dir)?;
     let adb = dir.join("adb.exe");
-    tracing::info!(version = VERSION, path = %adb.display(), "platform-tools installed");
-    Ok(adb)
+    if from_index.is_some() {
+        tracing::warn!(
+            version = %archive.version,
+            path = %adb.display(),
+            "platform-tools installed from Google's index, not the pinned archive (signatures checked)"
+        );
+    } else {
+        tracing::info!(version = %archive.version, path = %adb.display(), "platform-tools installed");
+    }
+    Ok((adb, from_index))
+}
+
+/// Keeps how the archive was accepted, next to the tools ([`info`]).
+fn record_from_index(dir: &Path, entry: Option<&FromIndex>) -> Result<(), PlatformToolsError> {
+    let Some(entry) = entry else { return Ok(()) };
+    let json = serde_json::to_string_pretty(entry).map_err(|e| PlatformToolsError::Install {
+        detail: e.to_string(),
+    })?;
+    std::fs::write(dir.join(FROM_INDEX_FILE), json).map_err(|e| PlatformToolsError::Install {
+        detail: e.to_string(),
+    })
+}
+
+/// The fallback for a republished archive (#18): `bytes` is accepted when
+/// Google's index lists, for the pinned version, the pinned file name with
+/// exactly this size and SHA-1. Never another version: a newer one is
+/// never taken without a new Padboard release. SHA-1 alone is not
+/// collision-resistant: the Authenticode check of every executable, which
+/// follows, is the real guard.
+///
+/// # Errors
+/// Why the archive is not accepted (for the log).
+async fn check_index(
+    http: &reqwest::Client,
+    archive: &Archive,
+    bytes: &[u8],
+) -> Result<FromIndex, String> {
+    let index = fetch_index(http, &archive.index_url).await?;
+    let Some(entry) = windows_archive(&index, &archive.version)? else {
+        return Err(format!(
+            "Google's index has no Windows archive of {}",
+            archive.version
+        ));
+    };
+    let sha1 = hex(&Sha1::digest(bytes));
+    let sha256 = hex(&Sha256::digest(bytes));
+    if entry.url != archive.file_name() {
+        return Err(format!(
+            "the index names {}, not {}",
+            entry.url,
+            archive.file_name()
+        ));
+    }
+    if entry.size != bytes.len() as u64 {
+        return Err(format!(
+            "the index says {} bytes, {} received",
+            entry.size,
+            bytes.len()
+        ));
+    }
+    if !entry.sha1.eq_ignore_ascii_case(&sha1) {
+        return Err(format!(
+            "the index's SHA-1 is {}, the download's {sha1}",
+            entry.sha1
+        ));
+    }
+    Ok(FromIndex {
+        version: archive.version.clone(),
+        size: entry.size,
+        sha1,
+        sha256,
+        pinned_sha256: archive.sha256.clone(),
+    })
+}
+
+async fn fetch_index(http: &reqwest::Client, url: &str) -> Result<String, String> {
+    let mut response = http
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("Google's index unreachable: {e}"))?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "Google's index answered HTTP {}",
+            response.status()
+        ));
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| format!("Google's index cut: {e}"))?
+    {
+        bytes.extend_from_slice(&chunk);
+        if bytes.len() > INDEX_LIMIT {
+            return Err(format!("Google's index is over {INDEX_LIMIT} bytes"));
+        }
+    }
+    String::from_utf8(bytes).map_err(|_| "Google's index is not UTF-8".to_owned())
+}
+
+/// One archive of the index.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+struct IndexArchive {
+    url: String,
+    size: u64,
+    sha1: String,
+    host_os: String,
+}
+
+/// The Windows archive of the `platform-tools` package at `version` in
+/// Google's `repository2-3.xml`, if listed.
+///
+/// # Errors
+/// The index is not readable XML.
+fn windows_archive(xml: &str, version: &str) -> Result<Option<IndexArchive>, String> {
+    use quick_xml::events::Event;
+
+    let mut reader = quick_xml::Reader::from_str(xml);
+    reader.config_mut().trim_text(true);
+    // Element names from the root, and the state of the package being read.
+    let mut path: Vec<String> = Vec::new();
+    let mut in_package = false;
+    let mut revision = [String::new(), String::new(), String::new()];
+    let mut archive = IndexArchive::default();
+    let mut sha1_checksum = false;
+    let mut found = Vec::new();
+    loop {
+        let event = reader
+            .read_event()
+            .map_err(|e| format!("Google's index is not readable XML: {e}"))?;
+        match event {
+            Event::Start(e) => {
+                let name = e.local_name().as_ref().to_owned();
+                if name == "remotePackage" {
+                    in_package = e
+                        .try_get_attribute("path")
+                        .ok()
+                        .flatten()
+                        .is_some_and(|a| a.value.as_ref() == "platform-tools");
+                    revision = Default::default();
+                    found.clear();
+                } else if in_package && name == "archive" {
+                    archive = IndexArchive::default();
+                } else if in_package && name == "checksum" {
+                    sha1_checksum = e
+                        .try_get_attribute("type")
+                        .ok()
+                        .flatten()
+                        .is_some_and(|a| a.value.as_ref() == "sha1");
+                }
+                path.push(name);
+            }
+            Event::Text(text) if in_package => {
+                let text = text.xml10_content().trim().to_owned();
+                match path.last().map(String::as_str) {
+                    Some("major") => revision[0] = text,
+                    Some("minor") => revision[1] = text,
+                    Some("micro") => revision[2] = text,
+                    Some("size") => archive.size = text.parse().unwrap_or(0),
+                    Some("checksum") if sha1_checksum => archive.sha1 = text,
+                    Some("url") => archive.url = text,
+                    Some("host-os") => archive.host_os = text,
+                    _ => {}
+                }
+            }
+            Event::End(_) => {
+                let name = path.pop().unwrap_or_default();
+                if in_package && name == "archive" {
+                    found.push(std::mem::take(&mut archive));
+                } else if in_package && name == "remotePackage" {
+                    in_package = false;
+                    let listed = revision
+                        .iter()
+                        .map(|part| if part.is_empty() { "0" } else { part });
+                    if listed.collect::<Vec<_>>().join(".") == version {
+                        return Ok(found.drain(..).find(|a| a.host_os == "windows"));
+                    }
+                }
+            }
+            Event::Eof => return Ok(None),
+            _ => {}
+        }
+    }
 }
 
 /// Removes the downloaded copy (its adb server must be stopped first:
@@ -511,12 +771,236 @@ mod tests {
         url
     }
 
+    /// The pinned `bytes` at `url`; Google's index unreachable (port 9).
     fn archive(url: String, bytes: &[u8]) -> Archive {
         Archive {
+            version: "37.0.3".into(),
             url,
             sha256: hex(&Sha256::digest(bytes)),
             size: bytes.len() as u64,
+            index_url: "http://127.0.0.1:9/repository2-3.xml".into(),
         }
+    }
+
+    /// Serves each `(path, body)` with 200, anything else with 404; returns
+    /// the server's base URL.
+    async fn serve_routes(routes: Vec<(&'static str, Vec<u8>)>) -> String {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut socket, _)) = listener.accept().await else {
+                    return;
+                };
+                let mut buffer = [0u8; 4096];
+                let n = socket.read(&mut buffer).await.unwrap_or(0);
+                let request = String::from_utf8_lossy(&buffer[..n]);
+                let path = request.split_whitespace().nth(1).unwrap_or("");
+                let (status, body) = routes
+                    .iter()
+                    .find(|(route, _)| *route == path)
+                    .map_or((404, b"not found".as_slice()), |(_, body)| {
+                        (200, body.as_slice())
+                    });
+                let head = format!(
+                    "HTTP/1.1 {status} X\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = socket.write_all(head.as_bytes()).await;
+                let _ = socket.write_all(body).await;
+            }
+        });
+        base
+    }
+
+    /// An index shaped like Google's `repository2-3.xml`: another package
+    /// first (with a Windows archive of its own), then the platform-tools
+    /// at `version`, whose Windows archive is `name`, `size` and `sha1`.
+    fn index(version: &str, name: &str, size: usize, sha1: &str) -> String {
+        let [major, minor, micro] = {
+            let parts: Vec<&str> = version.split('.').collect();
+            [parts[0], parts[1], parts[2]]
+        };
+        format!(
+            r#"<?xml version='1.0' encoding='utf-8'?>
+<sdk:sdk-repository xmlns:sdk="http://schemas.android.com/sdk/android/repo/repository2/03" xmlns:common="http://schemas.android.com/repository/android/common/02" xmlns:generic="http://schemas.android.com/repository/android/generic/02" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <license id="android-sdk-license" type="text">Terms &amp; conditions</license>
+  <remotePackage path="build-tools;37.0.0">
+    <revision><major>37</major><minor>0</minor><micro>3</micro></revision>
+    <archives>
+      <archive>
+        <complete><size>{size}</size><checksum type="sha1">0000000000000000000000000000000000000000</checksum><url>{name}</url></complete>
+        <host-os>windows</host-os>
+      </archive>
+    </archives>
+  </remotePackage>
+  <remotePackage path="platform-tools">
+    <type-details xsi:type="generic:genericDetailsType"/>
+    <revision>
+      <major>{major}</major>
+      <minor>{minor}</minor>
+      <micro>{micro}</micro>
+    </revision>
+    <display-name>Android SDK Platform-Tools</display-name>
+    <archives>
+      <archive>
+        <complete><size>9571024</size><checksum type="sha1">e1579b288a7ae4e9bc28dedec6a154d78b3c04ed</checksum><url>platform-tools_r{version}-linux.zip</url></complete>
+        <host-os>linux</host-os>
+      </archive>
+      <archive>
+        <complete>
+          <size>{size}</size>
+          <checksum type="sha1">{sha1}</checksum>
+          <url>{name}</url>
+        </complete>
+        <host-os>windows</host-os>
+      </archive>
+    </archives>
+  </remotePackage>
+</sdk:sdk-repository>
+"#
+        )
+    }
+
+    /// Google republished the archive: the server sends `received`, the
+    /// pin says `pinned`, the index is `index`. Returns the outcome and the
+    /// install folder.
+    async fn republished(
+        pinned: &[u8],
+        received: Vec<u8>,
+        index: String,
+        verify: impl Fn(&Path) -> Result<(), String>,
+    ) -> (
+        Result<(PathBuf, Option<FromIndex>), PlatformToolsError>,
+        tempfile::TempDir,
+    ) {
+        let base = serve_routes(vec![
+            ("/platform-tools_r37.0.3-win.zip", received),
+            ("/repository2-3.xml", index.into_bytes()),
+        ])
+        .await;
+        let mut archive = archive(format!("{base}/platform-tools_r37.0.3-win.zip"), pinned);
+        archive.index_url = format!("{base}/repository2-3.xml");
+        let tmp = tempfile::tempdir().unwrap();
+        let result = install(
+            &http(),
+            &archive,
+            &tmp.path().join("platform-tools"),
+            verify,
+        )
+        .await;
+        (result, tmp)
+    }
+
+    #[tokio::test]
+    async fn a_republished_archive_is_accepted_from_googles_index() {
+        let pinned = archive_bytes(&[]);
+        let new = archive_bytes(&[("platform-tools/NOTICE2.txt", b"republished")]);
+        let sha1 = hex(&Sha1::digest(&new));
+        let index = index("37.0.3", "platform-tools_r37.0.3-win.zip", new.len(), &sha1);
+        let checked = std::sync::Mutex::new(0);
+        let (result, tmp) = republished(&pinned, new.clone(), index, |_| {
+            *checked.lock().unwrap() += 1;
+            Ok(())
+        })
+        .await;
+
+        let (adb, from_index) = result.unwrap();
+        let expected = FromIndex {
+            version: "37.0.3".into(),
+            size: new.len() as u64,
+            sha1,
+            sha256: hex(&Sha256::digest(&new)),
+            pinned_sha256: hex(&Sha256::digest(&pinned)),
+        };
+        assert_eq!(from_index.as_ref(), Some(&expected));
+        assert_eq!(std::fs::read(&adb).unwrap(), b"adb");
+        // The signatures are still checked: adb.exe and AdbWinApi.dll.
+        assert_eq!(*checked.lock().unwrap(), 2);
+        // Kept next to the tools, for the USB card.
+        let dir = tmp.path().join("platform-tools");
+        assert_eq!(read_from_index(&dir), Some(expected));
+    }
+
+    #[tokio::test]
+    async fn the_index_must_list_the_same_archive() {
+        let pinned = archive_bytes(&[]);
+        let new = archive_bytes(&[("platform-tools/evil.exe", b"x")]);
+        let sha1 = hex(&Sha1::digest(&new));
+        let name = "platform-tools_r37.0.3-win.zip";
+        for index in [
+            // Another SHA-1.
+            index("37.0.3", name, new.len(), &"ab".repeat(20)),
+            // Another size.
+            index("37.0.3", name, new.len() + 1, &sha1),
+            // Another version (a newer one is never taken).
+            index("37.0.4", name, new.len(), &sha1),
+            // Another file name.
+            index(
+                "37.0.3",
+                "platform-tools_r37.0.3-windows.zip",
+                new.len(),
+                &sha1,
+            ),
+            // Not an index.
+            "<html>maintenance</html>".to_owned(),
+        ] {
+            let (result, tmp) = republished(&pinned, new.clone(), index, |_| Ok(())).await;
+            assert!(
+                matches!(
+                    result,
+                    Err(PlatformToolsError::Checksum {
+                        reason: Mismatch::Changed,
+                        ..
+                    })
+                ),
+                "{result:?}"
+            );
+            assert_eq!(std::fs::read_dir(tmp.path()).unwrap().count(), 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn an_archive_from_the_index_still_needs_googles_signatures() {
+        let pinned = archive_bytes(&[]);
+        let new = archive_bytes(&[("platform-tools/NOTICE2.txt", b"republished")]);
+        let sha1 = hex(&Sha1::digest(&new));
+        let index = index("37.0.3", "platform-tools_r37.0.3-win.zip", new.len(), &sha1);
+        let (result, tmp) = republished(&pinned, new, index, |path| {
+            if path.ends_with("adb.exe") {
+                Err("signed by \"Someone\"".into())
+            } else {
+                Ok(())
+            }
+        })
+        .await;
+        assert!(
+            matches!(result, Err(PlatformToolsError::Signature { .. })),
+            "{result:?}"
+        );
+        assert_eq!(std::fs::read_dir(tmp.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn the_index_is_read() {
+        let xml = index(
+            "37.0.3",
+            "platform-tools_r37.0.3-win.zip",
+            8_188_601,
+            "7fea85bc18d0480bc81d3603952d666f49496e5a",
+        );
+        assert_eq!(
+            windows_archive(&xml, "37.0.3"),
+            Ok(Some(IndexArchive {
+                url: "platform-tools_r37.0.3-win.zip".into(),
+                size: 8_188_601,
+                sha1: "7fea85bc18d0480bc81d3603952d666f49496e5a".into(),
+                host_os: "windows".into(),
+            }))
+        );
+        assert_eq!(windows_archive(&xml, "37.0.2"), Ok(None));
+        assert_eq!(windows_archive("<sdk/>", "37.0.3"), Ok(None));
+        assert!(windows_archive("<a><b></a>", "37.0.3").is_err());
     }
 
     fn http() -> reqwest::Client {
@@ -533,7 +1017,7 @@ mod tests {
         std::fs::write(dir.join("stale.txt"), "old").unwrap();
 
         let checked = std::sync::Mutex::new(Vec::new());
-        let adb = install(&http(), &archive(url, &bytes), &dir, |path| {
+        let (adb, from_index) = install(&http(), &archive(url, &bytes), &dir, |path| {
             checked
                 .lock()
                 .unwrap()
@@ -542,6 +1026,8 @@ mod tests {
         })
         .await
         .unwrap();
+        assert_eq!(from_index, None);
+        assert_eq!(read_from_index(&dir), None);
 
         assert_eq!(std::fs::read(&adb).unwrap(), b"adb");
         assert_eq!(std::fs::read(dir.join("NOTICE.txt")).unwrap(), b"notices");

@@ -230,7 +230,12 @@ export function install() {
         case "get_updates":
           return updates();
         case "platform_tools_info":
-          return { offered: params.has("adb"), version: "37.0.3", installed: null };
+          return {
+            offered: params.has("adb"),
+            version: "37.0.3",
+            installed: null,
+            fromIndex: null,
+          };
         case "install_platform_tools":
           return new Promise((resolve, reject) =>
             setTimeout(
@@ -250,6 +255,18 @@ export function install() {
                         offered: true,
                         version: "37.0.3",
                         installed: "C:\\platform-tools\\adb.exe",
+                        fromIndex:
+                          params.get("tools") === "index"
+                            ? {
+                                version: "37.0.3",
+                                size: 8_188_601,
+                                sha1: "7fea85bc18d0480bc81d3603952d666f49496e5a",
+                                sha256:
+                                  "89d108360a3bf2924d3bea837239edaccc22fd6ff5befd3787c4348a9fe4f09d",
+                                pinnedSha256:
+                                  "de9e8d9a9a3b56d3bbf0a5dc0e3cd5ad6f9b1e6b2e5f0a3c7d4e8f1a2b3c4d5e",
+                              }
+                            : null,
                       }),
               1200,
             ),

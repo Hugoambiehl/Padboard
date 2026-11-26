@@ -41,6 +41,9 @@ getrandom = "0.4.3"
 mdns-sd = "0.21.7"
 rcgen = { version = "0.14.10", default-features = false, features = ["crypto", "pem", "ring"] }
 rustls = { version = "0.23.46", default-features = false, features = ["logging", "ring", "std", "tls12"] }
+# Google's repository index, read when a republished archive is checked (#18).
+quick-xml = "0.42.0"
+sha1 = "0.11.0"
 sha2.workspace = true
 subtle = "2.6.1"
 tauri = { version = "~2.11", features = ["tray-icon", "image-png"] }
