@@ -1024,6 +1024,80 @@ value, `StartupApproved` `02…`); sound as in 13.0, checked by the tester
 byte for byte. The backup `D:\padboard-backup-0.2.2` is kept until the
 tester deletes it. 13.5 is run separately.
 
+## 14. Release candidate 0.4.0-rc.1: update from 0.3.0, "Installer adb", kiosk exit (Bitdefender active)
+
+Same PC and rules as section 13, 0.3.0 installed, the SM-T580 on 0.3.0
+(versionCode 30099) in kiosk mode. 0.4 changes:
+
+- "Installer adb" accepts an archive Google republished under the same
+  version, when Google's index confirms it (#18). That case cannot be
+  produced on demand: here only the usual path is checked, which must not
+  change;
+- on the tablet, leaving kiosk mode no longer lets the system launcher
+  come in front on Android 7 (#24): the app now ends its own lock task
+  first. On the SM-T580 (Android 12L) nothing must change.
+
+### 14.0 Before starting
+
+- As 13.0. In 0.3.0: *Versions de test* **on**.
+- Note the autostart state (`Run` value, `StartupApproved`, *Démarrage*
+  card) and the sound (playback and recording devices, volumes, mute), to
+  restore them in 14.4.
+- Quit Padboard and save both data folders (as in 13.0, e.g. to
+  `D:\padboard-backup-0.3.0`).
+
+### 14.1 0.3.0 → 0.4.0-rc.1
+
+| Check | Do | Expect |
+|---|---|---|
+| Update | *Rechercher*, *Télécharger*, *Quitter Padboard*, run the file | As 13.1: *update available version=0.4.0-rc.1*, *installer downloaded and checked*, *not started by Padboard*; SHA-256 as published; no folder page, configuration and `Run` value kept, one entry in *Settings → Apps* (0.4.0-rc.1) |
+| Bitdefender | Whole section | No detection, no quarantine, no ATC feedback |
+
+### 14.2 "Installer adb": the usual path (#18)
+
+This PC has two other adb in `PATH` (Touch Portal's and WinGet's
+`Google.PlatformTools`): as in 12.2, Padboard is started from a
+PowerShell window whose `PATH` leaves them out, so the offer shows.
+Windows's `PATH` and Touch Portal are not changed; Touch Portal's adb
+server may keep running.
+
+1. Quit Padboard (tray icon → *Quitter*).
+2. In PowerShell:
+
+   ```powershell
+   $env:PATH = ($env:PATH -split ';' | Where-Object { $_ -and -not (Test-Path (Join-Path $_ 'adb.exe')) }) -join ';'
+   where.exe adb   # must print nothing
+   & 'D:\Programme Files\Padboard\padboard-desktop.exe'
+   ```
+
+| Check | Do | Expect |
+|---|---|---|
+| Install | If Padboard's own copy is there, *Supprimer adb* first; then *Installer adb…*, tick, *Télécharger et installer* | The card shows `…\platform-tools\adb.exe` and *Platform-Tools 37.0.3 de Google, téléchargés par Padboard.*, **no orange line** under it; the tablet connects over USB |
+| Log | `padboard.log` | *the user accepted the Android SDK license*, then *platform-tools installed*; neither *not the pinned archive* nor *accepted from Google's index* |
+| Folder | `Test-Path "$env:LOCALAPPDATA\io.github.hugoambiehl.padboard\platform-tools\padboard-from-index.json"` | `False` |
+| Signatures | As 12.2 (`Get-AuthenticodeSignature … *.exe, *.dll`) | `Valid`, `CN=Google LLC` for every file |
+| Back to normal | Quit Padboard, start it from the Start menu | It uses the adb found in `PATH` again (Touch Portal's), as at the end of 12.2 |
+
+The texts of the fallback (orange line, log at WARN) can be seen in the
+mock: `?mock&view=connections&adb=missing&tools=index`, then *Installer
+adb…*.
+
+### 14.3 SM-T580 (Android 12L): update and kiosk exit (#24)
+
+| Check | Do | Expect |
+|---|---|---|
+| Update | *Mettre à jour vers 0.4.0-rc.1* in the USB card | *tablet updated over USB from=30099 to=40001*; reconnected; still device owner, lock task `LOCKED`, Padboard in front |
+| Exit by the gesture | Hold the bottom-left corner 5 s, confirm *Quitter le mode kiosque* | **Padboard stays in front** (not the launcher); status bar and navigation back; `adb shell dpm list-owners`: no owner; the PC's USB card shows kiosk mode off |
+| Kiosk on again | *Activer le mode kiosque* in the USB card | Device owner, `LOCKED`, Padboard in front |
+| Exit from the PC | *Libérer la tablette* in *Tablettes connectées* (two clicks) | Same as *Exit by the gesture*; `padboard.log`: *the tablet left kiosk mode* with `by=Pc` |
+| Kiosk on again | *Activer le mode kiosque* | As above; leave the tablet in kiosk mode |
+
+### 14.4 Afterwards
+
+Restore the autostart state and the sound noted in 14.0, compare the
+configuration with the backup of 14.0 (only `update-pending.json` may
+differ), then send the report with the `padboard.log` files.
+
 ## Known Windows limits
 
 - Keys cannot be sent to elevated (administrator) windows.
