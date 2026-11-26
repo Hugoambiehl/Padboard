@@ -8,8 +8,10 @@
 // - frontend favicon (apps/desktop/public/favicon.svg);
 // - tablet: adaptive icon (violet background, the tiles as a vector
 //   foreground inside the safe zone) and its monochrome layer (Android 13+
-//   themed icons), as vector drawables, and the whole icon as a drawable
-//   for the app's own header badge (ic_padboard.xml);
+//   themed icons), as vector drawables (Android 8+, mipmap-anydpi-v26);
+//   PNG launcher icons for Android 7.x, square and round (mipmap-*dpi);
+//   and the whole icon as a drawable for the app's own header badge
+//   (ic_padboard.xml);
 // - store listing icon (fastlane/metadata/android/<locale>/images/icon.png);
 // - Windows installer (NSIS) images, 24-bit BMPs at the sizes NSIS asks
 //   for: the header (150×57, also the uninstaller's) and the sidebar of
@@ -56,9 +58,9 @@ const small = source.replace(rects.find(isHalo).tag, "").replace(/\n\s*\n/g, "\n
 
 // ─── PNG rendering ──────────────────────────────────────────────────────
 const work = mkdtempSync(join(tmpdir(), "padboard-icons-"));
-function render(svg, sizes) {
-  const input = join(work, `src-${sizes.join("-")}.svg`);
-  const out = join(work, `out-${sizes.join("-")}`);
+function render(svg, sizes, name = "") {
+  const input = join(work, `src${name}-${sizes.join("-")}.svg`);
+  const out = join(work, `out${name}-${sizes.join("-")}`);
   writeFileSync(input, svg);
   execFileSync("npx", ["tauri", "icon", input, "-o", out, "-p", sizes.join(",")], {
     cwd: desktop,
@@ -323,11 +325,26 @@ const adaptive = `<?xml version="1.0" encoding="utf-8"?>
     <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
 </adaptive-icon>
 `;
-writeFileSync(join(res, "mipmap-anydpi/ic_launcher.xml"), adaptive);
-writeFileSync(join(res, "mipmap-anydpi/ic_launcher_round.xml"), adaptive);
-// minSdk 26: every launcher uses the adaptive icon, the template's bitmaps go.
-for (const dir of readdirSync(res).filter((d) => /^mipmap-.*dpi$/.test(d) && d !== "mipmap-anydpi")) {
-  rmSync(join(res, dir), { recursive: true });
+// Android 8+ (adaptive icons need API 26); Android 7.x takes the PNGs below.
+rmSync(join(res, "mipmap-anydpi"), { recursive: true, force: true });
+mkdirSync(join(res, "mipmap-anydpi-v26"), { recursive: true });
+writeFileSync(join(res, "mipmap-anydpi-v26/ic_launcher.xml"), adaptive);
+writeFileSync(join(res, "mipmap-anydpi-v26/ic_launcher_round.xml"), adaptive);
+
+// Android 7.x (minSdk 24): bitmap launcher icons, 48 dp at each density.
+// The round one (roundIcon, Android 7.1 launchers) has a circular background:
+// the tiles stay inside it (farthest corner 110 units from the centre, radius 128).
+const LEGACY = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
+const round = source.replace(rects[0].tag, rects[0].tag.replace(/rx="[^"]*"/, `rx="${Number(bg.attrs.width) / 2}"`));
+if (round === source) throw new Error("assets/icon/padboard.svg: could not make the round icon");
+const legacySizes = [...new Set(Object.values(LEGACY))];
+const squarePng = render(source, legacySizes, "-square");
+const roundPng = render(round, legacySizes, "-round");
+for (const [density, size] of Object.entries(LEGACY)) {
+  const dir = join(res, `mipmap-${density}`);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "ic_launcher.png"), squarePng[size]);
+  writeFileSync(join(dir, "ic_launcher_round.png"), roundPng[size]);
 }
 
 rmSync(work, { recursive: true });

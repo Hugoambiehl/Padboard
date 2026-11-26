@@ -11,7 +11,7 @@ you may already have.
 
 - **Desktop app** for Windows 10/11 and Linux: you design the buttons there,
   and it runs the actions.
-- **Tablet app** for Android 8+: it shows the buttons and nothing else, and
+- **Tablet app** for Android 7.0+ (from 0.3; 8.0+ up to 0.2.x): it shows the buttons and nothing else, and
   can lock a dedicated tablet in kiosk mode.
 - Over a **USB cable** (no setup) or **Wi-Fi** (encrypted, paired once with
   a code). No account, no cloud, no ads, no tracking: the PC and the tablet

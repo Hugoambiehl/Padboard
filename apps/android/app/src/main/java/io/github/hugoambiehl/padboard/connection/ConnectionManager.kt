@@ -28,8 +28,8 @@ import java.io.File
 import java.io.IOException
 import java.io.OutputStream
 import java.security.MessageDigest
-import java.util.Base64
 import java.util.logging.Logger
+import kotlin.io.encoding.Base64
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -845,7 +845,7 @@ class ConnectionManager(
                                                 serverId = welcome.serverId,
                                                 serverName = welcome.serverName,
                                                 token = message.payload.token,
-                                                spkiSha256 = Base64.getEncoder().encodeToString(
+                                                spkiSha256 = Base64.encode(
                                                     Fingerprint.spkiSha256(spki)
                                                 ),
                                                 lastEndpoint = endpoint

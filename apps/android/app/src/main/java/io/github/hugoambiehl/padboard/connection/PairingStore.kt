@@ -7,7 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import java.util.Base64
+import kotlin.io.encoding.Base64
 import kotlinx.coroutines.flow.first
 
 /** The PC this tablet is paired with over Wi-Fi (one at a time). */
@@ -20,7 +20,7 @@ data class PairedPc(
     /** Last address that worked, tried when mDNS has not answered yet. */
     val lastEndpoint: Endpoint?
 ) {
-    val pin: ByteArray get() = Base64.getDecoder().decode(spkiSha256)
+    val pin: ByteArray get() = Base64.decode(spkiSha256)
 
     /** Without the token, so a log line can never reveal it. */
     override fun toString(): String = "PairedPc(serverId=$serverId, serverName=$serverName, " +

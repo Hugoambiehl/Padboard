@@ -26,7 +26,7 @@ android {
 
     defaultConfig {
         applicationId = "io.github.hugoambiehl.padboard"
-        minSdk = 26
+        minSdk = 24
         targetSdk = 37
         versionCode = 30000
         versionName = "0.3.0-dev"

@@ -21,4 +21,4 @@
 
 <p><b>Pour une tablette dédiée</b> : un mode kiosque facultatif verrouille la tablette sur Padboard (elle devient l'écran d'accueil ; activé depuis le PC en USB, libéré depuis le PC ou en maintenant un coin), avec un écran de veille qui affiche l'heure.</p>
 
-<p>Pensée pour les tablettes modestes (testée sur une Galaxy Tab A 10.1 de 2016), Android 8 et plus, sans services Google. En anglais et en français. Logiciel libre sous licence GPL-3.0-or-later.</p>
+<p>Pensée pour les tablettes modestes (testée sur une Galaxy Tab A 10.1 de 2016), Android 7.0 et plus, sans services Google. En anglais et en français. Logiciel libre sous licence GPL-3.0-or-later.</p>

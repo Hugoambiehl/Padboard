@@ -79,7 +79,7 @@ Types: `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`,
 - TypeScript and Vue: ESLint and Prettier (`npm run lint`,
   `npm run format`).
 - Kotlin: ktlint (`./gradlew ktlintFormat`). Dependencies are declared in
-  `gradle/libs.versions.toml` only, and must support Android 8 (minSdk 26).
+  `gradle/libs.versions.toml` only, and must support Android 7.0 (minSdk 24).
 - Paths in the repository may contain spaces on contributors' machines:
   quote them in scripts.
 

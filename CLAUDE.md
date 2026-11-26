@@ -22,7 +22,7 @@ valid "Google LLC" Authenticode signature; listed in the app's
   **Wayland**. Windows installers are built by GitHub Actions on a Windows runner.
 - **Tablet**: Samsung Galaxy Tab A 10.1 (SM-T580), 2 GB RAM, 1920×1200
   (≈ 1280×800 dp), landscape. LineageOS 19.1 = Android 12L (API 32), **no Play
-  Services, no vibration motor**. `minSdk 26`, `targetSdk` = latest stable.
+  Services, no vibration motor**. `minSdk 24` (Android 7.0, since 0.3: issue #21), `targetSdk` = latest stable.
 
 ## Stack
 
@@ -257,12 +257,16 @@ SM-T580, always measure in release builds.
   `server.rs`). UI state (`state.rs`) is mirrored by hand in
   `apps/desktop/src/types/status.ts`; the backend sends codes, the frontend
   translates.
-- **Android dependencies**: every library must support minSdk 26 — check the
+- **Android dependencies**: every library must support minSdk 24 — check the
   `minSdkVersion` in its AAR manifest before adding it (the manifest merger and
   Android Lint `NewApi` check it again at build time), and its license against
   the Licensee allow-list. Kotlin is 2.2.10, so
   libraries must be built with Kotlin ≤ 2.2/2.3 (kotlinx-serialization stays on
   1.9.x until Kotlin is upgraded). Versions only in `gradle/libs.versions.toml`.
+  **API 24, no desugaring** (decided for 0.3, #21: `desugar_jdk_libs` would
+  add a license for two calls): no `java.time` or `java.util.Base64` (API
+  26) in the app; `kotlin.io.encoding.Base64`, `java.text` / `Calendar`
+  instead; Lint `NewApi` stops any other. JVM tests may use them.
 - **Android code style**: ktlint (`android_studio` style, `.editorconfig`), the
   generated `protocol/Protocol.kt` is excluded. Logging through
   `java.util.logging` so non-UI code stays testable on the JVM.
@@ -367,7 +371,9 @@ SM-T580, always measure in release builds.
   the tablet (`usb/kiosk.ts` `kioskActiveKey`: top-right below rc.2,
   versionCode 20002). The PC's USB row reads the
   device owner with `dpm list-owners` (on detection, after "Activer", on
-  every `tablet:status`): already Padboard = success, another owner = a
+  every `tablet:status`; Android 7.0 has no such command, prints "unknown
+  command" with a success status: then `dumpsys device_policy`'s `Device
+  Owner:` section): already Padboard = success, another owner = a
   clear refusal (codes in `adb::KioskError`, translated by the UI).
 - **Kiosk mode and updates**: an `adb install -r` stops the app and the
   tablet would show the regular launcher; `KioskUpdated`
@@ -477,7 +483,8 @@ SM-T580, always measure in release builds.
   file from it (desktop PNGs, multi-size `.ico`, tray PNGs, favicon (also the
   editor's header badge), Android adaptive + monochrome vector drawables,
   `ic_padboard` for the tablet's headers, the 512 px store listing icon in
-  `fastlane/`). 32 px and below drop the halo
+  `fastlane/`; the adaptive icon is Android 8+ (`mipmap-anydpi-v26`),
+  Android 7.x gets PNG launcher icons, square and round). 32 px and below drop the halo
   (blurry under a pixel). Never edit the generated icons by hand.
 - **Releases** (`docs/releasing.md`): one SemVer version for everything,
   `-rc.N` for release candidates. `scripts/release.sh X` writes it everywhere

@@ -21,4 +21,4 @@
 
 <p><b>For a dedicated tablet</b>: an optional kiosk mode locks the tablet on Padboard (it becomes the home app, set from the PC over USB and released from the PC or by holding a corner), with a screensaver showing the time.</p>
 
-<p>Built for low-end tablets (tested on a Galaxy Tab A 10.1 from 2016), Android 8 and later, no Google services. In English and French. Free software under the GPL-3.0-or-later.</p>
+<p>Built for low-end tablets (tested on a Galaxy Tab A 10.1 from 2016), Android 7.0 and later, no Google services. In English and French. Free software under the GPL-3.0-or-later.</p>

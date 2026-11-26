@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -45,9 +46,10 @@ import io.github.hugoambiehl.padboard.protocol.TabletSettingsPayload
 import io.github.hugoambiehl.padboard.ui.theme.Inter
 import io.github.hugoambiehl.padboard.ui.theme.PadboardColors
 import io.github.hugoambiehl.padboard.ui.theme.SpaceGrotesk
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import kotlin.random.Random
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -158,13 +160,12 @@ private fun ScreensaverOverlay(asleep: Boolean, status: SystemStatusPayload?, on
         val rangeY = constraints.maxHeight * 0.25f
         val offsetX = remember { Animatable(0f) }
         val offsetY = remember { Animatable(0f) }
-        var now by remember { mutableStateOf(LocalDateTime.now()) }
+        var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
         LaunchedEffect(Unit) {
             while (true) {
-                now = LocalDateTime.now()
-                val nextMinute = now.truncatedTo(ChronoUnit.MINUTES).plusMinutes(1)
-                delay(ChronoUnit.MILLIS.between(now, nextMinute).coerceIn(1L, MOVE_EVERY_MS))
-                now = LocalDateTime.now()
+                now = System.currentTimeMillis()
+                delay(untilNextMinute(now).coerceIn(1L, MOVE_EVERY_MS))
+                now = System.currentTimeMillis()
                 offsetX.animateTo(Random.nextFloat() * 2 * rangeX - rangeX, tween(2_000))
                 offsetY.animateTo(Random.nextFloat() * 2 * rangeY - rangeY, tween(2_000))
             }
@@ -180,23 +181,39 @@ private fun ScreensaverOverlay(asleep: Boolean, status: SystemStatusPayload?, on
     }
 }
 
-private val TIME = DateTimeFormatter.ofPattern("HH:mm")
-private val DATE = DateTimeFormatter.ofPattern("EEEE d MMMM")
+/** Milliseconds from [now] to the next minute, local time. */
+private fun untilNextMinute(now: Long): Long {
+    val next = Calendar.getInstance().apply {
+        timeInMillis = now
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+        add(Calendar.MINUTE, 1)
+    }
+    return next.timeInMillis - now
+}
+
+// java.text, not java.time (API 26): the tablet app runs from Android 7.0 (API 24).
+// Same patterns as before, so the same texts in every language.
+private const val TIME_PATTERN = "HH:mm"
+private const val DATE_PATTERN = "EEEE d MMMM"
 
 @Composable
-private fun Clock(now: LocalDateTime, status: SystemStatusPayload?, modifier: Modifier = Modifier) {
+private fun Clock(now: Long, status: SystemStatusPayload?, modifier: Modifier = Modifier) {
+    // SimpleDateFormat is not thread-safe: one pair per clock, used on the UI thread only.
+    val time = remember { SimpleDateFormat(TIME_PATTERN, Locale.getDefault()) }
+    val date = remember { SimpleDateFormat(DATE_PATTERN, Locale.getDefault()) }
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            TIME.format(now),
+            time.format(Date(now)),
             style = TextStyle(fontFamily = SpaceGrotesk, fontWeight = FontWeight.Medium, fontSize = 128.sp),
             color = PadboardColors.TextMuted2
         )
         Text(
-            DATE.format(now).replaceFirstChar { it.uppercase() },
+            date.format(Date(now)).replaceFirstChar { it.uppercase() },
             style = TextStyle(fontFamily = Inter, fontSize = 22.sp),
             color = PadboardColors.TextMuted
         )

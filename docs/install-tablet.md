@@ -1,7 +1,8 @@
 # Set up the tablet
 
-Any Android tablet running **Android 8.0 or later** works; no Google
-services are needed. A dedicated tablet works best: Padboard can lock it in
+Any Android tablet running **Android 7.0 or later** works (Padboard 0.3
+and later; up to 0.2.x, Android 8.0 or later); no Google services are
+needed. A dedicated tablet works best: Padboard can lock it in
 **kiosk mode** so it only ever shows your buttons. Install the desktop app
 first ([Windows](install-windows.md), [Linux](install-linux.md)).
 
@@ -14,7 +15,21 @@ Download `padboard-<version>.apk` from the
 - **From the PC** (USB debugging on, see below):
   `adb install padboard-<version>.apk`;
 - **On the tablet**: open the APK from the browser or a file manager and
-  allow that app to *install unknown apps* when Android asks.
+  allow that app to *install unknown apps* when Android asks (Android 7:
+  turn on *Settings → Security → Unknown sources* instead).
+
+### "There was a problem parsing the package"
+
+Android shows this when it cannot install the APK at all, most often
+because the tablet's Android is **older than the app needs**: check
+*Settings → About tablet → Android version*. Padboard 0.3 and later need
+**Android 7.0**; 0.2.x needed Android 8.0. `adb install` says it plainly:
+`INSTALL_FAILED_OLDER_SDK`. Android checks this before opening the app, so
+Padboard cannot show a message of its own.
+
+The other causes: a download that was cut (compare the file with
+`SHA256SUMS`, download it again) or an APK opened from an app that is not
+allowed to install apps.
 
 ### Updates
 
