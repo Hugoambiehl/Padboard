@@ -996,6 +996,12 @@ If the tablet cannot run kiosk mode (accounts on it, or a manufacturer
 that refuses `set-device-owner`), note Android's message: everything else
 is still worth testing.
 
+**Status (2026-11-26)**: postponed. 0.3.0 is released without it: Android
+7.0 is checked on the API 24 emulator only (install, USB, pinned TLS,
+kiosk mode, silent update, screensaver), never on a real Android 7
+tablet yet. The tester's tablet will be tested with 0.3.0
+(`padboard-0.3.0.apk`); #21 stays open until then.
+
 ### 13.6 Afterwards
 
 Restore the autostart state and the sound noted in 13.0, then send the

@@ -1,0 +1,1 @@
+Padboard now installs on Android 7.0 and later (it needed Android 8.0 before), with a classic launcher icon on Android 7.x. Update the PC first, then the tablet from the PC as usual.

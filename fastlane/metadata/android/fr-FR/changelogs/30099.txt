@@ -1,0 +1,1 @@
+Padboard s'installe désormais sur Android 7.0 et plus récent (il fallait Android 8.0 auparavant), avec une icône de lanceur classique sous Android 7.x. Mettez d'abord à jour le PC, puis la tablette depuis le PC comme d'habitude.
