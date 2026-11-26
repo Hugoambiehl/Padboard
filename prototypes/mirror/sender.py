@@ -136,9 +136,9 @@ def close_session(handle):
 
 def pipeline_description(args, width, height, fd=None, node=None):
     if args.source == "test":
-        src = "videotestsrc is-live=true pattern=ball motion=sweep ! timeoverlay font-desc='Sans 48'"
+        src = "videotestsrc name=src is-live=true pattern=ball motion=sweep ! timeoverlay font-desc='Sans 48'"
     else:
-        src = f"pipewiresrc fd={fd} path={node} do-timestamp=true keepalive-time=100 always-copy=true"
+        src = f"pipewiresrc name=src fd={fd} path={node} do-timestamp=true keepalive-time=100 always-copy=true"
     rate = f"videorate drop-only=true ! video/x-raw,framerate={args.fps}/1"
     if args.encoder == "va":
         convert = f"vapostproc ! video/x-raw(memory:VAMemory),format=NV12,width={width},height={height}"
@@ -197,6 +197,11 @@ def main():
     description = pipeline_description(args, width, height, fd, node)
     print(description, flush=True)
     pipeline = Gst.parse_launch(description)
+    # pipewiresrc offers PipeWire's clock; the latency is measured with
+    # CLOCK_MONOTONIC (time.monotonic_ns), so the pipeline runs on it.
+    clock = Gst.SystemClock.obtain()
+    clock.set_property("clock-type", Gst.ClockType.MONOTONIC)
+    pipeline.use_clock(clock)
     sink = pipeline.get_by_name("sink")
     # Capture times in frame order, taken where the raw frame enters the
     # encoder (encoders shift their output timestamps; no B-frames, so the
@@ -243,6 +248,7 @@ def main():
     reader.start()
     pipeline.set_state(Gst.State.PLAYING)
     start = time.monotonic()
+    caps_shown = False
     frames = 0
     total = 0
     sizes = []
@@ -266,6 +272,11 @@ def main():
             total += len(data)
             sizes.append(len(data))
             t = time.monotonic()
+            if not caps_shown and t - start > 2:
+                caps_shown = True
+                source = pipeline.get_by_name("src")
+                caps = source.get_static_pad("src").get_current_caps() if source else None
+                print(f"source caps: {caps.to_string() if caps else None}", flush=True)
             if t - last >= 1:
                 lat = sorted(a[1] / 1000 for a in acks[-frames:]) or [0]
                 print(

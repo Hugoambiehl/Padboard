@@ -114,12 +114,28 @@ class MirrorActivity : Activity(), SurfaceHolder.Callback {
             }
         val width = input.readInt()
         val height = input.readInt()
-        val format = MediaFormat.createVideoFormat(mime, width, height)
-        if (Build.VERSION.SDK_INT >= 30) format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
-        format.setInteger(MediaFormat.KEY_PRIORITY, 0)
-        val codec = MediaCodec.createDecoderByType(mime)
-        Log.i(tag, "decoder ${codec.name} for $mime ${width}x$height")
-        codec.configure(format, holder.surface, null, 0)
+        // Low latency first (Android 11+); the Exynos OMX decoder of the
+        // SM-T580 may refuse it (-1010): then without.
+        var lowLatency = Build.VERSION.SDK_INT >= 30
+        var codec = MediaCodec.createDecoderByType(mime)
+        while (true) {
+            val format = MediaFormat.createVideoFormat(mime, width, height)
+            if (lowLatency) {
+                format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
+                format.setInteger(MediaFormat.KEY_PRIORITY, 0)
+            }
+            try {
+                codec.configure(format, holder.surface, null, 0)
+                break
+            } catch (e: Exception) {
+                if (!lowLatency) throw e
+                Log.w(tag, "decoder refused low latency ($e): without")
+                codec.release()
+                codec = MediaCodec.createDecoderByType(mime)
+                lowLatency = false
+            }
+        }
+        Log.i(tag, "decoder ${codec.name} for $mime ${width}x$height, low latency $lowLatency")
         codec.start()
 
         val received = ConcurrentHashMap<Long, Long>()
