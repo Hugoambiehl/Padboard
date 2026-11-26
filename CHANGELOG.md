@@ -3,6 +3,19 @@
 Notable changes of Padboard, generated from the commit history with
 [git-cliff](https://git-cliff.org). Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.3.0-rc.1 (2026-11-26)
+
+### Features
+
+- **android**: Run on Android 7.0 (minSdk 24)
+
+### Fixes
+
+- **desktop**: Read a tablet's device owner on Android 7.0
+- **desktop**: Don't blame another program for a missing autostart entry
+- **desktop**: Close OBS connections cleanly instead of dropping them
+- **android**: Resolve portal-only plugins from the Gradle Plugin Portal only
+
 ## 0.2.2 (2026-11-26)
 
 ### Fixes

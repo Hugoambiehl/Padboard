@@ -2880,7 +2880,7 @@ dependencies = [
 
 [[package]]
 name = "padboard-actions"
-version = "0.3.0-dev"
+version = "0.3.0-rc.1"
 dependencies = [
  "evdev",
  "pulseaudio",
@@ -2896,7 +2896,7 @@ dependencies = [
 
 [[package]]
 name = "padboard-desktop"
-version = "0.3.0-dev"
+version = "0.3.0-rc.1"
 dependencies = [
  "auto-launch",
  "base64 0.23.1",
@@ -2939,7 +2939,7 @@ dependencies = [
 
 [[package]]
 name = "padboard-protocol"
-version = "0.3.0-dev"
+version = "0.3.0-rc.1"
 dependencies = [
  "serde",
  "serde_json",
