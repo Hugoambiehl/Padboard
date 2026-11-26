@@ -1,0 +1,1 @@
+No change in the tablet app: this version fixes "Installer adb" in the PC app on Windows (Google republished the Platform-Tools archive, every download was refused) and explains a refused download better. Update the PC, then the tablet from the PC as usual.

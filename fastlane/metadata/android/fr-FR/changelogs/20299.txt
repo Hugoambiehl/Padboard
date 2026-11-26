@@ -1,0 +1,1 @@
+Aucun changement dans l'application de la tablette : cette version corrige « Installer adb » dans l'application du PC sous Windows (Google a republié l'archive des Platform-Tools, chaque téléchargement était refusé) et explique mieux un téléchargement refusé. Mettez à jour le PC, puis la tablette depuis le PC comme d'habitude.
