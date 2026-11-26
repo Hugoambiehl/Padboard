@@ -876,12 +876,37 @@ without `java.time`. It must look exactly as before.
 - OBS 33 with obs-websocket on, set up in Padboard (*Connexions* → OBS),
   **closed** for now.
 
+**Result (2026-11-26)**: the PC and the tablet were still on
+**0.2.2-rc.1** (tablet versionCode 20201), not 0.2.2: the update was
+made from there (same installer and update path as 0.2.2). *Versions de
+test* on; autostart on (`Run` value `"…\padboard-desktop.exe" --hidden`,
+`StartupApproved` `02…`); sound: playback Logitech PRO X Gaming Headset
+100 %, recording Shure MV6 100 %, neither muted (read by hand). OBS set
+up (`127.0.0.1:4455`, on) and closed. Padboard quit, both data folders
+saved to `D:\padboard-backup-0.2.2` (320 files, every SHA-256 checked
+against the copy).
+
 ### 13.1 0.2.2 → 0.3.0-rc.1
 
 | Check | Do | Expect |
 |---|---|---|
 | Update | *Rechercher*, *Télécharger*, *Quitter Padboard*, run the file | As 12.1: no folder page, configuration and `Run` value kept, one entry in *Settings → Apps* (0.3.0-rc.1) |
 | Bitdefender | Whole section | No detection, no quarantine |
+
+**Result (2026-11-26)**: passed, from 0.2.2-rc.1. *Rechercher*: *update
+available version=0.3.0-rc.1*; *Télécharger*: *installer downloaded and
+checked*, *not started by Padboard* (`no trusted publisher in this
+build`), SHA-256 `a6d03fb5…388293` as published. *Quitter Padboard* in
+the card, double-click: no SmartScreen warning, no folder page, no data
+checkbox. Still in `D:\Programme Files\Padboard`, no
+`%LOCALAPPDATA%\Padboard`; `identity`, `obs`, `paired-devices`,
+`preferences`, `profiles`, `tls-key` unchanged byte for byte,
+`update-pending.json` removed; one entry in *Settings → Apps*
+(0.3.0-rc.1); `Run` value and `StartupApproved` (`02…`) unchanged
+(*entry refreshed*); Start menu and desktop shortcuts kept; *update
+installed version=0.3.0-rc.1*, tablet reconnected over USB under 1 s
+after launch. Bitdefender: no change in quarantine, ATC feedback or
+firewall rules for the whole section (13.1 to 13.4).
 
 ### 13.2 OBS closes cleanly (#15)
 
@@ -899,11 +924,25 @@ Up to 0.2.2, every check connection logged code `1006` (*End of File*).
 | Settings changed | In *Connexions* → OBS, save the settings again (or change the password and put it back) | Padboard disconnects and connects again; in OBS's log, code **`1000`** for the session that ended |
 | Still works | One OBS button from the tablet | It acts as before; OBS never freezes (11.3) |
 
+**Result (2026-11-26)**: passed (OBS 33, obs-websocket 5.7.6). Padboard
+running, OBS started: the check connection opened at 18:02:15.738 and
+*has disconnected with code `1000`* at 18:02:15.756; the real session
+connected 10 s later (18:02:25.768), every initial request answered (8
+scenes, 33 inputs). Settings saved again: the session *has disconnected
+with code `1000`* (18:04:25.493), the new one connected 3 ms later and
+got its answers. A scene button from the tablet worked; OBS never froze.
+
 ### 13.3 Autostart log (#16)
 
 | Check | Do | Expect |
 |---|---|---|
 | Written again | *Démarrage* on; quit Padboard; `Remove-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name Padboard`; start Padboard | `padboard.log`: *the entry was missing (removed outside Padboard: uninstaller, security software, Task Manager…), written again*; the `Run` value is back; `StartupApproved` unchanged |
+
+**Result (2026-11-26)**: passed. `Run` value removed with Padboard quit,
+Padboard started from the Start menu: `WARN … autostart: start with the
+session: the entry was missing (removed outside Padboard: uninstaller,
+security software, Task Manager…), written again`; the `Run` value back,
+identical; `StartupApproved` still `02…`.
 
 ### 13.4 SM-T580 (Android 12L): no regression
 
@@ -913,10 +952,32 @@ The tablet is in kiosk mode, on 0.2.2 (versionCode 20299).
 |---|---|---|
 | Update | *Mettre à jour vers 0.3.0-rc.1* in the USB card | *tablet updated over USB from=20299 to=30001*; reconnected; still device owner, lock task `LOCKED`, Padboard in front |
 | Kiosk seen by the PC | USB card | Kiosk mode shown **on**, as before (`dpm list-owners` path, unchanged on 12L) |
-| Screensaver, French | *Écran de veille* card: delay 15 s; tablet in French; wait | Black screen, clock `HH:mm` (24 h), date like *Jeudi 26 novembre* (capital first letter, no year), the states row as before; it drifts after a minute; a tap wakes it and presses nothing |
-| Screensaver, English | Tablet in English (*Settings → System → Languages*), wait again | Date like *Thursday 26 November*, clock unchanged |
-| Afterwards | Tablet back to French, screensaver delay back to its previous value | |
+| Screensaver, French | *Écran de veille* card: delay 30 s (the card's shortest); tablet in French; wait | Black screen, clock `HH:mm` (24 h), date like *Jeudi 26 novembre* (capital first letter, no year), the states row as before; it drifts after a minute; a tap wakes it and presses nothing |
+| Screensaver, English | Kiosk mode blocks Android's settings: *Libérer la tablette* in the USB card first; tablet in English (*Settings → System → Languages & input → Languages*, English first), open Padboard, wait again | Date like *Thursday 26 November*, clock unchanged |
+| Afterwards | Tablet back to French, *Activer le mode kiosque* in the USB card, screensaver delay back to its previous value | Kiosk mode on again |
 | Pairing | The tablet keeps its Wi-Fi pairing (unplug USB: it switches to Wi-Fi without a new PIN) | Pairings stored by 0.2.2 still valid (same base64 encoding) |
+
+**Result (2026-11-26)**: passed, except *Pairing* (not applicable).
+*Update*: tablet on 0.2.2-rc.1 (20201), kiosk mode; *tablet APK
+downloaded and checked*, *tablet updated over USB from=20201 to=30001*
+in 3 s, reconnected 1 s later; `versionName=0.3.0-rc.1`, `minSdk=24`;
+still device owner, `LOCKED`, Padboard in front. *Kiosk seen by the PC*:
+shown on. Grid identical before and after (screenshots). Pages and
+folders: the only profile has one page and no folder, so the tester
+added test content in the editor, tried pages and folders on the
+tablet (no problem), then deleted it: `profiles.json` back identical
+byte for byte. *Screensaver,
+French*: the card offers 30 s at the shortest (the backend accepts 15 s,
+the plan said 15 s): *Jeudi 26 novembre*, `18:10`, nothing on the states
+row (nothing muted on Windows, no recording); the clock moved at the
+next minute; a tap (adb, on the active scene's tile) woke it, the grid
+came back. *Screensaver, English*: kiosk mode left with *Libérer la
+tablette* (*the tablet left kiosk mode by=Pc*), `en-GB` first:
+*Thursday 26 November*, clock unchanged. *Afterwards*: `fr-FR` only
+again, *Activer le mode kiosque* (*kiosk mode enabled*: device owner,
+`LOCKED`), delay back to 300 s. *Pairing*: not applicable, the tablet
+was never paired over Wi-Fi (`paired-devices.json` empty, PC Wi-Fi off);
+Wi-Fi left off.
 
 ### 13.5 Android 7 tablet (the tester's own)
 
@@ -928,7 +989,7 @@ package"). Note its model and Android version (*Paramètres → À propos*).
 | Install | `padboard-0.3.0-rc.1.apk` from the release, opened on the tablet (*Sources inconnues* on, Android 7) or `adb install` | Installed; Padboard's icon in the launcher (square, or round on 7.1) |
 | USB | USB debugging on, the tablet plugged in | It connects; the grid shows; a button acts on the PC |
 | Wi-Fi | *Appairer un appareil* on the PC, the PIN on the tablet | Paired (same short fingerprint on both); unplugged, it stays connected over Wi-Fi |
-| Screensaver | Delay 15 s, wait | Clock and date as on the SM-T580 |
+| Screensaver | Delay 30 s, wait | Clock and date as on the SM-T580 |
 | Kiosk (only if the tablet has **no account**) | *Activer le mode kiosque* in the USB card | Kiosk mode on, shown on in the card; leave it with the corner gesture (5 s, then confirm). On Android 7 the system launcher then comes in front (#24, expected); Padboard still opens from it |
 
 If the tablet cannot run kiosk mode (accounts on it, or a manufacturer
@@ -940,6 +1001,12 @@ is still worth testing.
 Restore the autostart state and the sound noted in 13.0, then send the
 report with the `padboard.log` files, OBS's log of 13.2 and the Android 7
 tablet's model and version.
+
+**Result (2026-11-26, without 13.5)**: autostart as in 13.0 (`Run`
+value, `StartupApproved` `02…`); sound as in 13.0, checked by the tester
+(no audio action run); configuration identical to the backup of 13.0
+byte for byte. The backup `D:\padboard-backup-0.2.2` is kept until the
+tester deletes it. 13.5 is run separately.
 
 ## Known Windows limits
 
