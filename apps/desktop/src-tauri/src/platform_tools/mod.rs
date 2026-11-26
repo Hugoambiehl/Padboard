@@ -33,9 +33,9 @@ pub const VERSION: &str = "37.0.3";
 /// Google's archive of that version (`repository2-3.xml`, Windows).
 pub const URL: &str = "https://dl.google.com/android/repository/platform-tools_r37.0.3-win.zip";
 /// Its SHA-256 (Google publishes a SHA-1, checked when pinning).
-pub const SHA256: &str = "b5d2015f5d5b7a24a2ac646a245f20f63fb501e4174c61863c74bed1df6de4bd";
+pub const SHA256: &str = "89d108360a3bf2924d3bea837239edaccc22fd6ff5befd3787c4348a9fe4f09d";
 /// Its size, in bytes; a download above twice that is cut short.
-pub const SIZE: u64 = 8_188_595;
+pub const SIZE: u64 = 8_188_601;
 /// The license the user accepts.
 pub const LICENSE_URL: &str = "https://developer.android.com/studio/terms";
 /// Google's page of the Platform-Tools (to download them by hand).
