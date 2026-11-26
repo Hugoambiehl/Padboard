@@ -855,6 +855,92 @@ PRO X Gaming Headset 100 %, recording Shure MV6 100 %, neither muted,
 noted by hand (no audio action run, nothing to restore). The backup of
 12.1 is kept until the tester deletes it.
 
+## 13. Release candidate 0.3.0-rc.1: update from 0.2.2, OBS, Android 7 (Bitdefender active)
+
+Same PC and rules as section 12, 0.2.2 installed. 0.3 changes little on
+the PC:
+
+- OBS's check connection is closed cleanly (#15);
+- the autostart log line is reworded (#16);
+- the PC reads a tablet's device owner on Android 7.0, which has no `dpm list-owners`.
+
+On the tablet, the app runs from Android 7.0 (minSdk 24, #21): new
+launcher icons for Android 7, and the screensaver's clock rewritten
+without `java.time`. It must look exactly as before.
+
+### 13.0 Before starting
+
+- As 12.0. In 0.2.2: *Versions de test* **on**.
+- Note the autostart state (`Run` value, *Démarrage* card) and the sound
+  (playback and recording devices, volumes, mute), to restore them in 13.6.
+- OBS 33 with obs-websocket on, set up in Padboard (*Connexions* → OBS),
+  **closed** for now.
+
+### 13.1 0.2.2 → 0.3.0-rc.1
+
+| Check | Do | Expect |
+|---|---|---|
+| Update | *Rechercher*, *Télécharger*, *Quitter Padboard*, run the file | As 12.1: no folder page, configuration and `Run` value kept, one entry in *Settings → Apps* (0.3.0-rc.1) |
+| Bitdefender | Whole section | No detection, no quarantine |
+
+### 13.2 OBS closes cleanly (#15)
+
+obs-websocket logs every client that leaves:
+
+```
+[obs-websocket] [WebSocketServer::onClose] WebSocket client `…` has disconnected with code `…` and reason: …
+```
+
+Up to 0.2.2, every check connection logged code `1006` (*End of File*).
+
+| Check | Do | Expect |
+|---|---|---|
+| Check connection | Padboard running, start OBS, wait until *Connexions* says OBS is connected, then open OBS's log (*Aide → Fichiers journaux → Afficher le fichier journal actuel*) | The check connection (the first client, about 10 s before the real session) has disconnected with code **`1000`**, never `1006` |
+| Settings changed | In *Connexions* → OBS, save the settings again (or change the password and put it back) | Padboard disconnects and connects again; in OBS's log, code **`1000`** for the session that ended |
+| Still works | One OBS button from the tablet | It acts as before; OBS never freezes (11.3) |
+
+### 13.3 Autostart log (#16)
+
+| Check | Do | Expect |
+|---|---|---|
+| Written again | *Démarrage* on; quit Padboard; `Remove-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name Padboard`; start Padboard | `padboard.log`: *the entry was missing (removed outside Padboard: uninstaller, security software, Task Manager…), written again*; the `Run` value is back; `StartupApproved` unchanged |
+
+### 13.4 SM-T580 (Android 12L): no regression
+
+The tablet is in kiosk mode, on 0.2.2 (versionCode 20299).
+
+| Check | Do | Expect |
+|---|---|---|
+| Update | *Mettre à jour vers 0.3.0-rc.1* in the USB card | *tablet updated over USB from=20299 to=30001*; reconnected; still device owner, lock task `LOCKED`, Padboard in front |
+| Kiosk seen by the PC | USB card | Kiosk mode shown **on**, as before (`dpm list-owners` path, unchanged on 12L) |
+| Screensaver, French | *Écran de veille* card: delay 15 s; tablet in French; wait | Black screen, clock `HH:mm` (24 h), date like *Jeudi 26 novembre* (capital first letter, no year), the states row as before; it drifts after a minute; a tap wakes it and presses nothing |
+| Screensaver, English | Tablet in English (*Settings → System → Languages*), wait again | Date like *Thursday 26 November*, clock unchanged |
+| Afterwards | Tablet back to French, screensaver delay back to its previous value | |
+| Pairing | The tablet keeps its Wi-Fi pairing (unplug USB: it switches to Wi-Fi without a new PIN) | Pairings stored by 0.2.2 still valid (same base64 encoding) |
+
+### 13.5 Android 7 tablet (the tester's own)
+
+The tablet that refused the 0.2 APK ("problème lors de l'analyse du
+package"). Note its model and Android version (*Paramètres → À propos*).
+
+| Check | Do | Expect |
+|---|---|---|
+| Install | `padboard-0.3.0-rc.1.apk` from the release, opened on the tablet (*Sources inconnues* on, Android 7) or `adb install` | Installed; Padboard's icon in the launcher (square, or round on 7.1) |
+| USB | USB debugging on, the tablet plugged in | It connects; the grid shows; a button acts on the PC |
+| Wi-Fi | *Appairer un appareil* on the PC, the PIN on the tablet | Paired (same short fingerprint on both); unplugged, it stays connected over Wi-Fi |
+| Screensaver | Delay 15 s, wait | Clock and date as on the SM-T580 |
+| Kiosk (only if the tablet has **no account**) | *Activer le mode kiosque* in the USB card | Kiosk mode on, shown on in the card; leave it with the corner gesture (5 s, then confirm). On Android 7 the system launcher then comes in front (#24, expected); Padboard still opens from it |
+
+If the tablet cannot run kiosk mode (accounts on it, or a manufacturer
+that refuses `set-device-owner`), note Android's message: everything else
+is still worth testing.
+
+### 13.6 Afterwards
+
+Restore the autostart state and the sound noted in 13.0, then send the
+report with the `padboard.log` files, OBS's log of 13.2 and the Android 7
+tablet's model and version.
+
 ## Known Windows limits
 
 - Keys cannot be sent to elevated (administrator) windows.
