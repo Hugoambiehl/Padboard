@@ -1118,6 +1118,79 @@ loop.
 The checks of [tablet-test-plan.md](tablet-test-plan.md), section
 *Release candidate 0.4.0-rc.2*, with this PC.
 
+### 15.2 Results (reported 2026-11-27)
+
+Section 14 run with 0.4.0-rc.2, then 15.1. The tablet's power button
+and touches were simulated with `adb shell input` (tester away), the
+PC's window driven through UI Automation.
+
+- **14.0**: 0.3.0 installed, *Versions de test* on; autostart on (`Run`
+  value `"…\padboard-desktop.exe" --hidden`, `StartupApproved` `02…`);
+  sound given by the tester: playback *Haut-parleurs (Logitech PRO X
+  Gaming Headset)* 100 %, recording *Microphone (2- Shure MV6)* 100 %,
+  neither muted. The SM-T580 on 0.3.0 (30099) in kiosk mode, still in
+  the rc.1 loop (`.MainActivity` t58 + `.HomeAlias` t59). Padboard quit,
+  both data folders saved to `D:\padboard-backup-0.3.0` (320 files,
+  every SHA-256 checked, `SHA256-manifest.txt` inside).
+- **14.1**: passed. *update available version=0.4.0-rc.2* (already
+  found by the launch check, again by *Rechercher*); *Télécharger*:
+  *installer downloaded and checked*, *not started by Padboard* (`no
+  trusted publisher in this build`), SHA-256 `8cb39124…352428` as
+  published, no `Zone.Identifier`. *Quitter Padboard*: *quit from the
+  window*, *exited*. Installer: no SmartScreen warning, *Déjà installé*
+  page (uninstall first, default), no folder page, no data checkbox.
+  Still in `D:\Programme Files\Padboard`, no `%LOCALAPPDATA%\Padboard`;
+  `identity`, `obs`, `paired-devices`, `preferences`, `profiles`,
+  `tls-key` unchanged byte for byte, `update-pending.json` removed at
+  launch; one entry in *Settings → Apps* (0.4.0-rc.2); `Run` value and
+  `StartupApproved` unchanged (*entry refreshed*); shortcuts kept;
+  *update installed version=0.4.0-rc.2*. While the 0.3.0 tablet still
+  looped, the new PC logged *this tablet keeps replacing its own session
+  (5 in a minute): two copies of the app's connection on the tablet?*
+  2 s after launch, as intended. Test-driving note: a keystroke meant
+  for the installer reached the Explorer window Padboard had opened on
+  the file and started the installer a second time; that second copy
+  installed, the first one (still on its welcome page) was closed.
+  Bitdefender: no change in quarantine, ATC feedback or firewall rules
+  for the whole section.
+- **14.2**: passed, after the tablet update. Padboard started with a
+  `PATH` without adb (`where.exe adb`: nothing); our copy from 12.2 was
+  there, so *Supprimer adb* first: **refused twice with *Accès refusé.
+  (os error 5)*** while the 0.3.0 tablet looped: each of its new
+  sessions (every 0.5 s) made the PC run `dpm list-owners` with our
+  `adb.exe`, so the file was nearly always running (nothing was
+  deleted). Once the tablet was on 40002 (no loop): *adb server
+  started by another program: left running* (Touch Portal's),
+  *platform-tools removed*. *Installer adb…*: *the user accepted the
+  Android SDK license*, *platform-tools installed* 1.1 s later,
+  *tracking USB devices* with our copy, *adb reverse active*; the card
+  shows the path and *Platform-Tools 37.0.3 de Google, téléchargés par
+  Padboard.*, no orange line; neither *not the pinned archive* nor
+  *accepted from Google's index*; no `padboard-from-index.json`; the 8
+  `.exe` and 2 `.dll` `Valid`, `CN=Google LLC`, identical to the 12.2
+  copy. *Back to normal*: started from the Start menu, Touch Portal's
+  adb from `PATH` again.
+- **14.3 and 15.1**: passed, see the results in
+  [tablet-test-plan.md](tablet-test-plan.md) (*Release candidate
+  0.4.0-rc.2*). *Mettre à jour vers 0.4.0-rc.2*: *tablet updated over
+  USB from=30099 to=40002* in 3.5 s; `KioskUpdated` brought back one
+  screen only (`.HomeAlias`), `LOCKED`, device owner; the loop ended
+  with the 0.3.0 process. From then on: one session (`client=1`) from
+  10:55:10Z to the end of the tests, through two sleeps, two kiosk
+  exits and two activations; **0 `session superseded`, 0 *keeps
+  replacing***, no WARN or ERROR in `padboard.log`. Test-driving note:
+  the second click of *Libérer la tablette* sent through UI Automation's
+  Invoke never confirmed (the button lost focus between the two
+  Invokes, and `@blur` disarms it); two Enter key presses on the
+  focused button 1.5 s apart did, as a user's two clicks.
+- **14.4**: autostart as in 14.0 (`Run` value, `StartupApproved`
+  `02…`); configuration identical to the backup except the logs and
+  `updates/` (the 0.4.0-rc.2 APK and its `SHA256SUMS` in place of
+  0.3.0's); sound as in 14.0, checked by the tester (no audio action
+  run). The
+  backup `D:\padboard-backup-0.3.0` is kept until the tester deletes it.
+  The tablet is left in kiosk mode.
+
 ## 16. Release candidate 0.4.0-rc.3: local network on Android 17, kiosk exit
 
 Same PC and rules as section 13, 0.4.0-rc.2 installed, the SM-T580 on

@@ -77,6 +77,42 @@ lists the app's screens ("one screen" below: exactly one line).
 | Leave from the PC | *Libérer la tablette* in *Tablettes connectées* (two clicks) | As *Leave by the corner* |
 | Kiosk on again | *Activer le mode kiosque* | As *Kiosk on*; leave the tablet in kiosk mode |
 
+**Result (2026-11-27, Windows PC of section 15 of
+[windows-test-plan.md](windows-test-plan.md))**: passed. Started from
+kiosk mode (updated from 0.3.0 over USB in kiosk mode, not from kiosk
+mode off); power button and touches simulated with `adb shell input`
+(`KEYCODE_POWER`, a 5.5 s `swipe` on the spot at (20, 1180), a `tap` on
+the red button), tester away.
+
+- *Update*: from=30099 to=40002; `KioskUpdated` started `.HomeAlias`
+  only (t60), `LOCKED`, device owner, connected 2 s later.
+- *Sleep* (11:57:14 off, `Dozing`; 11:58:17 on): one screen,
+  `.HomeAlias` t60, `LOCKED`; the session was never dropped (PC
+  `client=1` throughout).
+- *No loop*: 10 min after the wake-up, PC: 0 `session superseded`, 0
+  *keeps replacing*, *Connectée à 11:55:10* unchanged; tablet: no
+  *replaced by another session of this tablet*.
+- *Leave by the corner*: the confirmation opened at 5 s; *Quitter le
+  mode kiosque*: one screen `.MainActivity` t61, `NONE`, `dpm
+  list-owners`: no owners, the HOME query lists Launcher3 and
+  FallbackHome only, status bar no longer disabled (`mDisabled1=0x0`,
+  the app's full screen still hides it); tablet log *… hidden gesture
+  on the tablet*, PC *the tablet left kiosk mode* `by=Gesture`; the USB
+  card offers *Activer le mode kiosque*.
+- *Again, with sleep*: *Activer le mode kiosque*: `Device owner set`,
+  the app started `.HomeAlias` (HOME, uid 10100) and the PC's `am start
+  …/.MainActivity` (uid 2000) 1.6 s later added no screen: one screen
+  `.HomeAlias` t62, `LOCKED`. Sleep 12:09:53 → 12:10:56: still one
+  screen t62, no new `START` at the wake-up, same PC session.
+- *Leave from the PC* (screen on): *order to the tablet*
+  `order=ExitKiosk sent=true`, *left kiosk mode* `by=Pc`; tablet *… the
+  PC (Libérer la tablette)*; as *Leave by the corner* (`.MainActivity`
+  t63).
+- *Kiosk on again*: one screen `.HomeAlias` t64, `LOCKED`, device
+  owner; left in kiosk mode.
+
+Navigation mode not noted (no bottom-edge check in this section).
+
 ## Release candidate 0.2.0-rc.2: the kiosk exit corner
 
 The hidden gesture moved from the top-right corner (next to the
