@@ -1270,6 +1270,23 @@ retried for about 5 s.
 | Another program's server | As in 8.2 (Touch Portal's adb running) | Unchanged: the other server keeps running |
 | Back | *Installer adb…* again | Installed without error |
 
+## 18. 0.5: only the adb server may connect to the USB port (#20)
+
+From 0.5 the PC checks, for every connection to the USB port (47321),
+which process opened it (`GetExtendedTcpTable`): it must be the one
+listening on the adb server's port (5037). Anything else is refused,
+logged (*USB connection refused*, with the PID and the program) and shown
+in the *Appareils USB* card for 5 minutes. A connection that cannot be
+checked is refused too, explained on the PC and on the tablet.
+
+| Step | Do | Expected |
+|---|---|---|
+| Padboard's adb | Only Padboard's own copy (*Installer adb*), the tablet plugged in | Connected over USB as before; `padboard.log` (debug) *USB connection from the adb server*; nothing in the USB card |
+| The SDK's adb | Remove Padboard's copy; choose the SDK's `adb.exe` (Android Studio's `platform-tools`), unplug and plug the tablet back in | Connected over USB |
+| Touch Portal running | Touch Portal started first, so its adb 28.0.3 runs the server on 5037 (as in 8.2); then Padboard, tablet plugged in | Connected over USB (the server is Touch Portal's adb, still the one listening on 5037): no refusal |
+| Another program | In PowerShell: `$c = New-Object Net.Sockets.TcpClient('127.0.0.1', 47321)` | Refused: the USB card says the connection came from `powershell.exe` (its PID), not from the adb server; `padboard.log` has the same; the tablet stays connected. `$c.Close()` |
+| Back | Unplug and plug the tablet back in | Connected over USB; the refusal disappears from the card after 5 minutes |
+
 ## Known Windows limits
 
 - Keys cannot be sent to elevated (administrator) windows.
