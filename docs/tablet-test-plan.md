@@ -50,6 +50,48 @@ tablet with Android 17, if one is at hand: first launch, *Associer en
 Wi-Fi* shows *Autoriser le Wi-Fi*; *Autoriser* lists the PCs; refusing
 twice makes the button open Padboard's settings; USB works throughout.
 
+**Result (2026-11-27, Windows PC of section 16 of
+[windows-test-plan.md](windows-test-plan.md))**: passed, except the two
+Wi-Fi lines, not done. Started from kiosk mode, updated from 40002 over
+USB in kiosk mode; power button and touches simulated with `adb shell
+input` (`KEYCODE_POWER`, a 5.5 s `swipe` on the spot at (20, 1180), a
+`tap` on the red button), tester away.
+
+- *Update*: from=40002 to=40003; `KioskUpdated` started `.HomeAlias`
+  only (t65), `LOCKED`, device owner, connected 1 s later. No
+  permission dialog, no picker: `.HomeAlias` focused, the grid on
+  screen; `ACCESS_LOCAL_NETWORK` is declared but unknown to 12L (no
+  grant state); the log shows only the usual *PermissionController:
+  Updating user sensitive* of a package update.
+- *No question on 12L*, *USB only*: **not done**. Padboard's Wi-Fi is
+  off on this PC (`lanEnabled: false`) and 12L has no local network
+  permission; Wi-Fi is checked on a friend's Android 7 tablet. USB
+  worked throughout.
+- *Released, screen off* (#32): screen off 13:42:29 (`Dozing`),
+  *Libérer la tablette* at 13:42:45 / 13:42:47 (screen still off): *the
+  tablet left kiosk mode* `by=Pc`; screen still off 10 s later, one
+  screen `.MainActivity` t67, `NONE`; screen on 13:42:58: Padboard in
+  front (`.MainActivity` focused, the grid, connected), `dpm
+  list-owners`: no owners, the HOME query lists Launcher3 and
+  FallbackHome only, status bar no longer disabled (`mDisabled1=0x0`).
+  The tablet reconnected once at the release (PC `client=2` → `3`,
+  0.3 s, no `superseded`).
+- *Kiosk on again*: one screen `.HomeAlias` t68, `LOCKED`, device owner.
+- The 0.4.0-rc.2 section again: *Sleep* 13:43:35 → 13:44:36: one screen
+  t68, `LOCKED`; *No loop* (10 min after the wake-up): 0 `session
+  superseded`, 0 *keeps replacing*, no WARN or ERROR, same session
+  (`client=3`), tablet: no *replaced by another session of this
+  tablet*; *Leave by the corner*: confirmation at 5 s, *Quitter le mode
+  kiosque*: `.MainActivity` t69, no owners, HOME query without Padboard,
+  `by=Gesture`; *Again, with sleep*: `.HomeAlias` t70, sleep 13:55:32 →
+  13:56:33: same screen, `LOCKED`; *Leave from the PC* (screen on):
+  `by=Pc`, `.MainActivity` t71; *Kiosk on again*: one screen
+  `.HomeAlias` t72, `LOCKED`, device owner; left in kiosk mode. The
+  session `client=3` lasted from 12:42:47Z to the end (two kiosk exits
+  and two activations, one sleep, without reconnecting).
+
+Navigation mode not noted (no bottom-edge check in this section).
+
 ## Release candidate 0.4.0-rc.2: one screen in kiosk mode, through sleep
 
 rc.1 was stopped by a loop on this tablet: after the PC turned kiosk mode

@@ -1207,6 +1207,55 @@ tablet app (#31, #32); the PC side is the same as rc.2.
 
 Then restore the autostart state and the sound as in 14.4.
 
+### 16.1 Results (reported 2026-11-27)
+
+The tablet's power button and touches were simulated with `adb shell
+input` (tester away), the PC's window driven through UI Automation; the
+installer was started and run by the tester.
+
+- **Before**: 0.4.0-rc.2 installed, *Versions de test* on, Padboard's
+  Wi-Fi off (`lanEnabled: false`); autostart on (`Run` value
+  `"…\padboard-desktop.exe" --hidden`, `StartupApproved` `02…`); sound
+  given by the tester, as in section 15 (Logitech PRO X 100 %, Shure
+  MV6 100 %, neither muted). The SM-T580 on 40002 in kiosk mode, one
+  screen `.HomeAlias`, `LOCKED`. Padboard quit, both data folders saved
+  to `D:\padboard-backup-rc2` (322 files, every SHA-256 checked,
+  `SHA256-manifest.txt` inside).
+- **Update**: passed. *update available version=0.4.0-rc.3* (launch
+  check, then *Rechercher*); *Télécharger*: *installer downloaded and
+  checked*, *not started by Padboard* (`no trusted publisher in this
+  build`), SHA-256 `835ceb74…7022c3` as published, no
+  `Zone.Identifier`; *Quitter Padboard*: *quit from the window*,
+  *exited*. Installer double-clicked by the tester: nothing unusual.
+  Same folder, uninstall entry 0.4.0-rc.3, configuration identical to
+  the backup except the logs and `updates/` (the 0.4.0-rc.3 APK and its
+  `SHA256SUMS` in place of rc.2's); `Run` value and `StartupApproved`
+  unchanged (*entry refreshed*); *update installed
+  version=0.4.0-rc.3*. Bitdefender: no change in quarantine, ATC
+  feedback or firewall rules for the whole section.
+- **Tablet over USB**: passed. *tablet updated over USB from=40002
+  to=40003* 3 s after the click; reconnected 1 s later; device owner,
+  `LOCKED`, one screen `.HomeAlias` in front.
+- **Tablet over Wi-Fi**: not done (cable to unplug by hand, Padboard's
+  Wi-Fi off on this PC); Wi-Fi is checked on a friend's Android 7
+  tablet.
+- **SM-T580**: passed except the two Wi-Fi lines (not done), see the
+  results in [tablet-test-plan.md](tablet-test-plan.md) (*Release
+  candidate 0.4.0-rc.3*).
+- **No loop**: 0 `session superseded`, 0 *keeps replacing*, no WARN or
+  ERROR in `padboard.log` for the whole section.
+- **Afterwards**: autostart as before; sound as before, checked by the
+  tester (no audio action run). The backup `D:\padboard-backup-rc2` is kept. The tablet
+  is left in kiosk mode.
+- Test-driving note: two Enter presses meant for *Libérer la tablette*
+  were sent while UI Automation reported the button focused but
+  Padboard's window was not in front: they went to whichever window
+  was (no installer was started, Padboard's state unchanged). The script
+  now brings the window forward by its exact title (`AppActivate
+  'Padboard'`), sends the second Enter only once the button reads
+  *Confirmer : quitter le mode kiosque*, and the screen-off release was
+  done again from the start.
+
 ## Known Windows limits
 
 - Keys cannot be sent to elevated (administrator) windows.
