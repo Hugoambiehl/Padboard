@@ -442,6 +442,28 @@ added (`gstreamer-rs`' MSRV to check: section 10).
    touched in kiosk mode; documented.
 8. **Releases**: rc.1 = steps 1 to 3; VDD in a later 0.5 rc.
 
+### Measured on the SM-T580 (2026-11-28)
+
+Test pattern from the PC (GStreamer, 1728×1080), the decoder prototype
+(branch `proto/screen`, throwaway) on the real protocol over USB:
+
+| Codec | Frames/s | Bitrate | Decode (tablet) | Send → ack, p50 / p90 |
+|---|---|---|---|---|
+| H.264 (`vah264enc` → `OMX.Exynos.avc.dec`) | ~49 | 9.8 Mbit/s | 10.7 ms | 22.8 / 24.9 ms |
+| VP8 (`vp8enc` → `OMX.Exynos.vp8.dec`) | ~59.6 | 8.9 Mbit/s | 12.2 ms | 19.5 / 21.6 ms |
+
+- H.264 stays under 60 fps: the source encodes one requested frame at a
+  time (the valve opens for one frame, waits for the next picture, then
+  for the VA encoder). To try: open the valve for as many frames as the
+  window has room for.
+- `KEY_LOW_LATENCY` is refused by the Exynos decoder (as in step 1):
+  configured without it.
+- **Volume keys** (out of kiosk mode): a long press arrives as
+  `onKeyLongPress` after ~250 ms; the key's repeats keep coming after
+  the second screen closed, so every volume event is consumed until that
+  key is released, otherwise the system's volume panel shows. Checked
+  with a real key: no panel. To check again in kiosk mode (lock task).
+
 ### Remaining
 
 1. **GPU and drivers on Windows**: hybrid laptops (Duplication on the
