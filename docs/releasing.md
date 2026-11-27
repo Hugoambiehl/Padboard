@@ -230,6 +230,7 @@ for `apksigner`; the GitHub CLI (`gh`).
    | 0.2.2 | 2/69 | SecureAge, CrowdStrike Falcon (`Win/grayware_confidence_60% (D)`) | SHA-256 `948803f3c40eb98ad4c21fb97cb58198995db7fca2b2685b83e8058f2ed38abe`; checked by `verify-release` with the API key (no `STOP`); Bitdefender and Microsoft undetected; not submitted to them (no systematic submission since 0.2.2) |
    | 0.3.0-rc.1 | 2/68 | CrowdStrike Falcon (`Win/grayware_confidence_60% (D)`), SecureAge | SHA-256 `a6d03fb5d68ff7b37adc8c09f01366f01ffdfee5d9c058107ca275cc31388293`; checked by `verify-release` with the API key (no `STOP`); Bitdefender and Microsoft undetected; same engines as 0.2.2 |
    | 0.3.0 | 1/70 | SecureAge | SHA-256 `56f932010a5d27faaf48d854d45bdb3bcc95878a903f87349e1b7a5c019fcda2`; checked by `verify-release` with the API key (no `STOP`); Bitdefender and Microsoft undetected; CrowdStrike Falcon no longer detects it |
+   | 0.4.0-rc.2 | 1/69 | SecureAge | SHA-256 `8cb391249a82be414e6a3d6f873e14d1c0ad24305f3077eef9b4f935ab352428`; checked by `verify-release` with the API key (no `STOP`); Bitdefender and Microsoft undetected; new sandbox tags `detect-debug-environment` and `obfuscated`, and a medium Sigma rule *Sysmon File Executable Creation Detected* (expected: the installer writes `.exe` files); 0.4.0-rc.1 was never published |
 
    And on Windows, Bitdefender active with no exception for Padboard
    (`docs/windows-test-plan.md`, section 7): nothing detected during the
