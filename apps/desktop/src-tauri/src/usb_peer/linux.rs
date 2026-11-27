@@ -165,6 +165,41 @@ mod tests {
         assert_eq!(rows[1].remote_port, 47321);
     }
 
+    /// adb listening on `::1` only (tcp6), the connection arriving as IPv4
+    /// (tcp) or IPv4-mapped (tcp6): both ends are found and compared.
+    #[test]
+    fn ipv6_listeners_and_mapped_peers_are_checked() {
+        use crate::usb_peer::{Owner, Verdict, decide, find};
+        let peer_v4: SocketAddr = "127.0.0.1:52315".parse().unwrap();
+        let peer_mapped: SocketAddr = "127.0.0.1:52316".parse().unwrap();
+        let v6 = parse(TCP6, true);
+        let mut rows: Vec<TcpRow> = parse(TCP, false)
+            .into_iter()
+            .filter(|r| r.state != TcpState::Listen)
+            .collect();
+        rows.extend(v6);
+        // The listener is ::1 (root's server, uid 0).
+        let (peer, server) = find(&rows, peer_v4, 47321, 5037);
+        assert_eq!(server.unwrap().local, "[::1]:5037".parse().unwrap());
+        assert_eq!(peer.unwrap().uid, Some(1000));
+        assert_eq!(
+            decide(peer.map(Owner::from), server.map(Owner::from)),
+            Verdict::NotAdb
+        );
+        // The mapped row (uid 1001) is found from its IPv4 address.
+        let (peer, _) = find(&rows, peer_mapped, 47321, 5037);
+        assert_eq!(peer.unwrap().uid, Some(1001));
+        // Same account as the ::1 server: accepted.
+        let root_peer = Owner {
+            pid: None,
+            uid: Some(0),
+        };
+        assert_eq!(
+            decide(Some(root_peer), server.map(Owner::from)),
+            Verdict::AdbServer
+        );
+    }
+
     #[test]
     fn broken_lines_are_skipped() {
         let rows = parse("header\n garbage\n 0: 0100007F 0100007F:0000 0A\n", false);
