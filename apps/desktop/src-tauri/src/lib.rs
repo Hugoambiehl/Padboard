@@ -78,6 +78,8 @@ struct Backend {
     events: tokio::sync::mpsc::UnboundedSender<ServerEvent>,
     /// The `adb` chosen in the UI; the tracker restarts when it changes.
     adb_path: tokio::sync::watch::Sender<Option<PathBuf>>,
+    /// True while "Supprimer adb" runs: no `adb` command may start (#35).
+    adb_hold: tokio::sync::watch::Sender<bool>,
     editor: Arc<EditorService>,
     server: Arc<ServerContext>,
     /// `adb` may be used (not in simulated test mode).
@@ -330,6 +332,9 @@ async fn enable_kiosk(
     if !backend.adb_allowed {
         return Err(adb::KioskError::TestMode);
     }
+    if *backend.adb_hold.borrow() {
+        return Err(adb::KioskError::Busy);
+    }
     let chosen = backend.adb_path.borrow().clone();
     let adb = adb::locate(chosen.as_deref()).ok_or(adb::KioskError::NoAdb)?;
     let fresh = backend
@@ -361,6 +366,9 @@ async fn update_usb_tablet(
 ) -> Result<String, adb::UsbUpdateError> {
     if !backend.adb_allowed {
         return Err(adb::UsbUpdateError::TestMode);
+    }
+    if *backend.adb_hold.borrow() {
+        return Err(adb::UsbUpdateError::Busy);
     }
     let chosen = backend.adb_path.borrow().clone();
     let adb = adb::locate(chosen.as_deref()).ok_or(adb::UsbUpdateError::NoAdb)?;
@@ -496,7 +504,10 @@ async fn install_platform_tools(
     Ok(platform_tools::info())
 }
 
-/// Removes the downloaded Platform-Tools (their adb server stopped first).
+/// Removes the downloaded Platform-Tools (#35): no `adb` command may start
+/// meanwhile, our own server (only ours) is stopped and waited for, then
+/// the folder is moved aside and deleted, retried a few times while a file
+/// is still in use.
 #[tauri::command]
 async fn remove_platform_tools(
     backend: tauri::State<'_, Backend>,
@@ -504,13 +515,45 @@ async fn remove_platform_tools(
     let Some(dir) = platform_tools::install_dir() else {
         return Err(platform_tools::PlatformToolsError::Unsupported);
     };
+    if backend.adb_hold.send_replace(true) {
+        // Already removing (a second click).
+        return Err(platform_tools::PlatformToolsError::InUse {
+            detail: "already being removed".into(),
+        });
+    }
+    let outcome = remove_held(&dir).await;
+    backend.adb_hold.send_replace(false);
+    backend.rescan_adb();
+    outcome?;
+    Ok(platform_tools::info())
+}
+
+/// The removal itself, while `adb_hold` keeps the tracker and the commands
+/// from starting `adb`.
+async fn remove_held(dir: &Path) -> Result<(), platform_tools::PlatformToolsError> {
     if let Some(adb) = platform_tools::installed_adb() {
         // Only our own copy's server: another program's adb (Touch Portal…)
         // uses the same port and keeps running.
         let port = adb::Config::new(0).server_port;
         match platform_tools::server_owner(port) {
             Some(owner) if platform_tools::same_program(&owner, &adb) => {
-                stop_adb_server(&adb).await
+                stop_adb_server(&adb).await;
+                let gone = tokio::task::spawn_blocking(move || {
+                    platform_tools::wait_until(
+                        || {
+                            !platform_tools::server_owner(port)
+                                .is_some_and(|o| platform_tools::same_program(&o, &adb))
+                        },
+                        SERVER_GONE_ATTEMPTS,
+                        SERVER_GONE_PAUSE,
+                        &std::thread::sleep,
+                    )
+                })
+                .await
+                .unwrap_or(false);
+                if !gone {
+                    tracing::warn!("our adb server still runs after kill-server");
+                }
             }
             Some(owner) => tracing::info!(
                 owner = %owner.display(),
@@ -519,10 +562,17 @@ async fn remove_platform_tools(
             None => tracing::info!("no adb server of ours to stop"),
         }
     }
-    platform_tools::remove(&dir)?;
-    backend.rescan_adb();
-    Ok(platform_tools::info())
+    let dir = dir.to_path_buf();
+    tokio::task::spawn_blocking(move || platform_tools::remove(&dir))
+        .await
+        .map_err(|e| platform_tools::PlatformToolsError::Install {
+            detail: e.to_string(),
+        })?
 }
+
+/// Waiting for our adb server to exit after `kill-server`: 3 s at most.
+const SERVER_GONE_ATTEMPTS: u32 = 30;
+const SERVER_GONE_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
 
 /// `adb kill-server` with our copy (its server must be stopped before its
 /// folder can be removed: Windows locks a running program's file).
@@ -951,6 +1001,7 @@ pub fn run() {
 
             // USB: follow devices and forward the USB port to the tablets.
             let (adb_path, adb_chosen) = tokio::sync::watch::channel(preferences.adb_path.clone());
+            let (adb_hold, adb_held) = tokio::sync::watch::channel(false);
             let usb_events = events_tx.clone();
             // Test mode leaves USB devices alone, except on the real system.
             let adb_allowed = test_mode.as_ref().is_none_or(TestMode::system);
@@ -959,6 +1010,7 @@ pub fn run() {
                     adb::Config::new(settings.usb_port),
                     adb::Process,
                     adb_chosen,
+                    adb_held,
                     adb_refresh_rx,
                     move |status| {
                         let _ = usb_events.send(ServerEvent::Usb(status));
@@ -1027,6 +1079,7 @@ pub fn run() {
                 wifi,
                 events: events_tx,
                 adb_path,
+                adb_hold,
                 editor,
                 server: Arc::clone(&ctx),
                 adb_allowed,

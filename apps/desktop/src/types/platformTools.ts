@@ -31,7 +31,9 @@ export type PlatformToolsError =
   /** Not the pinned archive; `reason` guessed from what was received. */
   | { code: "checksum"; reason: ChecksumMismatch; received: number; expected: number }
   | { code: "signature"; file: string; detail: string }
-  | { code: "install"; detail: string };
+  | { code: "install"; detail: string }
+  /** "Supprimer adb": a file stayed in use; the copy is left whole. */
+  | { code: "inUse"; detail: string };
 
 /** `Mismatch`: a web page (portal, proxy), a cut transfer, another archive
  * (Google republished it), anything else. */

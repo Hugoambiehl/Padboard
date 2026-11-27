@@ -104,7 +104,14 @@ Same WebSocket protocol over two transports:
   the adb server only if its process (`platform_tools/server_owner.rs`:
   listener of port 5037, its executable) is our copy's `adb.exe`:
   another program's server (Touch Portal's adb 28.0.3, same protocol 41)
-  keeps running.
+  keeps running. Since 0.5 (#35) it puts adb on hold first
+  (`Backend.adb_hold`: the tracker drops its session and starts nothing,
+  kiosk and USB update commands answer busy), waits up to 3 s for our
+  server to exit, then `platform_tools/removal.rs` moves the folder
+  aside (`platform-tools.removing`, retried ~5 s while a file is in use)
+  and deletes it: the copy is either gone or whole; still in use =
+  `PlatformToolsError::InUse` (clear message, not the OS error). A
+  leftover is deleted at the next removal or installation.
   **Several adb on one PC** (adb.rs): they share one server (port 5037);
   different server versions (`adb version` "1.0.N") stop each other's
   server. Before any command Padboard asks the server its version
