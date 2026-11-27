@@ -76,7 +76,8 @@ let tray: TrayItem | null = null;
 let hidden = false;
 
 beforeAll(async () => {
-  app = await App.start();
+  // In test mode the app has no tray icon unless asked for.
+  app = await App.start("fr", { PADBOARD_TEST_TRAY: "1" });
 });
 afterEach(async ({ task }) => {
   if (task.result?.state === "fail" && !hidden) {

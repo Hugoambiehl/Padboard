@@ -101,7 +101,9 @@ cargo run -p padboard-actions --example state -- --watch                    # ob
 `PADBOARD_TEST_DIR=<absolute dir>` starts the app on a separate
 configuration in that directory, never yours: actions are recorded to
 `<dir>/actions.jsonl` and never run, USB devices (adb) and Wi-Fi are left
-alone, logs go to `<dir>/app.log`, the window title says "mode test", and
+alone, logs go to `<dir>/app.log`, the window title says "mode test", there
+is no tray icon (closing the window quits; `PADBOARD_TEST_TRAY=1` adds one
+named "Padboard (test)", for `e2e/tray`), and
 button states come from `<dir>/state.json`, e.g.
 `{"audio": {"outputPercent": 50, "outputMuted": false, "inputMuted": true}, "mediaPlaying": false}`.
 
