@@ -23,6 +23,33 @@ Logs:
 Device owner: `adb shell dpm list-owners` (Padboard listed = kiosk mode on;
 nothing = off).
 
+## Release candidate 0.4.0-rc.3: Android 17 local network, kiosk exit
+
+- **#31**: on Android 17, the app asks for the local network permission
+  ("Nearby devices") only when Wi-Fi is wanted, and grants it itself in
+  kiosk mode; it no longer opens the system's device picker at launch.
+  The SM-T580 (Android 12L) never asks: nothing must change there.
+- **#32**: leaving kiosk mode while a screen of the app that is not in
+  front would have been closed. With the screen off this did not happen
+  (the app stays in front while the screen sleeps): checked below.
+
+PC and tablet both on 0.4.0-rc.3. First run the 0.4.0-rc.2 section
+above again (same results), then:
+
+| Check | Do | Expected |
+| --- | --- | --- |
+| No question on 12L | Uninstall nothing; quit Padboard on the tablet, start it again, pair over Wi-Fi (*Associer en Wi-Fi*) | No permission dialog, no *Autoriser le Wi-Fi* button; PCs listed as before; pairing and Wi-Fi connection as before |
+| USB only | Unplug the Wi-Fi of the PC (or turn Padboard's Wi-Fi off in its status screen), plug the cable | Connected over USB as before |
+| Released, screen off | Kiosk mode on; short press on the power button (screen off); on the PC *Libérer la tablette* (two clicks); after 10 s press the power button | Padboard in front as a normal app: one screen, `.MainActivity`; the home query of the 0.4.0-rc.2 section does not list Padboard; `dpm list-owners` lists nothing |
+| Kiosk on again | *Activer le mode kiosque* | One screen, `.HomeAlias`, `LOCKED`; leave the tablet in kiosk mode |
+
+Android 17 itself is checked on the emulator only
+(`LocalNetworkTest`, on demand, see [development.md](development.md#tablet-app)):
+no picker at launch, kiosk mode grants the permission. On a phone or
+tablet with Android 17, if one is at hand: first launch, *Associer en
+Wi-Fi* shows *Autoriser le Wi-Fi*; *Autoriser* lists the PCs; refusing
+twice makes the button open Padboard's settings; USB works throughout.
+
 ## Release candidate 0.4.0-rc.2: one screen in kiosk mode, through sleep
 
 rc.1 was stopped by a loop on this tablet: after the PC turned kiosk mode

@@ -1118,6 +1118,22 @@ loop.
 The checks of [tablet-test-plan.md](tablet-test-plan.md), section
 *Release candidate 0.4.0-rc.2*, with this PC.
 
+## 16. Release candidate 0.4.0-rc.3: local network on Android 17, kiosk exit
+
+Same PC and rules as section 13, 0.4.0-rc.2 installed, the SM-T580 on
+0.4.0-rc.2 (versionCode 40002) in kiosk mode. rc.3 changes only the
+tablet app (#31, #32); the PC side is the same as rc.2.
+
+| Check | Do | Expect |
+|---|---|---|
+| Update | As 14.1, 0.4.0-rc.2 → 0.4.0-rc.3 | As 14.1 (SHA-256 as published, configuration and `Run` value kept); Bitdefender: nothing |
+| Tablet over USB | *Mettre à jour vers 0.4.0-rc.3* in the USB card | *tablet updated over USB from=40002 to=40003*; reconnected; still device owner, `LOCKED`, Padboard in front |
+| Tablet over Wi-Fi | Unplug the cable | Reconnected over Wi-Fi within seconds, no question on the tablet |
+| SM-T580 | The checks of [tablet-test-plan.md](tablet-test-plan.md), section *Release candidate 0.4.0-rc.3* | As written there |
+| No loop | `padboard.log` after the whole section | Never *keeps replacing its own session* |
+
+Then restore the autostart state and the sound as in 14.4.
+
 ## Known Windows limits
 
 - Keys cannot be sent to elevated (administrator) windows.
