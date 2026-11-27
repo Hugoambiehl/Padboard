@@ -85,6 +85,12 @@ const status: Snapshot = {
   ],
   pairing: { state: "idle" },
   pairedDevices: [],
+  usbRefused:
+    new URLSearchParams(location.search).get("refused") === "1"
+      ? { atMs: Date.now(), pid: 4242, program: "/usr/bin/python3", unverifiable: null }
+      : new URLSearchParams(location.search).get("refused") === "unverifiable"
+        ? { atMs: Date.now(), pid: null, program: null, unverifiable: "ownersUnknown" }
+        : null,
   droppedWifi:
     new URLSearchParams(location.search).get("dropped") === "1"
       ? [{ deviceId: "tab", deviceName: "Galaxy Tab A", atMs: Date.now() }]

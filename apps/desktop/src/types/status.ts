@@ -95,6 +95,15 @@ export interface DroppedTablet {
   atMs: number;
 }
 
+/** Mirror of `usb_peer::UsbRefusal`: a connection refused on the USB port. */
+export interface UsbRefusal {
+  atMs: number;
+  pid: number | null;
+  program: string | null;
+  /** Absent: another process than the adb server; else why it could not be told. */
+  unverifiable: "noAdbServer" | "peerNotFound" | "ownersUnknown" | "tableUnreadable" | null;
+}
+
 /** A paired tablet turned away: its app is too old for Wi-Fi updates. */
 export interface OutdatedTablet {
   deviceId: string;
@@ -214,5 +223,7 @@ export interface Snapshot {
   outdatedTablets: OutdatedTablet[];
   /** Paired tablets whose Wi-Fi session went silent and was dropped. */
   droppedWifi: DroppedTablet[];
+  /** The last connection refused on the USB port. */
+  usbRefused: UsbRefusal | null;
   activity: ActivityEntry[];
 }

@@ -24,7 +24,7 @@
 #[cfg(windows)]
 pub(crate) mod authenticode;
 mod removal;
-mod server_owner;
+pub(crate) mod server_owner;
 
 pub use removal::{discard_leftover, remove, wait_until};
 pub use server_owner::{same_program, server_owner};

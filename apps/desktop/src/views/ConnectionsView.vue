@@ -49,6 +49,7 @@ const { t } = useI18n();
         :app-version-code="snapshot.server.appVersionCode"
         :development="snapshot.server.development"
         :development-code="snapshot.server.developmentCode"
+        :refused="snapshot.usbRefused"
       />
       <ObsCard />
       <ScreensaverCard />
