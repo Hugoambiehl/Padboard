@@ -22,11 +22,14 @@ pub const HIDDEN_ARG: &str = "--hidden";
 
 const OPEN_ID: &str = "open";
 const QUIT_ID: &str = "quit";
+const STOP_SCREEN_ID: &str = "stop_screen";
 
 /// What the tray shows; kept in Tauri's state to update the status line.
 pub struct Tray<R: Runtime> {
     icon: TrayIcon<R>,
     status: MenuItem<R>,
+    /// "Arrêter le second écran": enabled while it runs.
+    stop_screen: MenuItem<R>,
     texts: &'static TrayTexts,
     /// "Padboard", or "Padboard (test)" for an app in test mode, so that it
     /// is never taken for the real one next to it.
@@ -55,6 +58,8 @@ impl<R: Runtime> Tray<R> {
         let name = if test_mode { TEST_NAME } else { texts.app };
         let open = MenuItem::with_id(app, OPEN_ID, texts.open, true, None::<&str>)?;
         let status = MenuItem::with_id(app, "status", texts.no_tablet, false, None::<&str>)?;
+        let stop_screen =
+            MenuItem::with_id(app, STOP_SCREEN_ID, texts.stop_screen, false, None::<&str>)?;
         let quit = MenuItem::with_id(app, QUIT_ID, texts.quit, true, None::<&str>)?;
         let menu = Menu::with_items(
             app,
@@ -62,6 +67,7 @@ impl<R: Runtime> Tray<R> {
                 &open,
                 &PredefinedMenuItem::separator(app)?,
                 &status,
+                &stop_screen,
                 &PredefinedMenuItem::separator(app)?,
                 &quit,
             ],
@@ -81,6 +87,11 @@ impl<R: Runtime> Tray<R> {
             .show_menu_on_left_click(false)
             .on_menu_event(|app, event| match event.id().as_ref() {
                 OPEN_ID => show_window(app),
+                STOP_SCREEN_ID => {
+                    if let Some(backend) = app.try_state::<crate::Backend>() {
+                        backend.server.stop_screen();
+                    }
+                }
                 QUIT_ID => {
                     tracing::info!("quit from the tray");
                     app.exit(0);
@@ -103,20 +114,26 @@ impl<R: Runtime> Tray<R> {
         Ok(Self {
             icon,
             status,
+            stop_screen,
             texts,
             name,
         })
     }
 
-    /// Shows the connected tablets (called with every status snapshot).
-    pub fn set_clients(&self, clients: &[ClientInfo]) {
-        let line = status_line(self.texts, clients);
+    /// Shows the connected tablets and the second screen (called with
+    /// every status snapshot).
+    pub fn set_state(&self, clients: &[ClientInfo], screen: Option<&str>) {
+        let line = match screen {
+            Some(name) => self.texts.screen.replace("{name}", name),
+            None => status_line(self.texts, clients),
+        };
         if self.status.text().is_ok_and(|current| current == line) {
             return;
         }
         if let Err(e) = self.status.set_text(&line) {
             tracing::warn!("cannot update the tray menu: {e}");
         }
+        let _ = self.stop_screen.set_enabled(screen.is_some());
         let _ = self.icon.set_tooltip(Some(tooltip(self.name, &line)));
     }
 }

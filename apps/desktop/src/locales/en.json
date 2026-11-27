@@ -5,7 +5,9 @@
     "loadError": "Cannot reach the Padboard backend.",
     "tablets": "No tablet | 1 tablet | {count} tablets",
     "connectionsHint": "Connections, paired devices and activity",
-    "backToEditor": "Back to the editor"
+    "backToEditor": "Back to the editor",
+    "secondScreen": "Second screen: {name}",
+    "stopSecondScreen": "Stop"
   },
   "server": {
     "title": "Server",
@@ -357,6 +359,10 @@
         "desc": "An https://… address",
         "button": "Website"
       },
+      "secondScreen": {
+        "label": "Second screen",
+        "desc": "Shows the PC on the tablet"
+      },
       "taskManager": {
         "label": "Task Manager",
         "desc": "Ctrl + Shift + Esc"
@@ -515,7 +521,8 @@
       "lock": "Lock",
       "navigate": "Navigation",
       "multi": "Multi action",
-      "obs": "OBS"
+      "obs": "OBS",
+      "secondScreen": "Second screen"
     },
     "badges": {
       "open": "Open"
@@ -567,6 +574,7 @@
       "choose": "Choose…",
       "missing": "{name} (deleted)",
       "lockHint": "Locks this PC's session.",
+      "secondScreenHint": "The tablet that presses it shows the PC; a long press on one of the tablet's volume keys, or “Stop” on the PC, brings the buttons back.",
       "obsCommands": {
         "set_scene": "Switch scene",
         "toggle_record": "Record (start / stop)",

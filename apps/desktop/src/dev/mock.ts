@@ -85,6 +85,10 @@ const status: Snapshot = {
   ],
   pairing: { state: "idle" },
   pairedDevices: [],
+  secondScreen:
+    new URLSearchParams(location.search).get("screen") === "1"
+      ? { clientId: 1, deviceName: "Galaxy Tab A" }
+      : null,
   usbRefused:
     new URLSearchParams(location.search).get("refused") === "1"
       ? { atMs: Date.now(), pid: 4242, program: "/usr/bin/python3", unverifiable: null }

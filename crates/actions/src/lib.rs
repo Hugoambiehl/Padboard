@@ -60,6 +60,9 @@ pub enum Action {
     Navigate(NavigateAction),
     Multi(MultiAction),
     Obs(ObsAction),
+    /// Show the PC on the tablet that pressed it (second screen, #20). Run
+    /// by the desktop app; never a step of a multi action.
+    SecondScreen,
 }
 
 impl Action {
@@ -76,6 +79,7 @@ impl Action {
             Self::Navigate(_) => "navigate",
             Self::Multi(_) => "multi",
             Self::Obs(_) => "obs",
+            Self::SecondScreen => "secondScreen",
         }
     }
 
@@ -122,7 +126,7 @@ impl Action {
         match self {
             Self::Hotkey(hotkey) if draft && hotkey.keys.is_empty() => Ok(()),
             Self::Hotkey(hotkey) => hotkey.validate(),
-            Self::Media(_) | Self::Microphone(_) | Self::Lock => Ok(()),
+            Self::Media(_) | Self::Microphone(_) | Self::Lock | Self::SecondScreen => Ok(()),
             Self::Volume(v) => match (v.command, v.value) {
                 (VolumeCommand::Up | VolumeCommand::Down, Some(step))
                     if !(1..=100).contains(&step) =>
@@ -164,6 +168,9 @@ impl Action {
                 for (i, step) in m.steps.iter().enumerate() {
                     if matches!(step.action, Self::Multi(_)) {
                         return invalid(format!("step {} is a multi action", i + 1));
+                    }
+                    if matches!(step.action, Self::SecondScreen) {
+                        return invalid(format!("step {} is the second screen", i + 1));
                     }
                     if step.delay_ms > MAX_MULTI_DELAY_MS {
                         return invalid(format!(

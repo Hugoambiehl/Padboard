@@ -39,12 +39,23 @@ pub struct Snapshot {
     /// The last connection refused on the USB port: not opened by the adb
     /// server, or impossible to check (`usb_peer`).
     pub usb_refused: Option<crate::usb_peer::UsbRefusal>,
+    /// The tablet showing the second screen (always shown while it runs,
+    /// with "Arrêter").
+    pub second_screen: Option<SecondScreenView>,
     /// Most recent first.
     pub activity: VecDeque<ActivityEntry>,
     #[serde(skip)]
     labels: HashMap<String, String>,
     #[serde(skip)]
     next_activity_id: u64,
+}
+
+/// The second screen while it runs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SecondScreenView {
+    pub client_id: u64,
+    pub device_name: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -242,6 +253,7 @@ impl Snapshot {
             outdated_tablets: Vec::new(),
             dropped_wifi: Vec::new(),
             usb_refused: None,
+            second_screen: None,
             activity: VecDeque::new(),
             labels,
             next_activity_id: 1,
@@ -352,6 +364,27 @@ impl Snapshot {
                 }
             }
             ServerEvent::UsbRefused(refusal) => self.usb_refused = Some(refusal),
+            ServerEvent::ScreenStarted { client_id } => {
+                let device_name = self
+                    .clients
+                    .iter()
+                    .find(|c| c.id == client_id)
+                    .map(|c| c.device_name.clone())
+                    .unwrap_or_default();
+                self.second_screen = Some(SecondScreenView {
+                    client_id,
+                    device_name,
+                });
+            }
+            ServerEvent::ScreenEnded { client_id } => {
+                if self
+                    .second_screen
+                    .as_ref()
+                    .is_some_and(|s| s.client_id == client_id)
+                {
+                    self.second_screen = None;
+                }
+            }
             ServerEvent::ClientDisconnected { id, lost } => {
                 if let Some(client) = self.clients.iter().find(|c| c.id == id)
                     && lost

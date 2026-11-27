@@ -277,6 +277,13 @@ SM-T580, always measure in release builds.
   on 22.04 / 24.04 desktops, so it is never a dependency. CI's "Linux
   package" job builds the .deb on 22.04 and starts it in a clean 22.04
   container (`scripts/deb-smoke-test.sh`).
+- **Second screen action** (`Action::SecondScreen`, run by the desktop
+  in `server::press`, never a multi step nor "Tester l'action"): offers
+  a stream (`ServerContext::offer_screen`, `screen/`) to the tablet that
+  pressed. Listed in the library only where `ServerContext.screen_source`
+  exists: for now the test pattern, `PADBOARD_SCREEN_SOURCE=pattern`
+  (Linux). While it runs the header and the tray show it with
+  "Arrêter" (`Snapshot.second_screen`, `stop_second_screen`).
 - **Desktop config**: versioned JSON documents (`storage.rs`: step-by-step
   migrations, atomic writes, owner-only secrets, unreadable files moved aside)
   in Tauri's app config dir. The TLS private key is stored alone

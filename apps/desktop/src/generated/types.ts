@@ -52,7 +52,12 @@ export type Action =
 	| { type: "lock", params?: undefined }
 	| { type: "navigate", params: NavigateAction }
 	| { type: "multi", params: MultiAction }
-	| { type: "obs", params: ObsAction };
+	| { type: "obs", params: ObsAction }
+	/**
+	 * Show the PC on the tablet that pressed it (second screen, #20). Run
+	 * by the desktop app; never a step of a multi action.
+	 */
+	| { type: "secondScreen", params?: undefined };
 
 export interface ButtonConfig {
 	/** Unique across the whole configuration (sent in `button:press`). */

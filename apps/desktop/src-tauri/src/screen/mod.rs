@@ -23,6 +23,7 @@ use std::pin::Pin;
 use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
+use padboard_protocol::VideoCodec;
 use tokio::sync::watch;
 
 pub use format::StreamFormat;
@@ -53,6 +54,45 @@ pub trait FrameSource: Send {
     fn next_frame(&mut self) -> Pin<Box<dyn Future<Output = Option<EncodedFrame>> + Send + '_>>;
     /// The tablet's decoder lost the picture: the next frame is a key frame.
     fn request_key_frame(&mut self);
+}
+
+/// A kind of source this PC has (the test pattern for now; the screen
+/// next), with what it can encode here.
+#[derive(Debug, Clone, Copy)]
+pub struct SourceFactory {
+    /// For the log.
+    pub name: &'static str,
+    /// Codecs it can produce on this PC, best first (empty: missing pieces).
+    pub encoders: fn() -> Vec<VideoCodec>,
+    /// Packages to install when `encoders` is empty.
+    pub missing: fn() -> Vec<&'static str>,
+    /// Starts a source for a stream.
+    pub start: fn(StreamFormat) -> Result<Box<dyn FrameSource>, String>,
+}
+
+/// The test pattern (Linux: GStreamer), for development and tests until
+/// the screen capture: `PADBOARD_SCREEN_SOURCE=pattern`.
+#[cfg(target_os = "linux")]
+#[must_use]
+pub fn pattern_factory() -> SourceFactory {
+    SourceFactory {
+        name: "test pattern",
+        encoders: gst::encoders,
+        missing: gst::missing,
+        start: |format| {
+            gst::PatternSource::start(format).map(|s| Box::new(s) as Box<dyn FrameSource>)
+        },
+    }
+}
+
+/// The source the second screen uses on this PC, if any.
+#[must_use]
+pub fn factory() -> Option<SourceFactory> {
+    #[cfg(target_os = "linux")]
+    if std::env::var("PADBOARD_SCREEN_SOURCE").is_ok_and(|v| v == "pattern") {
+        return Some(pattern_factory());
+    }
+    None
 }
 
 /// What a ticket stands for: a stream ready to be served.
@@ -206,6 +246,7 @@ impl Screens {
     }
 
     /// The tablet showing the second screen, if any.
+    #[cfg(test)]
     #[must_use]
     pub fn active(&self) -> Option<u64> {
         self.lock().active.as_ref().map(|a| a.client_id)
@@ -227,6 +268,22 @@ pub mod testing {
         /// Frames before the source ends (`None`: never).
         pub ends_after: Option<u64>,
         pub interval: Duration,
+    }
+
+    /// A factory of fake sources (H.264 only).
+    #[must_use]
+    pub fn fake_factory() -> SourceFactory {
+        SourceFactory {
+            name: "fake",
+            encoders: || vec![VideoCodec::H264],
+            missing: Vec::new,
+            start: |_| {
+                Ok(Box::new(FakeSource {
+                    interval: Duration::from_millis(5),
+                    ..FakeSource::default()
+                }))
+            },
+        }
     }
 
     impl FrameSource for FakeSource {
@@ -255,8 +312,6 @@ pub mod testing {
 
 #[cfg(test)]
 mod tests {
-    use padboard_protocol::VideoCodec;
-
     use super::testing::FakeSource;
     use super::*;
 

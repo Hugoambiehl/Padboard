@@ -24,9 +24,6 @@ mod paired;
 pub mod pinning;
 mod platform_tools;
 mod preferences;
-// Second screen plumbing (#20): offered from tests only until the
-// "Second écran" action and the test pattern source plug into it.
-#[cfg_attr(not(test), allow(dead_code))]
 mod screen;
 mod server;
 mod settings;
@@ -635,10 +632,17 @@ fn list_keys() -> Vec<&'static str> {
         .collect()
 }
 
-/// The action library, adapted to this operating system.
+/// "Arrêter le second écran" in the window; false if none runs.
 #[tauri::command]
-fn library() -> Vec<config::presets::Preset> {
-    config::presets::presets()
+fn stop_second_screen(backend: tauri::State<'_, Backend>) -> bool {
+    backend.server.stop_screen()
+}
+
+/// The action library, adapted to this operating system (the second
+/// screen only where a picture source exists).
+#[tauri::command]
+fn library(backend: tauri::State<'_, Backend>) -> Vec<config::presets::Preset> {
+    config::presets::presets(backend.server.screen_source.is_some())
 }
 
 /// OBS settings (password left out) and connection status.
@@ -783,6 +787,7 @@ pub fn run() {
             get_status,
             get_locale,
             start_pairing,
+            stop_second_screen,
             cancel_pairing,
             revoke_device,
             set_wifi_enabled,
@@ -909,7 +914,10 @@ pub fn run() {
                         s.clone()
                     };
                     if let Some(tray) = handle.try_state::<tray::Tray<tauri::Wry>>() {
-                        tray.set_clients(&fresh.clients);
+                        tray.set_state(
+                            &fresh.clients,
+                            fresh.second_screen.as_ref().map(|s| s.device_name.as_str()),
+                        );
                     }
                     if let Err(e) = handle.emit(STATUS_EVENT, fresh) {
                         tracing::warn!("cannot emit status: {e}");
@@ -967,6 +975,7 @@ pub fn run() {
                     }
                 },
                 screens: screen::Screens::default(),
+                screen_source: screen::factory(),
             });
             // OBS: real in normal and system test modes (and with
             // PADBOARD_TEST_OBS); otherwise its state comes from state.json.

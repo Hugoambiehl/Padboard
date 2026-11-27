@@ -54,6 +54,7 @@ fn every_kind_has_a_stable_json_shape() {
         json!({"type": "open", "params": {"target": "https://example.org"}}),
     );
     round_trip(&Action::Lock, json!({"type": "lock"}));
+    round_trip(&Action::SecondScreen, json!({"type": "secondScreen"}));
     round_trip(
         &Action::Navigate(NavigateAction {
             to: NavigateTo::Folder,
@@ -82,6 +83,7 @@ fn every_kind_has_a_stable_json_shape() {
 #[test]
 fn system_kinds_are_the_ones_executors_run() {
     assert!(Action::Lock.is_system());
+    assert!(!Action::SecondScreen.is_system());
     assert!(
         Action::Media(MediaAction {
             command: MediaCommand::Next
@@ -164,6 +166,10 @@ fn multi_actions_are_bounded_and_flat() {
         steps: vec![step(Action::Multi(MultiAction {
             steps: vec![step(Action::Lock)],
         }))],
+    }));
+    // The second screen belongs to its own button.
+    invalid(&Action::Multi(MultiAction {
+        steps: vec![step(Action::SecondScreen)],
     }));
     let message = invalid(&Action::Multi(MultiAction {
         steps: vec![step(Action::Lock), step(Action::Hotkey(Hotkey::new([])))],

@@ -5,7 +5,9 @@
     "loadError": "Impossible de joindre le backend Padboard.",
     "tablets": "Aucune tablette | 1 tablette | {count} tablettes",
     "connectionsHint": "Connexions, appareils associés et activité",
-    "backToEditor": "Retour à l’éditeur"
+    "backToEditor": "Retour à l’éditeur",
+    "secondScreen": "Second écran : {name}",
+    "stopSecondScreen": "Arrêter"
   },
   "server": {
     "title": "Serveur",
@@ -357,6 +359,10 @@
         "desc": "Une adresse https://…",
         "button": "Site web"
       },
+      "secondScreen": {
+        "label": "Second écran",
+        "desc": "Affiche le PC sur la tablette"
+      },
       "taskManager": {
         "label": "Gestionnaire des tâches",
         "desc": "Ctrl + Maj + Échap"
@@ -515,7 +521,8 @@
       "lock": "Verrouiller",
       "navigate": "Navigation",
       "multi": "Multi-action",
-      "obs": "OBS"
+      "obs": "OBS",
+      "secondScreen": "Second écran"
     },
     "badges": {
       "open": "Ouvrir"
@@ -567,6 +574,7 @@
       "choose": "Choisir…",
       "missing": "{name} (supprimé)",
       "lockHint": "Verrouille la session de ce PC.",
+      "secondScreenHint": "La tablette qui appuie affiche le PC ; un appui long sur une touche de volume de la tablette, ou « Arrêter » sur le PC, revient aux boutons.",
       "obsCommands": {
         "set_scene": "Changer de scène",
         "toggle_record": "Enregistrer (démarrer / arrêter)",

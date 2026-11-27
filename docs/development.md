@@ -123,6 +123,15 @@ cargo run -p padboard-actions --example audio-snapshot -- restore /tmp/audio.jso
 cargo run -p padboard-actions --example fake-player   # an MPRIS player for media buttons
 ```
 
+### Second screen (in development, #20)
+
+The *Second écran* action is listed only where the PC has a picture
+source. Until the screen capture lands, the only one is a test pattern
+(Linux, GStreamer): start the app with `PADBOARD_SCREEN_SOURCE=pattern`
+(any mode). A tablet whose app announces the capability then gets the
+stream; the PC shows "Second écran : <tablet>" with *Arrêter* in the
+header and in the tray menu.
+
 ### End-to-end tests (real window, local only)
 
 `scripts/desktop-e2e.sh` drives the real app window with
