@@ -24,6 +24,10 @@ mod paired;
 pub mod pinning;
 mod platform_tools;
 mod preferences;
+// Second screen plumbing (#20): offered from tests only until the
+// "Second écran" action and the test pattern source plug into it.
+#[cfg_attr(not(test), allow(dead_code))]
+mod screen;
 mod server;
 mod settings;
 mod state;
@@ -941,6 +945,7 @@ pub fn run() {
                         port: adb::Config::new(0).server_port,
                     }
                 },
+                screens: screen::Screens::default(),
             });
             // OBS: real in normal and system test modes (and with
             // PADBOARD_TEST_OBS); otherwise its state comes from state.json.
