@@ -263,6 +263,20 @@ SM-T580, always measure in release builds.
   (`lan` / `loopback`) forces it on or off, `PADBOARD_PORT` / `PADBOARD_WIFI_PORT`
   change the ports. Turning Wi-Fi off aborts the listener task, which owns and
   therefore closes every Wi-Fi connection.
+- **Second screen on Linux: GStreamer** (`screen/gst.rs`, #20): `gstreamer`
+  / `gstreamer-app` crates **~0.24** (0.25 needs Rust 1.92; Dependabot
+  ignores it), Linux-only dependencies (Windows: Media Foundation, never
+  GStreamer), **no `v1_*` feature** (the .deb is built on Ubuntu 22.04,
+  GStreamer 1.20). Encoders: `vah264enc` (VA-API, GStreamer 1.22+, in
+  `gstreamer1.0-plugins-extra` on recent Ubuntu, `-bad` before), else VP8
+  (`vp8enc`, plugins-good); never x264. Frames are dropped before the
+  encoder (a `valve` opened per requested frame). The .deb depends on
+  libgstreamer, plugins-base, plugins-good and gstreamer1.0-pipewire
+  (already on an Ubuntu desktop: nothing added) and only *recommends*
+  plugins-extra: plugins-bad was measured at +121–144 MiB (x264, x265…)
+  on 22.04 / 24.04 desktops, so it is never a dependency. CI's "Linux
+  package" job builds the .deb on 22.04 and starts it in a clean 22.04
+  container (`scripts/deb-smoke-test.sh`).
 - **Desktop config**: versioned JSON documents (`storage.rs`: step-by-step
   migrations, atomic writes, owner-only secrets, unreadable files moved aside)
   in Tauri's app config dir. The TLS private key is stored alone

@@ -22,6 +22,8 @@ Requirements: Rust (the version in `rust-toolchain.toml` is installed by
 
 ```sh
 sudo apt install libwebkit2gtk-4.1-dev libdbus-1-dev build-essential pkg-config file
+# Second screen (GStreamer, Linux only): headers to build, plugins to run
+sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good
 (cd apps/desktop && npm install)   # once
 scripts/desktop-dev.sh             # = npm run tauri dev, with a clean environment
 ```

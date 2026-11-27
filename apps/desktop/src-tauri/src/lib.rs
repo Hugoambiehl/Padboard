@@ -867,6 +867,22 @@ pub fn run() {
                 auth.paired_devices(),
             )));
 
+            // Second screen: what this PC can encode (GStreamer on Linux,
+            // looked up once in the background: the first scan of the
+            // plugins can take a moment). Missing pieces are said here.
+            #[cfg(target_os = "linux")]
+            std::thread::spawn(|| {
+                let encoders = screen::gst::encoders();
+                if encoders.is_empty() {
+                    tracing::warn!(
+                        missing = ?screen::gst::missing(),
+                        "second screen encoders: none (install the missing packages)"
+                    );
+                } else {
+                    tracing::info!(?encoders, "second screen encoders");
+                }
+            });
+
             // The tray shows the connected tablets. An app in test mode has
             // none unless a test needs it (PADBOARD_TEST_TRAY=1, e2e/tray):
             // it would sit next to the user's own Padboard, and be taken for
