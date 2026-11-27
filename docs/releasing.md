@@ -232,6 +232,7 @@ for `apksigner`; the GitHub CLI (`gh`).
    | 0.3.0 | 1/70 | SecureAge | SHA-256 `56f932010a5d27faaf48d854d45bdb3bcc95878a903f87349e1b7a5c019fcda2`; checked by `verify-release` with the API key (no `STOP`); Bitdefender and Microsoft undetected; CrowdStrike Falcon no longer detects it |
    | 0.4.0-rc.2 | 1/69 | SecureAge | SHA-256 `8cb391249a82be414e6a3d6f873e14d1c0ad24305f3077eef9b4f935ab352428`; checked by `verify-release` with the API key (no `STOP`); Bitdefender and Microsoft undetected; new sandbox tags `detect-debug-environment` and `obfuscated`, and a medium Sigma rule *Sysmon File Executable Creation Detected* (expected: the installer writes `.exe` files); 0.4.0-rc.1 was never published |
    | 0.4.0-rc.3 | 1/68 | SecureAge | SHA-256 `835ceb74892e68ef049b2dcb7d58bf0412c25e72cbe46ce74f0937120d7022c3`; checked by `verify-release` with the API key (no `STOP`); Bitdefender and Microsoft undetected |
+   | 0.4.0 | 2/68 | DeepInstinct (`MALICIOUS`), SecureAge (`Malicious`) | SHA-256 `ce06effe5102295acc8f839995d0b116f2b76e42700cc1774f1e003cea90ab26`; generic machine learning verdicts; Bitdefender and Microsoft undetected; nothing submitted; same code as 0.4.0-rc.3 |
 
    And on Windows, Bitdefender active with no exception for Padboard
    (`docs/windows-test-plan.md`, section 7): nothing detected during the
