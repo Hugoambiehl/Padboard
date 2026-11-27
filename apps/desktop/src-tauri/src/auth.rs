@@ -75,7 +75,7 @@ fn random_pin() -> Result<String, RandomError> {
 }
 
 /// 32 random bytes, base64url without padding (43 characters).
-fn random_token() -> Result<String, RandomError> {
+pub(crate) fn random_token() -> Result<String, RandomError> {
     let mut bytes = [0u8; TOKEN_BYTES];
     getrandom::fill(&mut bytes).map_err(RandomError)?;
     Ok(URL_SAFE_NO_PAD.encode(bytes))

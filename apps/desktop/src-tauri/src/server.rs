@@ -46,9 +46,11 @@ use padboard_actions::{Action, ActionError, ActionExecutor, NavigateAction, Navi
 use padboard_protocol::{
     AuthStatus, ButtonEvent, ErrorCode, ErrorPayload, ErrorReason, Heartbeat, HelloPayload,
     KioskLeft, Layout, Message, NavigatePayload, NavigateTarget, PROTOCOL_VERSION,
-    PairSuccessPayload, SessionMode, SystemStatusPayload, TabletCommandPayload, TabletOrder,
-    TabletSettingsPayload, TabletStatusPayload, UpdateRequestPayload, UpdateResultPayload,
-    WelcomePayload, is_compatible, speaks_core, update_chunk_frame,
+    PairSuccessPayload, STREAM_PATH, STREAM_TICKET_HEADER, ScreenCapability, ScreenOfferPayload,
+    ScreenStopPayload, ScreenStoppedPayload, ScreenStoppedReason, SessionMode, SystemStatusPayload,
+    TabletCommandPayload, TabletOrder, TabletSettingsPayload, TabletStatusPayload,
+    UpdateRequestPayload, UpdateResultPayload, VideoCodec, WelcomePayload, is_compatible,
+    speaks_core, update_chunk_frame,
 };
 use serde::Serialize;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -66,6 +68,8 @@ use tokio_tungstenite::tungstenite::{self, Message as WsMessage};
 use crate::appearance::{self, SystemState};
 use crate::auth::{Auth, AuthChange, Transport};
 use crate::config::ActiveLayout;
+use crate::screen::stream::StreamEnd;
+use crate::screen::{FrameSource, StreamFormat};
 use crate::tablet_update::{OfferError, TabletUpdate, Transfer, UpdatePackage};
 pub use crate::usb_peer::UsbPeers;
 use crate::usb_peer::{self, Unverifiable, Verdict};
@@ -138,6 +142,8 @@ pub struct ServerContext {
     /// Who may connect to the USB port: the adb server only, except in
     /// simulated test mode and unit tests.
     pub usb_peers: UsbPeers,
+    /// The second screen: its pending offer or running stream.
+    pub screens: crate::screen::Screens,
 }
 
 /// What the UI can reach of one session.
@@ -151,6 +157,9 @@ pub struct SessionHandle {
     app_version_code: Option<u32>,
     /// The tablet installs updates without asking (kiosk mode).
     silent_install: bool,
+    /// What it can show as a second screen.
+    #[cfg_attr(not(test), allow(dead_code))]
+    screen: Option<ScreenCapability>,
 }
 
 impl ServerContext {
@@ -198,6 +207,98 @@ impl ServerContext {
         }
         handle.offers.send(package).map_err(|_| OfferError::Gone)
     }
+
+    /// Offers a second screen to the tablet of connection `client_id`:
+    /// the format is chosen from its capability and the codecs the PC can
+    /// encode (`encoders`), `make` builds the source for it. A stream
+    /// running for another tablet is replaced.
+    ///
+    /// # Errors
+    /// Why no stream is offered.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn offer_screen(
+        self: &Arc<Self>,
+        client_id: u64,
+        encoders: &[VideoCodec],
+        make: impl FnOnce(StreamFormat) -> Box<dyn FrameSource>,
+    ) -> Result<StreamFormat, ScreenError> {
+        let sessions = self
+            .sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let handle = sessions.get(&client_id).ok_or(ScreenError::Gone)?;
+        let outbox = handle.outbox.clone().ok_or(ScreenError::Gone)?;
+        let capability = handle.screen.as_ref().ok_or(ScreenError::NoCapability)?;
+        let format = crate::screen::format::choose(capability, encoders)
+            .ok_or(ScreenError::NoCommonCodec)?;
+        let offered = self
+            .screens
+            .offer(client_id, format, make(format), std::time::Instant::now())
+            .map_err(|e| ScreenError::Random(e.to_string()))?;
+        if let Some(old) = offered.replaced
+            && let Some(outbox) = sessions.get(&old).and_then(|h| h.outbox.as_ref())
+        {
+            let _ = outbox.send(Message::ScreenStopped(ScreenStoppedPayload {
+                reason: ScreenStoppedReason::Replaced,
+            }));
+        }
+        drop(sessions);
+        let _ = outbox.send(Message::ScreenOffer(ScreenOfferPayload {
+            ticket: offered.ticket.clone(),
+            codec: format.codec,
+            width: format.width,
+            height: format.height,
+            fps: format.fps,
+        }));
+        tracing::info!(client = client_id, ?format, "second screen offered");
+        // A ticket not used in time: the tablet is told, the offer dropped.
+        let ctx = Arc::clone(self);
+        let serial = offered.serial;
+        let ticket = offered.ticket;
+        tokio::spawn(async move {
+            tokio::time::sleep(crate::screen::ticket::VALIDITY).await;
+            if let Some(client) = ctx.screens.expire(&ticket, serial) {
+                tracing::warn!(client, "second screen: the stream connection never came");
+                ctx.tell_screen_stopped(client, ScreenStoppedReason::Failed);
+            }
+        });
+        Ok(format)
+    }
+
+    /// Stops the second screen ("Arrêter" on the PC); false if none runs.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn stop_screen(&self) -> bool {
+        let Some(client) = self.screens.stop(None) else {
+            return false;
+        };
+        tracing::info!(client, "second screen stopped on the PC");
+        self.tell_screen_stopped(client, ScreenStoppedReason::Stopped);
+        true
+    }
+
+    fn tell_screen_stopped(&self, client_id: u64, reason: ScreenStoppedReason) {
+        let sessions = self
+            .sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(outbox) = sessions.get(&client_id).and_then(|h| h.outbox.as_ref()) {
+            let _ = outbox.send(Message::ScreenStopped(ScreenStoppedPayload { reason }));
+        }
+    }
+}
+
+/// Why a second screen could not be offered.
+#[cfg_attr(not(test), allow(dead_code))]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ScreenError {
+    #[error("the tablet is not connected")]
+    Gone,
+    #[error("the tablet's app cannot show a second screen")]
+    NoCapability,
+    #[error("no video format both sides know")]
+    NoCommonCodec,
+    #[error("{0}")]
+    Random(String),
 }
 
 /// What happened, for the UI.
@@ -277,6 +378,9 @@ pub struct TabletInfo {
     pub app_version: Option<String>,
     pub app_version_code: Option<u32>,
     pub silent_install: bool,
+    /// What it can show as a second screen (full sessions only).
+    #[serde(skip)]
+    pub screen: Option<ScreenCapability>,
 }
 
 /// Result of a button press, as shown in the activity log.
@@ -518,6 +622,8 @@ enum ConnectionError {
     Idle,
 }
 
+// The handshake callback's error type is tungstenite's.
+#[allow(clippy::result_large_err)]
 async fn handle_connection<S>(
     stream: S,
     peer: SocketAddr,
@@ -533,12 +639,26 @@ where
         .max_message_size(Some(MAX_MESSAGE_SIZE))
         .max_frame_size(Some(MAX_MESSAGE_SIZE));
     // The upgrade is bounded too: a silent TCP connection must not hold a slot.
-    let upgrade =
-        tokio_tungstenite::accept_hdr_async_with_config(stream, reject_browsers, Some(config));
+    let mut route = Route::Session;
+    let callback = |request: &Request, response: Response| {
+        let Some(found) = route_of(request) else {
+            let mut error = ErrorResponse::new(None);
+            *error.status_mut() = StatusCode::NOT_FOUND;
+            return Err(error);
+        };
+        route = found;
+        reject_browsers(request, response)
+    };
+    let upgrade = tokio_tungstenite::accept_hdr_async_with_config(stream, callback, Some(config));
     let mut ws = match timeout(ctx.limits.handshake, upgrade).await {
         Ok(ws) => ws?,
         Err(_) => return Err(ConnectionError::HandshakeTimeout),
     };
+    if let Route::Stream(ticket) = route {
+        drop(handshaking);
+        serve_stream(&mut ws, peer, ticket, ctx).await;
+        return Ok(());
+    }
 
     let hello = match timeout(ctx.limits.handshake, next_message(&mut ws)).await {
         Err(_) => return Err(ConnectionError::HandshakeTimeout),
@@ -558,8 +678,7 @@ where
         app_version,
         app_version_code,
         silent_install,
-        // The second screen (#20) is not served yet.
-        screen: _,
+        screen,
     } = hello;
     if device_id.is_empty()
         || device_id.chars().count() > MAX_ID_LEN
@@ -625,6 +744,7 @@ where
         app_version: app_version.map(|v| clean_name(&v)),
         app_version_code,
         silent_install: silent_install == Some(true),
+        screen: screen.filter(|_| mode == SessionMode::Full),
     };
     let pairing_slot = if auth == AuthStatus::Authenticated {
         None
@@ -806,6 +926,7 @@ where
             offers: offers_tx,
             app_version_code: tablet.app_version_code,
             silent_install: tablet.silent_install,
+            screen: tablet.screen.clone(),
         },
     );
     let mut transfer: Option<Transfer> = None;
@@ -904,8 +1025,11 @@ where
             Message::UpdateResult(UpdateResultPayload { outcome }) => {
                 finish_update(id, ctx, &mut transfer, outcome);
             }
-            // The second screen (#20) is not served yet: nothing to stop.
-            Message::ScreenStop(_) => {}
+            Message::ScreenStop(ScreenStopPayload { reason }) => {
+                if ctx.screens.stop(Some(id)).is_some() {
+                    tracing::info!(client = id, ?reason, "second screen stopped by the tablet");
+                }
+            }
             other @ (Message::Hello(_)
             | Message::Welcome(_)
             | Message::Error(_)
@@ -950,6 +1074,7 @@ where
             // A newer tablet is never offered anything (no downgrade).
             app_version_code: tablet.app_version_code,
             silent_install: tablet.silent_install,
+            screen: None,
         },
     );
     let mut transfer: Option<Transfer> = None;
@@ -1091,6 +1216,8 @@ impl<'a> Registered<'a> {
 
 impl Drop for Registered<'_> {
     fn drop(&mut self) {
+        // A tablet gone takes its second screen with it.
+        self.ctx.screens.stop(Some(self.id));
         self.ctx
             .sessions
             .lock()
@@ -1432,6 +1559,64 @@ where
 
 /// Handshake callback: refuses requests coming from a browser.
 #[allow(clippy::result_large_err)] // signature imposed by tungstenite
+/// Where a WebSocket handshake leads.
+enum Route {
+    /// A tablet session (`/`): `hello` comes next.
+    Session,
+    /// A second screen stream (`/stream`), with the ticket presented.
+    Stream(Option<String>),
+}
+
+/// The route of a handshake; `None`: no such path.
+fn route_of(request: &Request) -> Option<Route> {
+    match request.uri().path() {
+        "" | "/" => Some(Route::Session),
+        STREAM_PATH => Some(Route::Stream(
+            request
+                .headers()
+                .get(STREAM_TICKET_HEADER)
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_owned),
+        )),
+        _ => None,
+    }
+}
+
+/// A stream connection: its ticket must stand for a pending offer of an
+/// authenticated session; it then serves the stream until it ends.
+async fn serve_stream<S>(
+    ws: &mut WebSocketStream<S>,
+    peer: SocketAddr,
+    ticket: Option<String>,
+    ctx: &Arc<ServerContext>,
+) where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let job = ticket
+        .as_deref()
+        .and_then(|t| ctx.screens.redeem(t, std::time::Instant::now()));
+    let Some(job) = job else {
+        tracing::warn!(%peer, "stream connection refused: no valid ticket");
+        let _ = ws
+            .close(Some(tungstenite::protocol::CloseFrame {
+                code: tungstenite::protocol::frame::coding::CloseCode::Policy,
+                reason: "invalid ticket".into(),
+            }))
+            .await;
+        return;
+    };
+    let (client, serial) = (job.client_id, job.serial());
+    tracing::info!(%peer, client, format = ?job.format, "second screen stream started");
+    let end = crate::screen::stream::serve(ws, job).await;
+    ctx.screens.ended(serial);
+    tracing::info!(client, ?end, "second screen stream ended");
+    if matches!(end, StreamEnd::SourceEnded | StreamEnd::Stalled) {
+        ctx.tell_screen_stopped(client, ScreenStoppedReason::Failed);
+    }
+}
+
+// The error type is tungstenite's handshake callback's.
+#[allow(clippy::result_large_err)]
 fn reject_browsers(request: &Request, response: Response) -> Result<Response, ErrorResponse> {
     if request.headers().contains_key("origin") {
         tracing::warn!("rejected a WebSocket handshake with an Origin header (browser)");
@@ -1522,6 +1707,7 @@ mod tests {
             obs: OnceLock::new(),
             sessions: std::sync::Mutex::default(),
             usb_peers,
+            screens: crate::screen::Screens::default(),
         })
     }
 
@@ -1764,6 +1950,201 @@ mod tests {
                 break;
             }
         }
+    }
+
+    // ─── Second screen: offer, ticket, stream (screen/) ──────────────────
+
+    fn screen_hello() -> Message {
+        let Message::Hello(hello) = hello(PROTOCOL_VERSION) else {
+            unreachable!()
+        };
+        Message::Hello(HelloPayload {
+            screen: Some(ScreenCapability {
+                display_width: 1920,
+                display_height: 1200,
+                decoders: vec![padboard_protocol::ScreenDecoder {
+                    codec: VideoCodec::H264,
+                    max_width: 1920,
+                    max_height: 1088,
+                }],
+                touch: false,
+            }),
+            ..hello
+        })
+    }
+
+    /// A tablet with the capability, connected; its session id.
+    async fn screen_tablet(h: &mut Harness) -> (Client, u64) {
+        let (mut client, welcome) = greet(h, &screen_hello()).await;
+        assert_eq!(welcome.auth, AuthStatus::Authenticated);
+        expect_layout(&mut client).await;
+        let (id, tablet) = connected_id(h).await;
+        assert!(tablet.screen.is_some());
+        (client, id)
+    }
+
+    async fn next_offer(client: &mut Client) -> padboard_protocol::ScreenOfferPayload {
+        loop {
+            if let Message::ScreenOffer(offer) = recv_msg(client).await {
+                return offer;
+            }
+        }
+    }
+
+    fn fake_source() -> Box<dyn FrameSource> {
+        Box::new(crate::screen::testing::FakeSource {
+            interval: Duration::from_millis(5),
+            ..Default::default()
+        })
+    }
+
+    async fn open_stream(h: &Harness, ticket: Option<&str>) -> Client {
+        let mut request = format!("{}{STREAM_PATH}", h.url)
+            .into_client_request()
+            .unwrap();
+        if let Some(ticket) = ticket {
+            request
+                .headers_mut()
+                .insert(STREAM_TICKET_HEADER, ticket.parse().unwrap());
+        }
+        connect_async(request).await.unwrap().0
+    }
+
+    /// The next binary message of a stream, decoded as a video frame.
+    async fn next_video(stream: &mut Client) -> Option<(bool, u64)> {
+        loop {
+            let message = timeout(Duration::from_secs(2), stream.next())
+                .await
+                .ok()??
+                .ok()?;
+            if let WsMessage::Binary(bytes) = message
+                && let Ok(padboard_protocol::StreamFrame::Video {
+                    key_frame,
+                    capture_us,
+                    ..
+                }) = padboard_protocol::StreamFrame::decode(&bytes)
+            {
+                return Some((key_frame, capture_us));
+            }
+        }
+    }
+
+    fn ack(capture_us: u64) -> WsMessage {
+        WsMessage::binary(
+            padboard_protocol::StreamFrame::Ack {
+                capture_us,
+                decode_us: 1,
+            }
+            .encode(),
+        )
+    }
+
+    #[tokio::test]
+    async fn a_second_screen_streams_within_the_ack_window() {
+        let mut h = start(Transport::Usb, false).await;
+        let (mut client, id) = screen_tablet(&mut h).await;
+        let format = h
+            .ctx
+            .offer_screen(id, &[VideoCodec::H264], |_| fake_source())
+            .unwrap();
+        assert_eq!((format.width, format.height), (1728, 1080));
+        let offer = next_offer(&mut client).await;
+        assert_eq!(
+            (offer.width, offer.height, offer.codec),
+            (1728, 1080, VideoCodec::H264)
+        );
+
+        let mut stream = open_stream(&h, Some(&offer.ticket)).await;
+        let first = next_video(&mut stream).await.unwrap();
+        assert!(first.0, "the first frame is a key frame");
+        let second = next_video(&mut stream).await.unwrap();
+        // Two frames in flight: nothing more until an ack.
+        assert!(
+            timeout(Duration::from_millis(200), stream.next())
+                .await
+                .is_err(),
+            "a third frame was sent without an ack"
+        );
+        stream.send(ack(second.1)).await.unwrap();
+        assert!(next_video(&mut stream).await.is_some());
+        assert!(next_video(&mut stream).await.is_some());
+
+        // The tablet leaves it: the stream connection is closed.
+        send_msg(
+            &mut client,
+            &Message::ScreenStop(ScreenStopPayload {
+                reason: padboard_protocol::ScreenStopReason::User,
+            }),
+        )
+        .await;
+        assert!(next_video(&mut stream).await.is_none());
+        assert_eq!(h.ctx.screens.active(), None);
+    }
+
+    #[tokio::test]
+    async fn a_stream_needs_a_valid_ticket_used_once() {
+        let mut h = start(Transport::Usb, false).await;
+        let (mut client, id) = screen_tablet(&mut h).await;
+        h.ctx
+            .offer_screen(id, &[VideoCodec::H264], |_| fake_source())
+            .unwrap();
+        let offer = next_offer(&mut client).await;
+        for ticket in [None, Some("forged")] {
+            let mut stream = open_stream(&h, ticket).await;
+            assert!(next_video(&mut stream).await.is_none(), "{ticket:?}");
+        }
+        let mut stream = open_stream(&h, Some(&offer.ticket)).await;
+        assert!(next_video(&mut stream).await.is_some());
+        let mut again = open_stream(&h, Some(&offer.ticket)).await;
+        assert!(next_video(&mut again).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn stopping_on_the_pc_tells_the_tablet() {
+        let mut h = start(Transport::Usb, false).await;
+        let (mut client, id) = screen_tablet(&mut h).await;
+        h.ctx
+            .offer_screen(id, &[VideoCodec::H264], |_| fake_source())
+            .unwrap();
+        let offer = next_offer(&mut client).await;
+        let mut stream = open_stream(&h, Some(&offer.ticket)).await;
+        assert!(next_video(&mut stream).await.is_some());
+        assert!(h.ctx.stop_screen());
+        loop {
+            if let Message::ScreenStopped(stopped) = recv_msg(&mut client).await {
+                assert_eq!(stopped.reason, ScreenStoppedReason::Stopped);
+                break;
+            }
+        }
+        assert!(!h.ctx.stop_screen());
+    }
+
+    #[tokio::test]
+    async fn no_second_screen_without_the_capability() {
+        let mut h = start(Transport::Usb, false).await;
+        let _client = connected(&h).await;
+        let (id, _) = connected_id(&mut h).await;
+        assert_eq!(
+            h.ctx
+                .offer_screen(id, &[VideoCodec::H264], |_| fake_source())
+                .unwrap_err(),
+            ScreenError::NoCapability
+        );
+        assert_eq!(
+            h.ctx
+                .offer_screen(9999, &[VideoCodec::H264], |_| fake_source())
+                .unwrap_err(),
+            ScreenError::Gone
+        );
+    }
+
+    #[tokio::test]
+    async fn an_unknown_path_is_refused() {
+        let h = start(Transport::Usb, false).await;
+        let request = format!("{}/elsewhere", h.url)
+            .into_client_request()
+            .unwrap();
+        assert!(connect_async(request).await.is_err());
     }
 
     // ─── Other protocol versions: update-only sessions ───────────────────
