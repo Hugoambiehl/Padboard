@@ -306,6 +306,52 @@ mod tests {
         );
     }
 
+    /// `SIG` with one line of the minisign signature file changed by `edit`
+    /// (0: untrusted comment, 1: signature, 2: trusted comment, 3: global
+    /// signature), encoded again as a Tauri `.sig`.
+    fn edited_signature(line: usize, edit: impl FnOnce(&str) -> String) -> String {
+        let engine = base64::engine::general_purpose::STANDARD;
+        let text = String::from_utf8(engine.decode(SIG.trim()).unwrap()).unwrap();
+        let mut lines: Vec<String> = text.lines().map(str::to_owned).collect();
+        lines[line] = edit(&lines[line]);
+        engine.encode(lines.join("\n") + "\n")
+    }
+
+    #[test]
+    fn a_trusted_comment_rewritten_for_another_version_is_refused() {
+        let forged = edited_signature(2, |comment| {
+            assert!(comment.contains("version:1.2.3"), "{comment}");
+            comment.replace("version:1.2.3", "version:1.3.0")
+        });
+        assert_eq!(
+            Checksums::verify(&key(), SUMS, &forged, "1.3.0"),
+            Err(SigningError::BadSignature)
+        );
+    }
+
+    #[test]
+    fn a_legacy_or_altered_signature_is_refused() {
+        let engine = base64::engine::general_purpose::STANDARD;
+        // Same bytes, announced as a legacy (not prehashed) signature.
+        let legacy = edited_signature(1, |line| {
+            let mut bytes = engine.decode(line).unwrap();
+            assert_eq!(&bytes[..2], b"ED");
+            bytes[..2].copy_from_slice(b"Ed");
+            engine.encode(bytes)
+        });
+        assert!(Checksums::verify(&key(), SUMS, &legacy, "1.2.3").is_err());
+        // One bit flipped in the global signature over the trusted comment.
+        let altered = edited_signature(3, |line| {
+            let mut bytes = engine.decode(line).unwrap();
+            bytes[0] ^= 1;
+            engine.encode(bytes)
+        });
+        assert_eq!(
+            Checksums::verify(&key(), SUMS, &altered, "1.2.3"),
+            Err(SigningError::BadSignature)
+        );
+    }
+
     #[test]
     fn garbage_is_malformed_not_a_panic() {
         assert!(matches!(
