@@ -25,6 +25,9 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
     val pairingProblems = manager.pairingProblems
     val settings = manager.settings
     val systemStatus = manager.systemStatus
+
+    /** The PC refused the USB connection (it could not check it came from adb). */
+    val usbRefused = manager.usbRefused
     val kiosk = Kiosk.active
 
     /** Android 17: Wi-Fi and mDNS allowed (see LocalNetwork). */

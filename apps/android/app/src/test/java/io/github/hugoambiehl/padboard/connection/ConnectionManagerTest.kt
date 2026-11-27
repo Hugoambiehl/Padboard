@@ -5,6 +5,7 @@ import io.github.hugoambiehl.padboard.protocol.ButtonView
 import io.github.hugoambiehl.padboard.protocol.Category
 import io.github.hugoambiehl.padboard.protocol.ErrorCode
 import io.github.hugoambiehl.padboard.protocol.ErrorPayload
+import io.github.hugoambiehl.padboard.protocol.ErrorReason
 import io.github.hugoambiehl.padboard.protocol.Fingerprint
 import io.github.hugoambiehl.padboard.protocol.GridSize
 import io.github.hugoambiehl.padboard.protocol.KioskExitOrigin
@@ -145,6 +146,18 @@ class ConnectionManagerTest {
         assertNotNull(await(manager.layout, "layout") { it != null })
         // The token never travels over plain USB.
         assertTrue(pc.hellos.all { it.second == null || it.first == Transport.Wifi })
+    }
+
+    @Test
+    fun aUsbRefusalIsShownUntilUsbWorksAgain() {
+        pc.usbAvailable = true
+        pc.usbUnverified = true
+        manager.start(DEVICE_ID)
+        await(manager.usbRefused, "USB refused") { it }
+        await(manager.state, "setup screen") { it == LinkState.Unpaired }
+        pc.usbUnverified = false
+        connected(Transport.Usb)
+        assertFalse(manager.usbRefused.value)
     }
 
     @Test
@@ -616,6 +629,9 @@ private class FakePc(val serverId: String, val name: String) {
 
     @Volatile var usbAvailable = false
 
+    /** The PC cannot check that USB connections come from adb (usb_peer). */
+    @Volatile var usbUnverified = false
+
     @Volatile var pin: String? = null
 
     @Volatile var mute = false
@@ -706,6 +722,12 @@ private class FakePc(val serverId: String, val name: String) {
                 }
                 is Message.UpdateResult -> results.value = results.value + message.payload.outcome
                 is Message.Hello -> {
+                    if (transport == Transport.Usb && usbUnverified) {
+                        val error = ErrorPayload(ErrorCode.Unauthorized, "unverified", ErrorReason.UsbUnverified)
+                        send(webSocket, Message.Error(error))
+                        webSocket.close(1000, null)
+                        return
+                    }
                     val hello = message.payload
                     deviceId = hello.deviceId
                     hellos += transport to hello.token

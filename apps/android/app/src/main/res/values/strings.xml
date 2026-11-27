@@ -112,4 +112,5 @@
     <string name="local_network_body">Android asks before Padboard reaches devices on your local network. Allow it to find your PC over Wi-Fi. The USB cable works without it.</string>
     <string name="local_network_allow">Allow Wi-Fi</string>
     <string name="disconnected_body_local_network">Android does not let Padboard use the local network: only the USB cable is tried. Allow it to connect over Wi-Fi again.</string>
+    <string name="usb_refused">The PC refused the USB connection: it could not check that it came from the tablet through adb. Padboard on the PC (Connections view, USB devices) says what to do. Until then, Wi-Fi works.</string>
 </resources>
