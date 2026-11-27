@@ -1,12 +1,15 @@
 package io.github.hugoambiehl.padboard.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.hugoambiehl.padboard.connection.DiscoveredPc
 import io.github.hugoambiehl.padboard.connection.LinkState
@@ -18,6 +21,7 @@ import io.github.hugoambiehl.padboard.ui.connect.PinScreen
 import io.github.hugoambiehl.padboard.ui.connect.SearchingScreen
 import io.github.hugoambiehl.padboard.ui.connect.SetupScreen
 import io.github.hugoambiehl.padboard.ui.connect.UpdateOnlyScreen
+import io.github.hugoambiehl.padboard.ui.connect.UsbRefusedNotice
 import io.github.hugoambiehl.padboard.ui.connect.rememberLocalNetworkRequest
 import io.github.hugoambiehl.padboard.ui.grid.GridScreen
 import io.github.hugoambiehl.padboard.ui.grid.GridStatus
@@ -34,10 +38,16 @@ fun PadboardApp(viewModel: PadboardViewModel) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val systemStatus by viewModel.systemStatus.collectAsStateWithLifecycle()
     val update by viewModel.update.collectAsStateWithLifecycle()
+    val usbRefused by viewModel.usbRefused.collectAsStateWithLifecycle()
     KioskExitCorner(enabled = kiosk, onExit = viewModel::exitKioskByGesture) {
         Box {
             ScreensaverHost(settings = settings, status = systemStatus) {
-                Screens(viewModel, link, layout, pcs)
+                Box(Modifier.fillMaxSize()) {
+                    Screens(viewModel, link, layout, pcs)
+                    if (usbRefused && link !is LinkState.Connected) {
+                        UsbRefusedNotice(Modifier.align(Alignment.BottomCenter))
+                    }
+                }
             }
             // Above the screensaver: an update shows even while it sleeps.
             update?.let { UpdateOverlay(it, onDismiss = viewModel::dismissUpdate) }

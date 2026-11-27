@@ -3,6 +3,7 @@ package io.github.hugoambiehl.padboard.connection
 import io.github.hugoambiehl.padboard.protocol.AuthStatus
 import io.github.hugoambiehl.padboard.protocol.ButtonEvent
 import io.github.hugoambiehl.padboard.protocol.ErrorCode
+import io.github.hugoambiehl.padboard.protocol.ErrorReason
 import io.github.hugoambiehl.padboard.protocol.Fingerprint
 import io.github.hugoambiehl.padboard.protocol.Heartbeat
 import io.github.hugoambiehl.padboard.protocol.HelloPayload
@@ -229,6 +230,17 @@ class ConnectionManager(
 
     /** PC states for the screensaver; null while disconnected (they would be stale). */
     val systemStatus: StateFlow<SystemStatusPayload?> = _systemStatus.asStateFlow()
+
+    /**
+     * The PC refused the last USB connection: it could not check that it came
+     * from adb (`ErrorReason.UsbUnverified`). Its USB card says what to do;
+     * cleared by the next USB attempt that ends otherwise.
+     */
+    private val _usbRefused = MutableStateFlow(false)
+    val usbRefused: StateFlow<Boolean> = _usbRefused.asStateFlow()
+
+    /** Set by [handshake] when the PC answers with that refusal. */
+    private var usbRefusedNow = false
 
     private val _update = MutableStateFlow<UpdateProgress?>(null)
 
@@ -479,6 +491,10 @@ class ConnectionManager(
                             if (message is Message.Error && message.payload.code == ErrorCode.UnsupportedVersion) {
                                 _state.value = LinkState.Incompatible
                             }
+                            if (message is Message.Error && message.payload.reason == ErrorReason.UsbUnverified) {
+                                log.warning("the PC refused the USB connection: ${message.payload.message}")
+                                usbRefusedNow = true
+                            }
                             return@withTimeoutOrNull null
                         }
                         is SessionEvent.Closed -> return@withTimeoutOrNull null
@@ -495,7 +511,10 @@ class ConnectionManager(
     private suspend fun tryUsb(): Active? {
         val session = Session.open(http, "ws://${config.usbEndpoint.display}/")
         // USB needs no token: never send it outside TLS.
-        val welcome = handshake(session, token = null) ?: return null
+        usbRefusedNow = false
+        val welcome = handshake(session, token = null)
+        _usbRefused.value = usbRefusedNow
+        if (welcome == null) return null
         if (welcome.auth != AuthStatus.Authenticated) {
             session.cancel()
             return null
