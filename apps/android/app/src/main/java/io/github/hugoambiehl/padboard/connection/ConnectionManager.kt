@@ -84,7 +84,12 @@ sealed interface LinkState {
          * answer: the network keeps them apart (guest network, isolation,
          * repeater, mesh node), not a stopped Padboard.
          */
-        val announced: Boolean = false
+        val announced: Boolean = false,
+        /**
+         * Android lets the app use the local network (Android 17 asks the
+         * user): without it, only USB is tried.
+         */
+        val localNetwork: Boolean = true
     ) : LinkState
 
     data class Connected(
@@ -148,7 +153,9 @@ class ConnectionManager(
     private val deviceName: String,
     private val config: Config = Config(),
     private val updater: AppUpdater = AppUpdater.None,
-    private val kioskExits: KioskExitLog = KioskExitLog.None
+    private val kioskExits: KioskExitLog = KioskExitLog.None,
+    /** Wi-Fi may be used (Android 17: the local network permission, see LocalNetwork). */
+    private val localNetwork: () -> Boolean = { true }
 ) {
     data class Config(
         val usbEndpoint: Endpoint = Endpoint(Endpoint.LOOPBACK, Endpoint.USB_PORT),
@@ -434,7 +441,8 @@ class ConnectionManager(
                 wifi = true,
                 retry.inWholeMilliseconds,
                 attempt,
-                announced = directory.pcs.value.any { it.serverId == paired.serverId }
+                announced = directory.pcs.value.any { it.serverId == paired.serverId },
+                localNetwork = localNetwork()
             )
         } else {
             LinkState.Unpaired
@@ -496,6 +504,8 @@ class ConnectionManager(
     }
 
     private suspend fun tryWifi(): Active? {
+        // Android 17 without the permission: the attempt would only time out.
+        if (!localNetwork()) return null
         val pc = pairing.load() ?: return null
         val client = http.pinnedTo(pc.pin)
         for (endpoint in candidates(pc)) {

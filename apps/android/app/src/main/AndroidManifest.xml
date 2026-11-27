@@ -4,6 +4,12 @@
 
     <!-- WebSocket to the desktop app: wss:// on the LAN, ws://127.0.0.1 through adb reverse. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!--
+        Android 17: Wi-Fi to the PC and mDNS (connection/LocalNetwork.kt).
+        Asked for only when Wi-Fi is wanted; granted by the app itself in
+        kiosk mode. USB (loopback) works without it.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
     <application
         android:allowBackup="false"

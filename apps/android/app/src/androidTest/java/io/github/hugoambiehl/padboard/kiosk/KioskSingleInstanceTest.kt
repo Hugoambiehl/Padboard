@@ -95,12 +95,12 @@ class KioskSingleInstanceTest {
         waitFor("the app in front") { resumed() != null }
         enableKioskLikeThePc()
         check("kiosk mode turned on", kiosk = true)
-        // The PC's order arrives 1.5 s into a 4 s sleep (one shell command:
-        // a sleeping emulator may suspend before a second one).
+        // The PC's order arrives 0.5 s into a 1 s sleep (one shell command,
+        // short: a sleeping emulator may suspend, and then never wake up).
         var stageAtExit: Stage? = null
         val exit =
             Thread {
-                SystemClock.sleep(1_500)
+                SystemClock.sleep(500)
                 instrumentation.runOnMainSync {
                     val monitor = ActivityLifecycleMonitorRegistry.getInstance()
                     stageAtExit =
@@ -110,7 +110,7 @@ class KioskSingleInstanceTest {
                 }
             }
         exit.start()
-        shell("input keyevent KEYCODE_SLEEP && sleep 4 && input keyevent KEYCODE_WAKEUP")
+        shell("input keyevent KEYCODE_SLEEP && sleep 1 && input keyevent KEYCODE_WAKEUP")
         exit.join()
         Log.i(TAG, "screen off: the app's screen was $stageAtExit when the order came")
         check("woken up after leaving kiosk mode", kiosk = false)
@@ -174,23 +174,7 @@ class KioskSingleInstanceTest {
             .distinct()
     }
 
-    private fun resumed(): Activity? {
-        dismissLocalNetworkPicker()
-        return resumedNow()
-    }
-
-    /**
-     * Android 17 asks which device of the local network the app may reach
-     * when it looks for PCs (mDNS): not what this test is about, so the
-     * question is turned down ("Don't connect").
-     */
-    private fun dismissLocalNetworkPicker() {
-        if (Build.VERSION.SDK_INT < 37) return
-        val top = shell("dumpsys activity activities").lines().firstOrNull { "topResumedActivity=" in it }.orEmpty()
-        if ("NsdPickerActivity" in top) shell("input keyevent KEYCODE_BACK")
-    }
-
-    private fun resumedNow(): Activity? = onMain {
+    private fun resumed(): Activity? = onMain {
         ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).firstOrNull {
             it is MainActivity
         }

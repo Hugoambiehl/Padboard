@@ -108,4 +108,8 @@
     <string name="update_reason_install_failed">Android refused to install it.</string>
     <string name="update_reason_busy">another update is in progress.</string>
     <string name="update_ok">OK</string>
+    <string name="local_network_title">Wi-Fi needs your permission</string>
+    <string name="local_network_body">Android asks before Padboard reaches devices on your local network. Allow it to find your PC over Wi-Fi. The USB cable works without it.</string>
+    <string name="local_network_allow">Allow Wi-Fi</string>
+    <string name="disconnected_body_local_network">Android does not let Padboard use the local network: only the USB cable is tried. Allow it to connect over Wi-Fi again.</string>
 </resources>

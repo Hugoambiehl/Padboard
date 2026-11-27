@@ -52,7 +52,14 @@ fun SearchIndicator(attempt: Int, modifier: Modifier = Modifier) {
 
 /** Looking for the paired PC (no layout received yet). [serverName] null: starting up. */
 @Composable
-fun SearchingScreen(serverName: String?, onForget: (() -> Unit)?, attempt: Int = 0, onAbout: (() -> Unit)? = null) {
+fun SearchingScreen(
+    serverName: String?,
+    onForget: (() -> Unit)?,
+    attempt: Int = 0,
+    onAbout: (() -> Unit)? = null,
+    /** Android 17 without the local network: only USB is tried; this asks for it. */
+    onAllowLocalNetwork: (() -> Unit)? = null
+) {
     var confirm by rememberSaveable { mutableStateOf(false) }
     CenteredColumn {
         AppBadge()
@@ -66,12 +73,21 @@ fun SearchingScreen(serverName: String?, onForget: (() -> Unit)?, attempt: Int =
         }
         if (serverName != null) {
             Text(
-                stringResource(R.string.searching_body),
+                stringResource(
+                    if (onAllowLocalNetwork !=
+                        null
+                    ) {
+                        R.string.disconnected_body_local_network
+                    } else {
+                        R.string.searching_body
+                    }
+                ),
                 style = PadboardType.Body,
                 color = PadboardColors.TextMuted2,
                 modifier = Modifier.widthIn(max = 560.dp)
             )
         }
+        onAllowLocalNetwork?.let { LocalNetworkButton(it) }
         Row {
             if (onForget != null) {
                 TextButton(onClick = { confirm = true }) {

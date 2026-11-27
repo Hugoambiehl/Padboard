@@ -18,6 +18,7 @@ import io.github.hugoambiehl.padboard.ui.connect.PinScreen
 import io.github.hugoambiehl.padboard.ui.connect.SearchingScreen
 import io.github.hugoambiehl.padboard.ui.connect.SetupScreen
 import io.github.hugoambiehl.padboard.ui.connect.UpdateOnlyScreen
+import io.github.hugoambiehl.padboard.ui.connect.rememberLocalNetworkRequest
 import io.github.hugoambiehl.padboard.ui.grid.GridScreen
 import io.github.hugoambiehl.padboard.ui.grid.GridStatus
 import io.github.hugoambiehl.padboard.ui.screensaver.ScreensaverHost
@@ -55,6 +56,8 @@ private fun Screens(viewModel: PadboardViewModel, link: LinkState, layout: Layou
     }
     LaunchedEffect(link is LinkState.Pairing) { if (link is LinkState.Pairing) setupRequested = false }
 
+    val localNetwork by viewModel.localNetwork.collectAsStateWithLifecycle()
+    val allowLocalNetwork = rememberLocalNetworkRequest()
     val setup = @Composable { onBack: (() -> Unit)? ->
         SetupScreen(
             pcs = pcs,
@@ -62,7 +65,9 @@ private fun Screens(viewModel: PadboardViewModel, link: LinkState, layout: Layou
             onPick = viewModel::pair,
             onManual = viewModel::pair,
             onBack = onBack,
-            onAbout = { aboutOpen = true }
+            onAbout = { aboutOpen = true },
+            localNetwork = localNetwork,
+            onAllowLocalNetwork = allowLocalNetwork
         )
     }
 
@@ -82,7 +87,14 @@ private fun Screens(viewModel: PadboardViewModel, link: LinkState, layout: Layou
                     else ->
                         (state as LinkState.Searching).let { s ->
                             layout?.let {
-                                GridStatus.Reconnecting(s.serverName, s.wifi, s.retryInMs, s.attempt, s.announced)
+                                GridStatus.Reconnecting(
+                                    s.serverName,
+                                    s.wifi,
+                                    s.retryInMs,
+                                    s.attempt,
+                                    s.announced,
+                                    s.localNetwork
+                                )
                             }
                         }
                 }
@@ -93,7 +105,8 @@ private fun Screens(viewModel: PadboardViewModel, link: LinkState, layout: Layou
                         serverName = (state as LinkState.Searching).serverName,
                         onForget = viewModel::forget.takeIf { (state as LinkState.Searching).wifi },
                         attempt = (state as LinkState.Searching).attempt,
-                        onAbout = { aboutOpen = true }
+                        onAbout = { aboutOpen = true },
+                        onAllowLocalNetwork = allowLocalNetwork.takeIf { state.wifi && !state.localNetwork }
                     )
                 else ->
                     GridScreen(
@@ -107,7 +120,8 @@ private fun Screens(viewModel: PadboardViewModel, link: LinkState, layout: Layou
                         onPairWifi = { setupRequested = true },
                         onForget = viewModel::forget,
                         onAbout = { aboutOpen = true },
-                        onRetry = viewModel::retryNow
+                        onRetry = viewModel::retryNow,
+                        onAllowLocalNetwork = allowLocalNetwork
                     )
             }
         }

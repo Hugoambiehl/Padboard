@@ -42,11 +42,20 @@ class TabletLink private constructor(application: Application) {
             directory = directory,
             deviceName = deviceName(application),
             updater = AndroidUpdater(application),
-            kioskExits = KioskExits(application)
+            kioskExits = KioskExits(application),
+            localNetwork = { LocalNetwork.allowed.value }
         )
 
     init {
-        directory.start()
+        LocalNetwork.refresh(application)
+        // mDNS only with the local network allowed: on Android 17 searching
+        // without it opens the system's device picker over the app (#31).
+        scope.launch {
+            LocalNetwork.allowed.collect { allowed ->
+                if (allowed) directory.start() else directory.stop()
+                manager.nudge()
+            }
+        }
         scope.launch { manager.start(DeviceIdStore(application).deviceId()) }
         // A PC appearing on the network is worth a reconnection attempt right away.
         scope.launch { directory.pcs.collect { manager.nudge() } }
