@@ -788,7 +788,10 @@ SM-T580, always measure in release builds.
 - **Test mode** `PADBOARD_TEST_DIR` (`src-tauri/src/test_mode.rs`): separate
   config dir, `RecordingExecutor` (actions written to `actions.jsonl`, never
   injected), no adb, Wi-Fi forced off (except `PADBOARD_TEST_SYSTEM=1` with
-  `PADBOARD_BIND=lan`), logs to `app.log` (normal mode: `padboard.log` in the
+  `PADBOARD_BIND=lan`), no tray icon (it sat next to the user's own
+  Padboard and was taken for it) unless `PADBOARD_TEST_TRAY=1` (e2e/tray),
+  then named "Padboard (test)"; without it closing the window quits,
+  logs to `app.log` (normal mode: `padboard.log` in the
   config dir, started afresh at launch, the previous one kept as
   `padboard.log.1`), and a runtime
   simulated button states from `state.json` (`observe::start_from_file`),

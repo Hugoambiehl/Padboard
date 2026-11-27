@@ -28,14 +28,31 @@ pub struct Tray<R: Runtime> {
     icon: TrayIcon<R>,
     status: MenuItem<R>,
     texts: &'static TrayTexts,
+    /// "Padboard", or "Padboard (test)" for an app in test mode, so that it
+    /// is never taken for the real one next to it.
+    name: &'static str,
+}
+
+/// Name of the tray icon of an app in test mode.
+pub const TEST_NAME: &str = "Padboard (test)";
+
+/// Set once the icon exists ([`available`]).
+static SHOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether our icon is in a tray the user can see: the window may then hide
+/// in it; otherwise closing the window quits.
+#[must_use]
+pub fn available() -> bool {
+    SHOWN.load(std::sync::atomic::Ordering::Relaxed) && host_available()
 }
 
 impl<R: Runtime> Tray<R> {
     /// Creates the icon (`tray.png`: the 32 px variant, without the halo).
-    pub fn create(app: &AppHandle<R>, locale: Locale) -> tauri::Result<Self> {
+    pub fn create(app: &AppHandle<R>, locale: Locale, test_mode: bool) -> tauri::Result<Self> {
         #[cfg(windows)]
         dark_menus();
         let texts = tray_texts(locale);
+        let name = if test_mode { TEST_NAME } else { texts.app };
         let open = MenuItem::with_id(app, OPEN_ID, texts.open, true, None::<&str>)?;
         let status = MenuItem::with_id(app, "status", texts.no_tablet, false, None::<&str>)?;
         let quit = MenuItem::with_id(app, QUIT_ID, texts.quit, true, None::<&str>)?;
@@ -57,7 +74,7 @@ impl<R: Runtime> Tray<R> {
             // Windows names the icon in its settings ("Other system tray
             // icons") after the tooltip it is created with: a fixed one here,
             // the status is added right after.
-            .tooltip(texts.app)
+            .tooltip(name)
             .menu(&menu)
             // Windows: a left click opens the window, the right click the menu.
             // (Linux AppIndicator always opens the menu.)
@@ -81,11 +98,13 @@ impl<R: Runtime> Tray<R> {
                 }
             })
             .build(app)?;
-        let _ = icon.set_tooltip(Some(tooltip(texts, texts.no_tablet)));
+        let _ = icon.set_tooltip(Some(tooltip(name, texts.no_tablet)));
+        SHOWN.store(true, std::sync::atomic::Ordering::Relaxed);
         Ok(Self {
             icon,
             status,
             texts,
+            name,
         })
     }
 
@@ -98,7 +117,7 @@ impl<R: Runtime> Tray<R> {
         if let Err(e) = self.status.set_text(&line) {
             tracing::warn!("cannot update the tray menu: {e}");
         }
-        let _ = self.icon.set_tooltip(Some(tooltip(self.texts, &line)));
+        let _ = self.icon.set_tooltip(Some(tooltip(self.name, &line)));
     }
 }
 
@@ -137,8 +156,8 @@ fn dark_menus() {
     }
 }
 
-fn tooltip(texts: &TrayTexts, status: &str) -> String {
-    format!("{} · {status}", texts.app)
+fn tooltip(name: &str, status: &str) -> String {
+    format!("{name} · {status}")
 }
 
 /// "Galaxy Tab A · USB", "2 tablets connected" or "No tablet connected".

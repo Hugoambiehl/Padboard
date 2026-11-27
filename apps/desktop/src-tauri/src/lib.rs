@@ -863,12 +863,17 @@ pub fn run() {
                 auth.paired_devices(),
             )));
 
-            // The tray shows the connected tablets.
-            match tray::Tray::create(app.handle(), locale::current()) {
-                Ok(tray) => {
-                    app.manage(tray);
+            // The tray shows the connected tablets. An app in test mode has
+            // none unless a test needs it (PADBOARD_TEST_TRAY=1, e2e/tray):
+            // it would sit next to the user's own Padboard, and be taken for
+            // it. Then it is named "Padboard (test)".
+            if test_mode.is_none() || std::env::var("PADBOARD_TEST_TRAY").is_ok_and(|v| v == "1") {
+                match tray::Tray::create(app.handle(), locale::current(), test_mode.is_some()) {
+                    Ok(tray) => {
+                        app.manage(tray);
+                    }
+                    Err(e) => tracing::error!("cannot create the tray icon: {e}"),
                 }
-                Err(e) => tracing::error!("cannot create the tray icon: {e}"),
             }
 
             // Fold server events into the snapshot and push it to the UI.
@@ -1130,7 +1135,7 @@ pub fn run() {
                 })?;
                 // The window is created hidden: started with the session, it
                 // stays in the tray (if there is one to reopen it from).
-                if start_hidden && tray::host_available() {
+                if start_hidden && tray::available() {
                     tracing::info!("started hidden in the tray");
                 } else {
                     window.show()?;
@@ -1141,10 +1146,11 @@ pub fn run() {
         .on_window_event(|window, event| {
             // Closing hides the window in the tray, where the app keeps
             // serving the tablets; explained the first time. Without a tray
-            // host (Linux), closing quits: nothing could show the window again.
+            // host (Linux), or without our icon (test mode), closing quits:
+            // nothing could show the window again.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event
                 && window.label() == "main"
-                && tray::host_available()
+                && tray::available()
             {
                 api.prevent_close();
                 let hint_shown = window.try_state::<Backend>().is_none_or(|backend| {
