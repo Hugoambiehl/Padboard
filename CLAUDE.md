@@ -72,10 +72,18 @@ Same WebSocket protocol over two transports:
   only: the desktop follows devices with `adb track-devices` and runs
   `adb reverse tcp:47321 tcp:47321` on every (re)plug, **only on devices where
   Padboard is installed**; the tablet connects to `127.0.0.1:47321`. Connections
-  on this port are authenticated without PIN (the cable is the proof). Accepted
-  risk, documented in SECURITY.md: any local process can connect to loopback too,
-  so on a PC shared between several user accounts another account could send
-  keys into the session.
+  on this port are authenticated without PIN (the cable is the proof). Since
+  0.5 (#20, `usb_peer/`), each one must have been **opened by the adb server**:
+  the process owning its other end (Linux `/proc/net/tcp` + inode → PID, or
+  the socket owners' UIDs when the server runs under another account, e.g.
+  `sudo`; Windows `GetExtendedTcpTable`) must be the one listening on the adb
+  server's port (`ANDROID_ADB_SERVER_PORT`, default 5037). Not adb = refused,
+  logged with the program, shown 5 min in the USB card (`Snapshot.usb_refused`);
+  impossible to check = refused too, the tablet told why
+  (`ErrorReason::UsbUnverified`, `usbRefused` notice) and the card says what
+  to do. Off in simulated test mode (`UsbPeers::Any`: fake-tablet, e2e) and
+  unit tests; on with `PADBOARD_TEST_SYSTEM=1`. What remains (SECURITY.md):
+  the adb server accepts commands from any local account.
 - **`adb`**: a location chosen in the settings, else `PATH`, else the
   Android SDK folders, else the copy downloaded by "Installer adb"
   (Windows, `platform_tools/`: Platform-Tools pinned in `mod.rs`, bumped

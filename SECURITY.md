@@ -27,31 +27,36 @@ What Padboard protects, and what it trusts.
 forwards that port to the tablet with `adb reverse`. Connections on this
 port are accepted **without pairing**: reaching it requires running code on
 the PC, or a device plugged in with USB debugging authorized on the PC.
-Consequence: any program running on the PC, under any user account, can
-connect to this port and send actions. On a PC used by several people at the
+Up to 0.4, any program running on the PC, under any user account, could
+connect to this port and send actions: on a PC used by several people at the
 same time, another account could send keyboard shortcuts into your session
 while Padboard runs.
 
-**Second screen and USB (Padboard 0.5, in development).** The second
-screen sends the PC's picture to the tablet, so a program that reached the
-USB port could read the screen. Planned for 0.5
+**Only the adb server may connect to the USB port (since 0.5).** A real USB
+connection always comes from the **adb server** (`adb reverse`). The desktop
+checks the process on the other end of each connection to the USB port
+(Linux: `/proc/net/tcp`, then the owning process, or the owning account when
+the adb server runs under another one, e.g. started with `sudo`; Windows: the
+TCP table) and refuses it unless it is the process listening on the adb
+server's port. A refused connection is logged with the program and shown in
+the USB card; one that cannot be checked is refused too, and both the PC and
+the tablet say what to do. This closes the direct path described above.
+
+What remains: the adb server itself accepts commands from any local account
+(adb's own design), so on a PC shared between several accounts another
+account can still drive the tablet through adb, and through it reach
+Padboard. Do not use USB debugging on a PC whose other accounts you do not
+trust.
+
+**Second screen (Padboard 0.5, in development).** It sends the PC's picture
+to the tablet
 ([design](docs/design/second-screen.md#usb-check-the-process-on-the-other-end)):
 
-- A real USB connection always comes from the **adb server** (`adb
-  reverse`). The desktop checks the process on the other end of each
-  connection on the USB port (Linux: `/proc/net/tcp`; Windows: the TCP
-  table) and refuses it unless it is the process running the adb server.
-  This closes the direct path described above, for keys and picture alike.
 - The first time a device starts a second screen, the PC asks for
   confirmation. The answer is remembered only for a verified connection
   (paired Wi-Fi, or USB that passed the check above).
 - While the screen is shared, the tray icon shows it, with "Arrêter le
   second écran".
-- What remains: the adb server itself accepts commands from any local
-  account (adb's own design), so on a PC shared between several accounts
-  another account can still drive the tablet through adb, and through it
-  reach Padboard. Do not use USB debugging on a PC whose other accounts you
-  do not trust.
 - On Windows, the extended screen uses
   [Virtual Display Driver](https://github.com/VirtualDrivers/Virtual-Display-Driver),
   downloaded on request. Its control channel (a named pipe) is open to every
