@@ -51,18 +51,76 @@ fn listener_pid(port: u16) -> Option<u32> {
         .and_then(|r| r.pid)
 }
 
-/// The system's IPv4 TCP table (listeners and connections) with the
-/// owning process of each row (`GetExtendedTcpTable`, no administrator
-/// rights needed); `None` if it cannot be read.
+/// The system's TCP tables, IPv4 and IPv6 (listeners and connections),
+/// with the owning process of each row (`GetExtendedTcpTable`, no
+/// administrator rights needed); `None` if neither can be read.
 #[cfg(windows)]
 pub(crate) fn tcp_rows() -> Option<Vec<crate::usb_peer::TcpRow>> {
     use crate::usb_peer::{TcpRow, TcpState};
-    use windows::Win32::Foundation::{ERROR_INSUFFICIENT_BUFFER, NO_ERROR};
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
     use windows::Win32::NetworkManagement::IpHelper::{
-        GetExtendedTcpTable, MIB_TCP_STATE_ESTAB, MIB_TCP_STATE_LISTEN, MIB_TCPROW_OWNER_PID,
-        TCP_TABLE_OWNER_PID_ALL,
+        MIB_TCP_STATE_ESTAB, MIB_TCP_STATE_LISTEN, MIB_TCP6ROW_OWNER_PID, MIB_TCPROW_OWNER_PID,
     };
     const AF_INET: u32 = 2;
+    const AF_INET6: u32 = 23;
+
+    let state = |s: u32| {
+        if s == MIB_TCP_STATE_LISTEN.0 as u32 {
+            TcpState::Listen
+        } else if s == MIB_TCP_STATE_ESTAB.0 as u32 {
+            TcpState::Established
+        } else {
+            TcpState::Other
+        }
+    };
+    // Ports are in network byte order, in the low 16 bits.
+    let port = |p: u32| u16::from_be((p & 0xffff) as u16);
+    let v4 = table::<MIB_TCPROW_OWNER_PID>(AF_INET).map(|rows| {
+        rows.into_iter().map(|r| TcpRow {
+            state: state(r.dwState),
+            // The address is in network byte order too: its bytes in memory.
+            local: SocketAddr::new(
+                IpAddr::V4(Ipv4Addr::from(r.dwLocalAddr.to_ne_bytes())),
+                port(r.dwLocalPort),
+            ),
+            remote_port: port(r.dwRemotePort),
+            uid: None,
+            inode: None,
+            pid: Some(r.dwOwningPid),
+        })
+    });
+    let v6 = table::<MIB_TCP6ROW_OWNER_PID>(AF_INET6).map(|rows| {
+        rows.into_iter().map(|r| TcpRow {
+            state: state(r.dwState),
+            local: SocketAddr::new(
+                IpAddr::V6(Ipv6Addr::from(r.ucLocalAddr)),
+                port(r.dwLocalPort),
+            ),
+            remote_port: port(r.dwRemotePort),
+            uid: None,
+            inode: None,
+            pid: Some(r.dwOwningPid),
+        })
+    });
+    match (v4, v6) {
+        (None, None) => None,
+        (v4, v6) => Some(
+            v4.into_iter()
+                .flatten()
+                .chain(v6.into_iter().flatten())
+                .collect(),
+        ),
+    }
+}
+
+/// The rows of one family's table (`TCP_TABLE_OWNER_PID_ALL`), `T` being
+/// that family's row type; `None` if it cannot be read.
+#[cfg(windows)]
+fn table<T: Copy>(family: u32) -> Option<Vec<T>> {
+    use windows::Win32::Foundation::{ERROR_INSUFFICIENT_BUFFER, NO_ERROR};
+    use windows::Win32::NetworkManagement::IpHelper::{
+        GetExtendedTcpTable, TCP_TABLE_OWNER_PID_ALL,
+    };
 
     let mut size = 0u32;
     let mut buf: Vec<u64> = Vec::new();
@@ -79,7 +137,7 @@ pub(crate) fn tcp_rows() -> Option<Vec<crate::usb_peer::TcpRow>> {
                 ptr,
                 &raw mut size,
                 false,
-                AF_INET,
+                family,
                 TCP_TABLE_OWNER_PID_ALL,
                 0,
             )
@@ -88,7 +146,7 @@ pub(crate) fn tcp_rows() -> Option<Vec<crate::usb_peer::TcpRow>> {
             break;
         }
         if rc != ERROR_INSUFFICIENT_BUFFER.0 && rc != NO_ERROR.0 {
-            tracing::warn!(rc, "the TCP table is unreadable");
+            tracing::warn!(rc, family, "the TCP table is unreadable");
             return None;
         }
         buf = vec![0u64; (size as usize).div_ceil(8) + 1];
@@ -101,34 +159,13 @@ pub(crate) fn tcp_rows() -> Option<Vec<crate::usb_peer::TcpRow>> {
     // SAFETY: the table starts with its entry count (u32), then its rows
     // (aligned to 4 bytes); never read past the buffer.
     let count = unsafe { base.cast::<u32>().read_unaligned() } as usize;
-    let row = std::mem::size_of::<MIB_TCPROW_OWNER_PID>();
-    // Addresses and ports are in network byte order (ports in the low
-    // 16 bits).
-    let port = |p: u32| u16::from_be((p & 0xffff) as u16);
-    let ip = |a: u32| std::net::Ipv4Addr::from(a.to_ne_bytes());
+    let row = std::mem::size_of::<T>();
     Some(
         (0..count)
             .map(|i| 4 + i * row)
             .take_while(|offset| offset + row <= bytes)
-            .map(|offset| unsafe {
-                base.add(offset)
-                    .cast::<MIB_TCPROW_OWNER_PID>()
-                    .read_unaligned()
-            })
-            .map(|r| TcpRow {
-                state: if r.dwState == MIB_TCP_STATE_LISTEN.0 as u32 {
-                    TcpState::Listen
-                } else if r.dwState == MIB_TCP_STATE_ESTAB.0 as u32 {
-                    TcpState::Established
-                } else {
-                    TcpState::Other
-                },
-                local: std::net::SocketAddr::new(ip(r.dwLocalAddr).into(), port(r.dwLocalPort)),
-                remote_port: port(r.dwRemotePort),
-                uid: None,
-                inode: None,
-                pid: Some(r.dwOwningPid),
-            })
+            // SAFETY: within the buffer (checked above); unaligned read.
+            .map(|offset| unsafe { base.add(offset).cast::<T>().read_unaligned() })
             .collect(),
     )
 }
