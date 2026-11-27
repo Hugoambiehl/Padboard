@@ -342,9 +342,20 @@
         "label": "Verrouiller",
         "desc": "Verrouille la session"
       },
-      "documents": {
-        "label": "Documents",
-        "desc": "Ouvre le dossier Documents"
+      "launchApp": {
+        "label": "Lancer une application",
+        "desc": "Un programme installé, choisi sur le PC",
+        "button": "Application"
+      },
+      "openPath": {
+        "label": "Ouvrir un fichier ou un dossier",
+        "desc": "Le dossier Documents, à remplacer",
+        "button": "Documents"
+      },
+      "website": {
+        "label": "Ouvrir un site web",
+        "desc": "Une adresse https://…",
+        "button": "Site web"
       },
       "taskManager": {
         "label": "Gestionnaire des tâches",
@@ -500,11 +511,14 @@
       "media": "Médias",
       "volume": "Son du PC",
       "microphone": "Micro",
-      "open": "Ouvrir",
+      "open": "Ouvrir (application, fichier, dossier, site)",
       "lock": "Verrouiller",
       "navigate": "Navigation",
       "multi": "Multi-action",
       "obs": "OBS"
+    },
+    "badges": {
+      "open": "Ouvrir"
     },
     "form": {
       "kind": "Type d’action",
@@ -529,12 +543,18 @@
         "unmute": "Rétablir"
       },
       "target": "Adresse, fichier, dossier ou programme",
+      "openHint": "Un programme (« Application… »), un fichier ou un dossier (« Fichier… », « Dossier… »), ou l’adresse d’un site (https://…) : il s’ouvre comme d’un double-clic sur le PC.",
       "targetPlaceholder": "https://… ou ~/Documents",
       "targetPlaceholderWin": "https://…, C:\\… ou shell:Personal (Documents)",
       "pickFile": "Fichier…",
       "pickFolder": "Dossier…",
       "pickFileTitle": "Choisir le fichier à ouvrir",
       "pickFolderTitle": "Choisir le dossier à ouvrir",
+      "pickApp": "Application…",
+      "pickAppTitle": "Choisir l’application à lancer",
+      "appFilter": "Programmes et raccourcis",
+      "appFilterLinux": "Applications",
+      "allFiles": "Tous les fichiers",
       "navTo": {
         "page": "Aller à une page",
         "folder": "Ouvrir un dossier",

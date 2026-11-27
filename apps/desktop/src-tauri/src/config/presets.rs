@@ -137,13 +137,36 @@ pub fn presets() -> Vec<Preset> {
         preset("screenshot", System, Teal, "Camera", screenshot),
         preset("showDesktop", System, Grey, "Monitor", &[MetaLeft, KeyD]),
         with_action("lock", System, Red, "Lock", Action::Lock),
+        // Three uses of the same `open` action, each one obvious in the
+        // library ("Documents" alone hid that it can start a program).
         with_action(
-            "documents",
+            "launchApp",
+            System,
+            Violet,
+            "AppWindow",
+            // Chosen in the inspector ("Application…").
+            Action::Open(OpenAction {
+                target: String::new(),
+            }),
+        ),
+        with_action(
+            "openPath",
             System,
             Blue,
             "FolderOpen",
+            // An example that works at once: the Documents folder.
             Action::Open(OpenAction {
                 target: documents_folder(),
+            }),
+        ),
+        with_action(
+            "website",
+            System,
+            Teal,
+            "Globe",
+            // Typed in the inspector.
+            Action::Open(OpenAction {
+                target: String::new(),
             }),
         ),
         // Steps added in the inspector.
@@ -271,8 +294,19 @@ mod tests {
         assert_eq!(ids.len(), list.len());
         for p in &list {
             // Drafts: the empty shortcut (recorded in the inspector), the
-            // folder (created with the button).
-            if ["hotkey", "folder", "multi", "obsScene", "obsMute"].contains(&p.id.as_str()) {
+            // folder (created with the button), the application and the
+            // site (chosen or typed in the inspector).
+            if [
+                "hotkey",
+                "folder",
+                "multi",
+                "obsScene",
+                "obsMute",
+                "launchApp",
+                "website",
+            ]
+            .contains(&p.id.as_str())
+            {
                 p.action.validate_draft().unwrap();
             } else {
                 p.action.validate().unwrap();

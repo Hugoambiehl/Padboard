@@ -1286,6 +1286,20 @@ checked is refused too, explained on the PC and on the tablet.
 | Touch Portal running | Touch Portal started first, so its adb 28.0.3 runs the server on 5037 (as in 8.2); then Padboard, tablet plugged in | Connected over USB (the server is Touch Portal's adb, still the one listening on 5037): no refusal |
 | Another program | In PowerShell: `$c = New-Object Net.Sockets.TcpClient('127.0.0.1', 47321)` | Refused: the USB card says the connection came from `powershell.exe` (its PID), not from the adb server; `padboard.log` has the same; the tablet stays connected. `$c.Close()` |
 | Back | Unplug and plug the tablet back in | Connected over USB; the refusal disappears from the card after 5 minutes |
+## 19. 0.5: "Lancer une application" in the library
+
+The library's *Documents* entry became three entries using the same open
+action: *Lancer une application*, *Ouvrir un fichier ou un dossier*
+(Documents by default), *Ouvrir un site web*.
+
+| Step | Do | Expected |
+|---|---|---|
+| Pick a program | Drag *Lancer une application* onto an empty cell; in the inspector, **Application…** | The dialog opens in the Start menu's `Programs` folder, filtered on programs and shortcuts (`.exe`, `.lnk`) |
+| Suggestion | Pick `Discord.lnk` (or any shortcut) | The target is the shortcut; the button is named after it (*Discord*) with a fitting icon; a label or icon chosen before is kept |
+| Run it | **Tester l'action**, then from the tablet | The program starts |
+| Site | Drag *Ouvrir un site web*, type `https://example.org`, test | The default browser opens the page |
+
+Microsoft Store apps have no `.exe` to pick: #47 (0.6) lists installed apps instead.
 
 ## Known Windows limits
 

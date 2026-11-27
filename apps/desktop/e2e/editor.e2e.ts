@@ -127,6 +127,27 @@ describe("editor", () => {
     await app.shot("06-drag");
   });
 
+  it("makes an application button from the library", async () => {
+    // "Lancer une application": an open action, named "Application" until
+    // a program is picked in the inspector.
+    await app.select(2, 4);
+    await app.session.chord(Key.Delete);
+    await app.expectCell(2, 4, app.emptyLabel(2, 4));
+    const preset = await app.session.find(
+      `//aside//button[.//span[normalize-space(.)=${literal(t("library.presets.launchApp.label"))}]]`,
+    );
+    await app.session.drag(preset, await app.cell(2, 4));
+    await app.expectCell(2, 4, t("library.presets.launchApp.button"));
+    await app.select(2, 4);
+    await app.session.find(withText(t("actions.form.openHint"), "p"));
+    await app.session.find(withText(t("actions.form.pickApp"), "button"));
+    await app.shot("06b-launch-app");
+    // Back to "Couper" for the next steps: undo the drop, then the deletion.
+    await app.session.chord(Key.Control, "z");
+    await app.session.chord(Key.Control, "z");
+    await app.expectCell(2, 4, t("library.presets.cut.label"));
+  });
+
   it("moves the selected button with Alt + arrows", async () => {
     await app.select(0, 1); // Coller
     await app.session.chord(Key.Alt, Key.ArrowLeft);
