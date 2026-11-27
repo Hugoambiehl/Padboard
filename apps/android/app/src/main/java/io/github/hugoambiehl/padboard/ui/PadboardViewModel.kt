@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.hugoambiehl.padboard.connection.DiscoveredPc
 import io.github.hugoambiehl.padboard.connection.Endpoint
 import io.github.hugoambiehl.padboard.connection.LinkState
+import io.github.hugoambiehl.padboard.connection.LocalNetwork
 import io.github.hugoambiehl.padboard.connection.TabletLink
 import io.github.hugoambiehl.padboard.kiosk.Kiosk
 import io.github.hugoambiehl.padboard.protocol.KioskExitOrigin
@@ -25,6 +26,9 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
     val settings = manager.settings
     val systemStatus = manager.systemStatus
     val kiosk = Kiosk.active
+
+    /** Android 17: Wi-Fi and mDNS allowed (see LocalNetwork). */
+    val localNetwork = LocalNetwork.allowed
 
     /** An update sent by the PC (kiosk mode). */
     val update = manager.update

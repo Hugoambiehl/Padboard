@@ -248,6 +248,26 @@ class ConnectionManagerTest {
         }
     }
 
+    /**
+     * Android 17 without the local network permission (#31): Wi-Fi is not
+     * tried and the tablet says why; USB (loopback) still works.
+     */
+    @Test
+    fun withoutLocalNetworkAccessOnlyUsbIsUsed() {
+        paired()
+        val blocked =
+            ConnectionManager(scope, OkHttpClient(), pairing, directory, "Test tablet", config, localNetwork = {
+                false
+            })
+        blocked.start(DEVICE_ID)
+        val searching = await(blocked.state, "searching") { it is LinkState.Searching } as LinkState.Searching
+        assertFalse("the tablet says the local network is off", searching.localNetwork)
+        Thread.sleep(500)
+        assertTrue("no Wi-Fi attempt", pc.hellos.none { it.first == Transport.Wifi })
+        pc.usbAvailable = true
+        await(blocked.state, "connected over USB") { it is LinkState.Connected && it.transport == Transport.Usb }
+    }
+
     @Test
     fun unpluggingUsbWithoutPairingKeepsLookingForThatPc() {
         pc.usbAvailable = true

@@ -15,6 +15,10 @@
 # first x86_64 one installed, or PADBOARD_TEST_IMAGE
 # (e.g. "system-images;android-37.0;google_apis_playstore_ps16k;x86_64").
 #
+# PADBOARD_TEST_GPU (default guest) and PADBOARD_TEST_RAM (MB, default
+# 2048, the tablet's) change the emulator: LocalNetworkTest, on demand,
+# runs on API 37 with swiftshader_indirect and 4096.
+#
 # The API 37 images abort on some screen reads ("Assertion failed:
 # !rcEnc->featureInfo()->hasReadColorBufferDma"): SurfaceFlinger when the
 # launcher samples the screen, system_server when it snapshots a task
@@ -66,9 +70,9 @@ echo no | "$avdmanager" -s create avd -n PadboardUiTests -k "$image" -p "$work/P
 config="$work/PadboardUiTests.avd/config.ini"
 sed -i '/^hw\.lcd\.\(width\|height\|density\)=/d;/^hw\.initialOrientation=/d;/^hw\.ramSize=/d' "$config"
 printf '%s\n' hw.lcd.width=1920 hw.lcd.height=1200 hw.lcd.density=240 \
-  hw.initialOrientation=landscape hw.ramSize=2048 >> "$config"
+  hw.initialOrientation=landscape "hw.ramSize=${PADBOARD_TEST_RAM:-2048}" >> "$config"
 "$emulator" -avd PadboardUiTests -port "$port" -no-window -no-audio -no-boot-anim \
-  -no-snapshot -gpu guest > "$work/emulator.log" 2>&1 &
+  -no-snapshot -gpu "${PADBOARD_TEST_GPU:-guest}" > "$work/emulator.log" 2>&1 &
 emulator_pid=$!
 
 echo "== Build"
@@ -86,7 +90,10 @@ echo "== Tests"
 outputs="$root/apps/android/app/build/outputs/apk"
 adb install -r -t "$outputs/debug/app-debug.apk" > /dev/null
 adb install -r -t "$outputs/androidTest/debug/app-debug-androidTest.apk" > /dev/null
-result="$(adb shell am instrument -w io.github.hugoambiehl.padboard.test/androidx.test.runner.AndroidJUnitRunner)"
+# PADBOARD_TEST_ARGS: more `am instrument` arguments (one class, a test's
+# on-demand switch), split on spaces.
+read -r -a extra <<< "${PADBOARD_TEST_ARGS:-}"
+result="$(adb shell am instrument -w "${extra[@]}" io.github.hugoambiehl.padboard.test/androidx.test.runner.AndroidJUnitRunner)"
 echo "$result"
 adb logcat -d -s KioskCornerTest:I KioskSingleInstanceTest:I | grep -v '^-' || true
 if ! grep -q '^OK (' <<< "$result"; then

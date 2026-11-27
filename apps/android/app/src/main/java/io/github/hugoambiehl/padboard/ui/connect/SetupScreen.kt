@@ -60,7 +60,10 @@ fun SetupScreen(
     onPick: (DiscoveredPc) -> Unit,
     onManual: (Endpoint) -> Unit,
     onBack: (() -> Unit)?,
-    onAbout: () -> Unit
+    onAbout: () -> Unit,
+    /** Android 17: the local network is allowed (else the PCs cannot be looked for). */
+    localNetwork: Boolean = true,
+    onAllowLocalNetwork: () -> Unit = {}
 ) {
     var problem by rememberSaveable { mutableStateOf<PairingProblem?>(null) }
     LaunchedEffect(problems) { problems.collect { problem = it } }
@@ -114,6 +117,11 @@ fun SetupScreen(
                 .padding(32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            if (!localNetwork) {
+                // Asked for here, when Wi-Fi is wanted: never at launch.
+                LocalNetworkNotice(onAllow = onAllowLocalNetwork)
+                return@Column
+            }
             Text(stringResource(R.string.setup_found), style = PadboardType.CardTitle, color = PadboardColors.Text)
             pcs.forEach { pc ->
                 PcRow(pc) {

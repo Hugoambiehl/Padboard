@@ -14,6 +14,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import io.github.hugoambiehl.padboard.connection.LocalNetwork
 import io.github.hugoambiehl.padboard.kiosk.Kiosk
 import io.github.hugoambiehl.padboard.ui.PadboardApp
 import io.github.hugoambiehl.padboard.ui.PadboardViewModel
@@ -50,6 +51,8 @@ class MainActivity : ComponentActivity() {
         Kiosk.stopLockTask = endLockTask
         // Device owner set or removed with adb while the app was away.
         Kiosk.refresh(this)
+        // Local network allowed or revoked in the settings meanwhile (Android 17).
+        LocalNetwork.refresh(this)
     }
 
     override fun onPause() {

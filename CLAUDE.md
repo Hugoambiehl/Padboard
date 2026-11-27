@@ -267,6 +267,22 @@ SM-T580, always measure in release builds.
   `tauri-plugin-dialog` / `@tauri-apps/plugin-dialog` stay on `~2.7` (2.8 needs 2.12).
 - **Desktop dev launch**: `scripts/desktop-dev.sh`. It strips the GTK/GIO
   variables leaked by snap terminals (VS Code snap), which crash WebKitGTK.
+- **Android 17 local network** (#31, decided by Hugo: permission at the
+  right moment): targeting API 37, Wi-Fi to the PC and mDNS need
+  `ACCESS_LOCAL_NETWORK` (runtime, "Nearby devices" group); USB
+  (loopback through `adb reverse`) does not (checked on the API 37
+  emulator). Without it a plain `discoverServices` opened the system's
+  `NsdPickerActivity` over the app at every launch. `LocalNetwork`
+  (`connection/LocalNetwork.kt`) holds the state; mDNS runs only while
+  allowed (`TabletLink`), `ConnectionManager` skips Wi-Fi without it
+  (`LinkState.Searching.localNetwork`). Asked for only when Wi-Fi is
+  wanted: the setup screen (pair over Wi-Fi) and the disconnected card /
+  searching screen of a Wi-Fi-paired tablet show "Autoriser le Wi-Fi";
+  refused for good, the button opens the app's settings. Kiosk mode
+  grants it itself (`setPermissionGrantState` in `Kiosk.apply`). The
+  system picker path (`FLAG_SHOW_PICKER`) was not chosen: no typed IP, no
+  last address, a rewrite. `LocalNetworkTest` (API 37 only, on demand:
+  see its doc) fails without the fix.
 - **Status in the UI**: every server event sends the whole `Snapshot`;
   `useStatus` merges it with `reconcile` (`composables/reconcile.ts`):
   unchanged parts keep their identity, so a tablet reconnecting only
@@ -422,9 +438,11 @@ SM-T580, always measure in release builds.
   (5 in a minute, `auth.rs` `SupersedeWatch`). `KioskSingleInstanceTest`
   (androidTest) fails without the fix on API 32 only (image
   `android-32;google_apis`, local test tool); skipped on the API 37
-  emulator (task switches crash its system_server). Android 17 shows an
-  `NsdPickerActivity` (local network) when the app starts mDNS: the test
-  turns it down.
+  emulator (task switches crash its system_server, at random: any test
+  that starts a task there is on demand). Kiosk mode left while a home
+  screen is alive but not in front waits for it (`Kiosk.homeScreens`,
+  #32; with the screen off the home screen stays resumed, the keyguard
+  being off).
 - **Tablet screensaver** (`ui/screensaver/Screensaver.kt`): settings stored
   on the PC (`preferences.json`, "Écran de veille" card, 15 s–1 h, default
   on after 5 min), sent with `tablet:settings` on connect and on change;

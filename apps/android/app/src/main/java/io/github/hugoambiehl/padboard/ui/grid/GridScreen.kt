@@ -104,7 +104,9 @@ sealed interface GridStatus {
         val retryInMs: Long,
         val attempt: Int,
         /** Announced on the network but not answering (see `LinkState.Searching`). */
-        val announced: Boolean = false
+        val announced: Boolean = false,
+        /** Android 17: the local network is allowed (see `LinkState.Searching`). */
+        val localNetwork: Boolean = true
     ) : GridStatus
 }
 
@@ -121,7 +123,8 @@ fun GridScreen(
     onPairWifi: () -> Unit,
     onForget: () -> Unit,
     onAbout: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onAllowLocalNetwork: () -> Unit = {}
 ) {
     var menu by remember { mutableStateOf(false) }
     val pages = layout?.pages.orEmpty()
@@ -317,6 +320,7 @@ fun GridScreen(
                             visible = lost,
                             onRetry = onRetry,
                             onPairWifi = onPairWifi,
+                            onAllowLocalNetwork = onAllowLocalNetwork,
                             modifier = Modifier.align(Alignment.Center)
                         )
                     }

@@ -177,11 +177,30 @@ are not touched; see the script for the API 37 image's quirks):
 
 ```sh
 scripts/tablet-ui-tests.sh
+PADBOARD_TEST_IMAGE="system-images;android-32;google_apis;x86_64" scripts/tablet-ui-tests.sh
 ```
 
-Two more androidTests are skipped unless given their arguments, since they
-need a PC or change the device. They were run on an Android 7.0 (API 24)
-emulator for #21.
+The second line runs them on Android 12L, the tablet's version: the only
+emulator where `KioskSingleInstanceTest` catches two screens of the app in
+kiosk mode (API 24 guards #24; the API 37 emulator skips it).
+`PADBOARD_TEST_GPU`, `PADBOARD_TEST_RAM` and `PADBOARD_TEST_ARGS` (more
+`am instrument` arguments) change the run.
+
+Three more androidTests are skipped unless given their arguments, since they
+need a PC or change the device. The first two were run on an Android 7.0
+(API 24) emulator for #21.
+
+- `LocalNetworkTest` (Android 17 only, #31): no system device picker at
+  launch, and kiosk mode grants itself the local network permission. The
+  API 37 emulator aborts its system_server now and then when a task
+  starts, so it runs alone, on a fresh emulator (it needs the permission
+  not granted yet):
+
+  ```sh
+  PADBOARD_TEST_GPU=swiftshader_indirect PADBOARD_TEST_RAM=4096 \
+  PADBOARD_TEST_ARGS="-e class io.github.hugoambiehl.padboard.connection.LocalNetworkTest -e padboardLocalNetwork true" \
+    scripts/tablet-ui-tests.sh
+  ```
 
 - `PinnedTlsTest`: a real TLS handshake with a Padboard desktop, pinned
   like the app does: accepted with the PC's key, refused with another

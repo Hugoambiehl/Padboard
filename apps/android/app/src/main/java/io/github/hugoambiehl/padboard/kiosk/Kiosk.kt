@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.edit
 import io.github.hugoambiehl.padboard.connection.KioskExitLog
+import io.github.hugoambiehl.padboard.connection.LocalNetwork
 import io.github.hugoambiehl.padboard.protocol.KioskExitOrigin
 import io.github.hugoambiehl.padboard.protocol.KioskLeft
 import java.util.logging.Logger
@@ -92,6 +93,21 @@ object Kiosk {
         }
         dpm.setKeyguardDisabled(admin, true)
         dpm.setStatusBarDisabled(admin, true)
+        if (LocalNetwork.required) {
+            // Android 17: Wi-Fi to the PC without asking anyone in front of
+            // the kiosk (a device owner may grant runtime permissions).
+            val granted =
+                runCatching {
+                    dpm.setPermissionGrantState(
+                        admin,
+                        context.packageName,
+                        LocalNetwork.PERMISSION,
+                        DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
+                    )
+                }.getOrDefault(false)
+            if (!granted) log.warning("could not grant the local network permission")
+            LocalNetwork.refresh(context)
+        }
         setHome(context, enabled = true)
         val filter =
             IntentFilter(Intent.ACTION_MAIN).apply {

@@ -30,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.hugoambiehl.padboard.R
+import io.github.hugoambiehl.padboard.ui.connect.LocalNetworkButton
 import io.github.hugoambiehl.padboard.ui.connect.SearchIndicator
 import io.github.hugoambiehl.padboard.ui.theme.PadboardColors
 import io.github.hugoambiehl.padboard.ui.theme.PadboardType
@@ -52,7 +53,8 @@ fun DisconnectedCard(
     visible: Boolean,
     onRetry: () -> Unit,
     onPairWifi: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onAllowLocalNetwork: () -> Unit = {}
 ) {
     val shown by animateFloatAsState(if (visible) 1f else 0f, tween(200), label = "disconnected")
     // Hidden: not composed at all, or its spinner would keep asking for
@@ -107,6 +109,7 @@ fun DisconnectedCard(
             stringResource(
                 when {
                     !status.wifi -> R.string.disconnected_body_usb
+                    !status.localNetwork -> R.string.disconnected_body_local_network
                     status.announced -> R.string.disconnected_body_unreachable
                     else -> R.string.disconnected_body_wifi
                 }
@@ -134,6 +137,7 @@ fun DisconnectedCard(
                     contentColor = PadboardColors.Background
                 )
             ) { Text(stringResource(R.string.disconnected_retry)) }
+            if (status.wifi && !status.localNetwork) LocalNetworkButton(onAllowLocalNetwork)
             if (!status.wifi) {
                 TextButton(onClick = onPairWifi) {
                     Text(stringResource(R.string.pair_wifi), color = PadboardColors.Accent)

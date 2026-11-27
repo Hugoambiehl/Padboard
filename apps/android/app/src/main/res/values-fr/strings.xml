@@ -107,4 +107,8 @@
     <string name="update_reason_install_failed">Android a refusé de l’installer.</string>
     <string name="update_reason_busy">une autre mise à jour est en cours.</string>
     <string name="update_ok">OK</string>
+    <string name="local_network_title">Le Wi-Fi demande ton autorisation</string>
+    <string name="local_network_body">Android demande ton accord avant que Padboard joigne des appareils de ton réseau local. Autorise-le pour trouver ton PC en Wi-Fi. Le câble USB fonctionne sans.</string>
+    <string name="local_network_allow">Autoriser le Wi-Fi</string>
+    <string name="disconnected_body_local_network">Android n’autorise pas Padboard à utiliser le réseau local : seul le câble USB est essayé. Autorise-le pour te reconnecter en Wi-Fi.</string>
 </resources>
