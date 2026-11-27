@@ -170,7 +170,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libdbus-1-dev pkg-config file \
-            libayatana-appindicator3-dev
+            libayatana-appindicator3-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
 
       - uses: actions/setup-node@v7
         with:
