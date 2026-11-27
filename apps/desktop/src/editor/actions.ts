@@ -47,7 +47,11 @@ export async function addPreset(preset: Preset, cell: { row: number; col: number
       pageId: target.id,
       row: cell.row,
       col: cell.col,
-      label: t(`library.presets.${preset.id}.label`),
+      // A button may be named differently from its library entry
+      // ("Lancer une application" makes an "Application" button).
+      label: i18n.global.te(`library.presets.${preset.id}.button`)
+        ? t(`library.presets.${preset.id}.button`)
+        : t(`library.presets.${preset.id}.label`),
       subtitle: autoSubtitle(preset.action) || undefined,
       icon: (await iconConfig(preset.icon)) ?? undefined,
       color: preset.color,

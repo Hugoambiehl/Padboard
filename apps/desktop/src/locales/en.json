@@ -342,9 +342,20 @@
         "label": "Lock",
         "desc": "Locks the session"
       },
-      "documents": {
-        "label": "Documents",
-        "desc": "Opens the Documents folder"
+      "launchApp": {
+        "label": "Launch an application",
+        "desc": "An installed program, picked on the PC",
+        "button": "Application"
+      },
+      "openPath": {
+        "label": "Open a file or a folder",
+        "desc": "The Documents folder, to replace",
+        "button": "Documents"
+      },
+      "website": {
+        "label": "Open a website",
+        "desc": "An https://… address",
+        "button": "Website"
       },
       "taskManager": {
         "label": "Task Manager",
@@ -500,11 +511,14 @@
       "media": "Media",
       "volume": "PC sound",
       "microphone": "Microphone",
-      "open": "Open",
+      "open": "Open (application, file, folder, website)",
       "lock": "Lock",
       "navigate": "Navigation",
       "multi": "Multi action",
       "obs": "OBS"
+    },
+    "badges": {
+      "open": "Open"
     },
     "form": {
       "kind": "Action type",
@@ -529,12 +543,18 @@
         "unmute": "Unmute"
       },
       "target": "Address, file, folder or program",
+      "openHint": "A program (“Application…”), a file or a folder (“File…”, “Folder…”), or a website’s address (https://…): it opens as with a double-click on the PC.",
       "targetPlaceholder": "https://… or ~/Documents",
       "targetPlaceholderWin": "https://…, C:\\… or shell:Personal (Documents)",
       "pickFile": "File…",
       "pickFolder": "Folder…",
       "pickFileTitle": "Choose the file to open",
       "pickFolderTitle": "Choose the folder to open",
+      "pickApp": "Application…",
+      "pickAppTitle": "Choose the application to launch",
+      "appFilter": "Programs and shortcuts",
+      "appFilterLinux": "Applications",
+      "allFiles": "All files",
       "navTo": {
         "page": "Go to a page",
         "folder": "Open a folder",

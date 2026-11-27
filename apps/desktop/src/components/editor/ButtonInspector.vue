@@ -10,7 +10,8 @@ import DraftInput from "./DraftInput.vue";
 import { useEditor } from "../../composables/useEditor";
 import { useSelection } from "../../editor/selection";
 import { categories, categoryColors } from "../../editor/colors";
-import { loadIcons } from "../../icons/catalog";
+import { iconConfig, loadIcons } from "../../icons/catalog";
+import { APP_ICON } from "../../editor/appSuggestion";
 import { iconToPaths } from "../../icons/paths";
 import { addPreset } from "../../editor/actions";
 import { testButton } from "../../commands";
@@ -18,7 +19,7 @@ import { isSystemAction } from "../../editor/actionText";
 import { hasActiveState, subtitleAfterChange } from "../../editor/actionDefaults";
 import type { Action, ActiveLook, Category, IconConfig } from "../../generated/types";
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 const { edit, checkpoint, editedProfile } = useEditor();
 const { selected, selectedButton, showPage } = useSelection();
 
@@ -77,6 +78,25 @@ async function setAction(action: Action, commit: boolean) {
   });
   if (commit) await checkpoint();
 }
+/**
+ * A program was picked ("Application…"): name the button after it and give
+ * it a fitting icon, unless the user already chose their own.
+ */
+async function suggest({ label, icon }: { label: string; icon: string }) {
+  const current = button.value;
+  if (!current) return;
+  const defaultLabel = t("library.presets.launchApp.button");
+  const buttonId = current.id;
+  if (!current.label.trim() || current.label === defaultLabel) {
+    await edit({ type: "setLabel", params: { buttonId, label } });
+  }
+  if (!current.icon || current.icon.name === APP_ICON) {
+    const config = await iconConfig(icon);
+    if (config) await edit({ type: "setIcon", params: { buttonId, icon: config } });
+  }
+  await checkpoint();
+}
+
 async function setLook(look: ActiveLook | undefined, commit: boolean) {
   if (!button.value) return;
   await edit({ type: "setActiveLook", params: { buttonId: button.value.id, look } });
@@ -293,7 +313,11 @@ async function addShortcut() {
             class="rounded-full px-2.5 py-[3px] text-xs"
             :style="{ background: colors.bg, color: colors.fg }"
           >
-            {{ t(`actions.kinds.${button.action.type}`) }}
+            {{
+              te(`actions.badges.${button.action.type}`)
+                ? t(`actions.badges.${button.action.type}`)
+                : t(`actions.kinds.${button.action.type}`)
+            }}
           </span>
         </div>
         <ActionForm
@@ -302,6 +326,7 @@ async function addShortcut() {
           allow-multi
           testid="action-form"
           @change="setAction"
+          @suggest="suggest"
         />
         <p v-if="folderTarget === null" class="text-sm leading-relaxed text-[#F3D2BA]">
           {{ t("folders.missing") }}

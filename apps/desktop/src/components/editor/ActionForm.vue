@@ -2,20 +2,25 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { open as pickPath } from "@tauri-apps/plugin-dialog";
-import { ChevronDown, ChevronUp, FileText, FolderOpen, Plus, X } from "lucide-vue-next";
+import { AppWindow, ChevronDown, ChevronUp, FileText, FolderOpen, Plus, X } from "lucide-vue-next";
 import HotkeyEditor from "./HotkeyEditor.vue";
 import DraftInput from "./DraftInput.vue";
 import { isWindows } from "../../editor/keys";
 import { useEditor } from "../../composables/useEditor";
 import { useObs } from "../../composables/useObs";
 import { defaultAction, ACTION_KINDS, type ActionKind } from "../../editor/actionDefaults";
+import { appSuggestion } from "../../editor/appSuggestion";
 import type { Action, MultiStep } from "../../generated/types";
 
 // Edits one action; recursive for the steps of a multi action (which cannot
 // contain multi actions). `commit` tells the parent to close the undo entry
 // (a choice in a list), as opposed to typing (merged into one entry).
 const props = defineProps<{ action: Action; allowMulti?: boolean; testid?: string }>();
-const emit = defineEmits<{ change: [action: Action, commit: boolean] }>();
+const emit = defineEmits<{
+  change: [action: Action, commit: boolean];
+  /** A program was picked: a label and an icon for the button. */
+  suggest: [suggestion: { label: string; icon: string }];
+}>();
 const { t } = useI18n();
 const { editedProfile } = useEditor();
 const { info: obs } = useObs();
@@ -54,6 +59,27 @@ async function browse(directory: boolean) {
     multiple: false,
   });
   if (typeof path === "string") params({ target: path });
+}
+
+/** "Application…": programs only (Windows: .exe and shortcuts; Linux:
+ *  .desktop entries, or any file for a program without one). */
+async function browseApp() {
+  const path = await pickPath({
+    title: t("actions.form.pickAppTitle"),
+    multiple: false,
+    defaultPath: isWindows
+      ? "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs"
+      : "/usr/share/applications",
+    filters: isWindows
+      ? [{ name: t("actions.form.appFilter"), extensions: ["exe", "lnk"] }]
+      : [
+          { name: t("actions.form.appFilterLinux"), extensions: ["desktop"] },
+          { name: t("actions.form.allFiles"), extensions: ["*"] },
+        ],
+  });
+  if (typeof path !== "string") return;
+  params({ target: path });
+  emit("suggest", appSuggestion(path));
 }
 
 // Multi action steps.
@@ -192,7 +218,11 @@ function delay(event: Event): number {
           @input="(target) => params({ target }, false)"
         />
       </label>
-      <div class="flex gap-2">
+      <p class="text-xs text-muted-2" data-open-hint>{{ t("actions.form.openHint") }}</p>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" class="small" data-pick-app @click="browseApp">
+          <AppWindow :size="14" aria-hidden="true" />{{ t("actions.form.pickApp") }}
+        </button>
         <button type="button" class="small" @click="browse(false)">
           <FileText :size="14" aria-hidden="true" />{{ t("actions.form.pickFile") }}
         </button>
