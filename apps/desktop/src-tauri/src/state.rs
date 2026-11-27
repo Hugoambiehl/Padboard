@@ -36,6 +36,9 @@ pub struct Snapshot {
     /// Paired tablets whose Wi-Fi session went silent and was dropped (most
     /// recent first, one per device): the network may keep them apart.
     pub dropped_wifi: Vec<DroppedTablet>,
+    /// The last connection refused on the USB port: not opened by the adb
+    /// server, or impossible to check (`usb_peer`).
+    pub usb_refused: Option<crate::usb_peer::UsbRefusal>,
     /// Most recent first.
     pub activity: VecDeque<ActivityEntry>,
     #[serde(skip)]
@@ -238,6 +241,7 @@ impl Snapshot {
             usb: UsbStatus::default(),
             outdated_tablets: Vec::new(),
             dropped_wifi: Vec::new(),
+            usb_refused: None,
             activity: VecDeque::new(),
             labels,
             next_activity_id: 1,
@@ -347,6 +351,7 @@ impl Snapshot {
                     client.tablet.silent_install = kiosk;
                 }
             }
+            ServerEvent::UsbRefused(refusal) => self.usb_refused = Some(refusal),
             ServerEvent::ClientDisconnected { id, lost } => {
                 if let Some(client) = self.clients.iter().find(|c| c.id == id)
                     && lost
@@ -394,7 +399,7 @@ impl Snapshot {
     }
 }
 
-fn now_ms() -> u64 {
+pub(crate) fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))

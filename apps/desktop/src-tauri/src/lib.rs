@@ -34,6 +34,7 @@ mod tls;
 mod tray;
 #[doc(hidden)]
 pub mod updates;
+mod usb_peer;
 mod wifi;
 
 use std::path::{Path, PathBuf};
@@ -930,6 +931,16 @@ pub fn run() {
                 running: Mutex::default(),
                 obs: OnceLock::new(),
                 sessions: Mutex::default(),
+                // Only the adb server may open USB connections (SECURITY.md),
+                // except in simulated test mode: fake-tablet and the e2e
+                // tests connect directly, and adb is not used there.
+                usb_peers: if test_mode.as_ref().is_some_and(|m| !m.system()) {
+                    server::UsbPeers::Any
+                } else {
+                    server::UsbPeers::AdbServer {
+                        port: adb::Config::new(0).server_port,
+                    }
+                },
             });
             // OBS: real in normal and system test modes (and with
             // PADBOARD_TEST_OBS); otherwise its state comes from state.json.

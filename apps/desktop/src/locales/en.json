@@ -148,7 +148,25 @@
         "failed": "The tablet refused: {detail}"
       }
     },
-    "driverHelp": "The plugged tablet does not show up?"
+    "driverHelp": "The plugged tablet does not show up?",
+    "refused": {
+      "notAdb": {
+        "program": "Connection to the USB port refused: it came from {program} (PID {pid}), not from the adb server.",
+        "unknown": "Connection to the USB port refused: it came from another program than the adb server, maybe from another account on this PC."
+      },
+      "unverifiable": {
+        "noAdbServer": "USB connection refused: no adb server is running, so Padboard cannot check that it comes from the tablet.",
+        "peerNotFound": "USB connection refused: it closed before Padboard could check that it came from the adb server.",
+        "ownersUnknown": "USB connection refused: the system does not tell whether it comes from the adb server (it probably runs under another account, for example started with sudo).",
+        "tableUnreadable": "USB connection refused: Padboard could not read the system's list of connections to check that it comes from the adb server."
+      },
+      "hint": {
+        "notAdb": "Over USB, Padboard only accepts plugged-in tablets, through adb: no other program on the PC should connect to it. If you do not know what it is, close it.",
+        "replug": "Unplug the tablet and plug it back in: Padboard starts adb again. If it keeps happening, pair the tablet over Wi-Fi.",
+        "retry": "Nothing to do: the tablet tries again by itself.",
+        "ownAccount": "Stop that adb server (sudo adb kill-server), then unplug the tablet and plug it back in: Padboard starts adb under your account. Otherwise, pair the tablet over Wi-Fi."
+      }
+    }
   },
   "tabletUpdate": {
     "version": "Padboard {version}",

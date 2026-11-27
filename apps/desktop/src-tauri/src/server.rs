@@ -44,15 +44,15 @@ use std::time::Duration;
 use futures_util::{SinkExt, StreamExt};
 use padboard_actions::{Action, ActionError, ActionExecutor, NavigateAction, NavigateTo};
 use padboard_protocol::{
-    AuthStatus, ButtonEvent, ErrorCode, ErrorPayload, Heartbeat, HelloPayload, KioskLeft, Layout,
-    Message, NavigatePayload, NavigateTarget, PROTOCOL_VERSION, PairSuccessPayload, SessionMode,
-    SystemStatusPayload, TabletCommandPayload, TabletOrder, TabletSettingsPayload,
-    TabletStatusPayload, UpdateRequestPayload, UpdateResultPayload, WelcomePayload, is_compatible,
-    speaks_core, update_chunk_frame,
+    AuthStatus, ButtonEvent, ErrorCode, ErrorPayload, ErrorReason, Heartbeat, HelloPayload,
+    KioskLeft, Layout, Message, NavigatePayload, NavigateTarget, PROTOCOL_VERSION,
+    PairSuccessPayload, SessionMode, SystemStatusPayload, TabletCommandPayload, TabletOrder,
+    TabletSettingsPayload, TabletStatusPayload, UpdateRequestPayload, UpdateResultPayload,
+    WelcomePayload, is_compatible, speaks_core, update_chunk_frame,
 };
 use serde::Serialize;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::watch;
 use tokio::time::timeout;
@@ -67,6 +67,8 @@ use crate::appearance::{self, SystemState};
 use crate::auth::{Auth, AuthChange, Transport};
 use crate::config::ActiveLayout;
 use crate::tablet_update::{OfferError, TabletUpdate, Transfer, UpdatePackage};
+pub use crate::usb_peer::UsbPeers;
+use crate::usb_peer::{self, Unverifiable, Verdict};
 
 /// Messages from the tablet are tiny; this bounds memory per connection.
 const MAX_MESSAGE_SIZE: usize = 64 * 1024;
@@ -133,6 +135,9 @@ pub struct ServerContext {
     /// order or an update to one tablet ([`ServerContext::order`],
     /// [`ServerContext::offer_update`]).
     pub sessions: std::sync::Mutex<std::collections::HashMap<u64, SessionHandle>>,
+    /// Who may connect to the USB port: the adb server only, except in
+    /// simulated test mode and unit tests.
+    pub usb_peers: UsbPeers,
 }
 
 /// What the UI can reach of one session.
@@ -241,6 +246,8 @@ pub enum ServerEvent {
         id: u64,
         update: TabletUpdate,
     },
+    /// A connection to the USB port was refused (`usb_peer`).
+    UsbRefused(crate::usb_peer::UsbRefusal),
     ClientDisconnected {
         id: u64,
         /// Silent for too long (no TCP close): over Wi-Fi, typically a
@@ -362,6 +369,16 @@ pub async fn serve(
                     let ctx = Arc::clone(&ctx);
                     let tls = tls.clone();
                     connections.spawn(async move {
+                        if transport == Transport::Usb {
+                            match check_usb_peer(&stream, peer, &ctx).await {
+                                Verdict::AdbServer => {}
+                                Verdict::NotAdb => return,
+                                Verdict::Unverifiable(_) => {
+                                    explain_usb_refusal(stream, &ctx).await;
+                                    return;
+                                }
+                            }
+                        }
                         let result = match tls {
                             None => handle_connection(stream, peer, id, transport, guard, &ctx).await,
                             Some(tls) => match timeout(ctx.limits.handshake, tls.accept(stream)).await {
@@ -387,6 +404,63 @@ pub async fn serve(
             Some(_) = connections.join_next(), if !connections.is_empty() => {}
         }
     }
+}
+
+/// USB: the connection must have been opened by the adb server
+/// (`usb_peer`). A refusal is logged and shown in the USB card; one that
+/// could not be checked is also explained to the tablet
+/// ([`explain_usb_refusal`]).
+async fn check_usb_peer(stream: &TcpStream, peer: SocketAddr, ctx: &Arc<ServerContext>) -> Verdict {
+    let UsbPeers::AdbServer { port: adb } = ctx.usb_peers else {
+        return Verdict::AdbServer;
+    };
+    let usb = stream.local_addr().map_or(0, |a| a.port());
+    let check = tokio::task::spawn_blocking(move || usb_peer::check(peer, usb, adb))
+        .await
+        .unwrap_or_else(|_| usb_peer::Check {
+            verdict: Verdict::Unverifiable(Unverifiable::TableUnreadable),
+            peer: usb_peer::Owner::default(),
+            program: None,
+        });
+    let (pid, uid, program) = (check.peer.pid, check.peer.uid, check.program.clone());
+    match check.verdict {
+        Verdict::AdbServer => {
+            tracing::debug!(%peer, ?pid, ?uid, "USB connection from the adb server");
+            return check.verdict;
+        }
+        Verdict::NotAdb => tracing::warn!(
+            %peer, ?pid, ?uid, ?program,
+            "USB connection refused: not opened by the adb server"
+        ),
+        Verdict::Unverifiable(why) => tracing::warn!(
+            %peer, ?pid, ?uid, ?program, ?why,
+            "USB connection refused: cannot check that the adb server opened it"
+        ),
+    }
+    emit(
+        ctx,
+        ServerEvent::UsbRefused(check.refusal(crate::state::now_ms())),
+    );
+    check.verdict
+}
+
+/// Tells the tablet (if it is one) why its USB connection is refused, so it
+/// shows it instead of searching silently; the PC's USB card says more.
+async fn explain_usb_refusal(stream: TcpStream, ctx: &ServerContext) {
+    let upgrade = tokio_tungstenite::accept_hdr_async(stream, reject_browsers);
+    let Ok(Ok(mut ws)) = timeout(ctx.limits.handshake, upgrade).await else {
+        return;
+    };
+    let error = Message::Error(ErrorPayload {
+        code: ErrorCode::Unauthorized,
+        message: "the PC cannot check that this USB connection comes from adb".into(),
+        reason: Some(ErrorReason::UsbUnverified),
+    });
+    let _ = timeout(ctx.limits.handshake, async {
+        send(&mut ws, &error).await?;
+        ws.close(None).await.map_err(ConnectionError::from)
+    })
+    .await;
 }
 
 /// Holds one slot of a bounded counter of the context until dropped.
@@ -1172,6 +1246,7 @@ fn finish(
         let _ = outbox.send(Message::Error(ErrorPayload {
             code: ErrorCode::ActionFailed,
             message: detail.clone(),
+            reason: None,
         }));
     }
     emit(
@@ -1330,7 +1405,15 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     tracing::debug!(?code, "{message}");
-    send(ws, &Message::Error(ErrorPayload { code, message })).await
+    send(
+        ws,
+        &Message::Error(ErrorPayload {
+            code,
+            message,
+            reason: None,
+        }),
+    )
+    .await
 }
 
 /// Sends a fatal error, closes the socket and ends the connection.
@@ -1408,6 +1491,14 @@ mod tests {
         executor: Arc<FakeExecutor>,
         events: UnboundedSender<ServerEvent>,
     ) -> Arc<ServerContext> {
+        context_with(executor, events, UsbPeers::Any)
+    }
+
+    fn context_with(
+        executor: Arc<FakeExecutor>,
+        events: UnboundedSender<ServerEvent>,
+        usb_peers: UsbPeers,
+    ) -> Arc<ServerContext> {
         Arc::new(ServerContext {
             server_name: "TEST-PC".into(),
             server_id: "test-server".into(),
@@ -1430,10 +1521,15 @@ mod tests {
             running: std::sync::Mutex::default(),
             obs: OnceLock::new(),
             sessions: std::sync::Mutex::default(),
+            usb_peers,
         })
     }
 
     async fn start(transport: Transport, fail: bool) -> Harness {
+        start_with(transport, fail, UsbPeers::Any).await
+    }
+
+    async fn start_with(transport: Transport, fail: bool, usb_peers: UsbPeers) -> Harness {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("ws://{}", listener.local_addr().unwrap());
         let executor = Arc::new(FakeExecutor {
@@ -1441,7 +1537,7 @@ mod tests {
             ..Default::default()
         });
         let (tx, events) = unbounded_channel();
-        let ctx = context(Arc::clone(&executor), tx);
+        let ctx = context_with(Arc::clone(&executor), tx, usb_peers);
         let auth = Arc::clone(&ctx.auth);
         let layout = ctx.layout.clone();
         let state = ctx.state.clone();
@@ -1621,6 +1717,53 @@ mod tests {
         assert_eq!(device_name, "Test tablet");
         assert_eq!(device_id, "test-device");
         assert_eq!(transport, Transport::Usb);
+    }
+
+    // ─── USB: only the adb server may connect (usb_peer) ─────────────────
+
+    /// This test process listens on the "adb server" port and connects:
+    /// the peer is the server's process, as with `adb reverse`.
+    #[cfg(any(target_os = "linux", windows))]
+    #[tokio::test]
+    async fn a_usb_connection_from_the_adb_server_is_accepted() {
+        let adb = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = adb.local_addr().unwrap().port();
+        let mut h = start_with(Transport::Usb, false, UsbPeers::AdbServer { port }).await;
+        let _client = connected(&h).await;
+        loop {
+            match next_event(&mut h).await {
+                ServerEvent::ClientConnected { .. } => break,
+                ServerEvent::UsbRefused(r) => panic!("refused: {r:?}"),
+                _ => {}
+            }
+        }
+    }
+
+    /// No adb server: the connection cannot be checked. The client is told
+    /// why (the tablet shows it) and the USB card gets the refusal.
+    #[tokio::test]
+    async fn an_unverifiable_usb_connection_is_refused_with_an_explanation() {
+        // A port nobody listens on any more.
+        let port = std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        let mut h = start_with(Transport::Usb, false, UsbPeers::AdbServer { port }).await;
+        let (mut client, _) = tokio_tungstenite::connect_async(h.url.as_str())
+            .await
+            .unwrap();
+        let Message::Error(error) = recv_msg(&mut client).await else {
+            panic!("expected an error");
+        };
+        assert_eq!(error.code, ErrorCode::Unauthorized);
+        assert_eq!(error.reason, Some(ErrorReason::UsbUnverified));
+        loop {
+            if let ServerEvent::UsbRefused(refusal) = next_event(&mut h).await {
+                assert!(refusal.unverifiable.is_some(), "{refusal:?}");
+                break;
+            }
+        }
     }
 
     // ─── Other protocol versions: update-only sessions ───────────────────

@@ -45,9 +45,22 @@ pub fn server_owner(_port: u16) -> Option<PathBuf> {
 /// The process listening on TCP `port` (IPv4), from the system's table.
 #[cfg(windows)]
 fn listener_pid(port: u16) -> Option<u32> {
+    tcp_rows()?
+        .into_iter()
+        .find(|r| r.state == crate::usb_peer::TcpState::Listen && r.local.port() == port)
+        .and_then(|r| r.pid)
+}
+
+/// The system's IPv4 TCP table (listeners and connections) with the
+/// owning process of each row (`GetExtendedTcpTable`, no administrator
+/// rights needed); `None` if it cannot be read.
+#[cfg(windows)]
+pub(crate) fn tcp_rows() -> Option<Vec<crate::usb_peer::TcpRow>> {
+    use crate::usb_peer::{TcpRow, TcpState};
     use windows::Win32::Foundation::{ERROR_INSUFFICIENT_BUFFER, NO_ERROR};
     use windows::Win32::NetworkManagement::IpHelper::{
-        GetExtendedTcpTable, MIB_TCPROW_OWNER_PID, TCP_TABLE_OWNER_PID_LISTENER,
+        GetExtendedTcpTable, MIB_TCP_STATE_ESTAB, MIB_TCP_STATE_LISTEN, MIB_TCPROW_OWNER_PID,
+        TCP_TABLE_OWNER_PID_ALL,
     };
     const AF_INET: u32 = 2;
 
@@ -67,7 +80,7 @@ fn listener_pid(port: u16) -> Option<u32> {
                 &raw mut size,
                 false,
                 AF_INET,
-                TCP_TABLE_OWNER_PID_LISTENER,
+                TCP_TABLE_OWNER_PID_ALL,
                 0,
             )
         };
@@ -75,7 +88,7 @@ fn listener_pid(port: u16) -> Option<u32> {
             break;
         }
         if rc != ERROR_INSUFFICIENT_BUFFER.0 && rc != NO_ERROR.0 {
-            tracing::warn!(rc, "adb server: the TCP table is unreadable");
+            tracing::warn!(rc, "the TCP table is unreadable");
             return None;
         }
         buf = vec![0u64; (size as usize).div_ceil(8) + 1];
@@ -89,20 +102,40 @@ fn listener_pid(port: u16) -> Option<u32> {
     // (aligned to 4 bytes); never read past the buffer.
     let count = unsafe { base.cast::<u32>().read_unaligned() } as usize;
     let row = std::mem::size_of::<MIB_TCPROW_OWNER_PID>();
-    (0..count)
-        .map(|i| 4 + i * row)
-        .take_while(|offset| offset + row <= bytes)
-        .map(|offset| unsafe {
-            base.add(offset)
-                .cast::<MIB_TCPROW_OWNER_PID>()
-                .read_unaligned()
-        })
-        .find(|r| u16::from_be((r.dwLocalPort & 0xffff) as u16) == port)
-        .map(|r| r.dwOwningPid)
+    // Addresses and ports are in network byte order (ports in the low
+    // 16 bits).
+    let port = |p: u32| u16::from_be((p & 0xffff) as u16);
+    let ip = |a: u32| std::net::Ipv4Addr::from(a.to_ne_bytes());
+    Some(
+        (0..count)
+            .map(|i| 4 + i * row)
+            .take_while(|offset| offset + row <= bytes)
+            .map(|offset| unsafe {
+                base.add(offset)
+                    .cast::<MIB_TCPROW_OWNER_PID>()
+                    .read_unaligned()
+            })
+            .map(|r| TcpRow {
+                state: if r.dwState == MIB_TCP_STATE_LISTEN.0 as u32 {
+                    TcpState::Listen
+                } else if r.dwState == MIB_TCP_STATE_ESTAB.0 as u32 {
+                    TcpState::Established
+                } else {
+                    TcpState::Other
+                },
+                local: std::net::SocketAddr::new(ip(r.dwLocalAddr).into(), port(r.dwLocalPort)),
+                remote_port: port(r.dwRemotePort),
+                uid: None,
+                inode: None,
+                pid: Some(r.dwOwningPid),
+            })
+            .collect(),
+    )
 }
 
+/// The program of a process.
 #[cfg(windows)]
-fn process_path(pid: u32) -> windows::core::Result<PathBuf> {
+pub(crate) fn process_path(pid: u32) -> windows::core::Result<PathBuf> {
     use std::os::windows::ffi::OsStringExt as _;
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::Threading::{

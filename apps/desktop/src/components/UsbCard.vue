@@ -14,7 +14,9 @@ import {
   updateUsbTablet,
 } from "../commands";
 import type { PlatformToolsError, PlatformToolsInfo } from "../types/platformTools";
-import type { DeviceState, UsbStatus } from "../types/status";
+import type { DeviceState, UsbRefusal, UsbStatus } from "../types/status";
+import { useNow } from "../composables/useNow";
+import { recentRefusal, usbRefusalMessage } from "../usb/refusal";
 import { kioskActiveKey, kioskErrorMessage } from "../usb/kiosk";
 import { devMismatch, needsUpdate, usbUpdateErrorMessage } from "../usb/update";
 
@@ -27,8 +29,15 @@ const props = defineProps<{
   /** A development version, and the versionCode of its own tablet builds. */
   development: boolean;
   developmentCode: number | null;
+  /** The last connection refused on the USB port (shown 5 minutes). */
+  refused: UsbRefusal | null;
 }>();
 const { t } = useI18n();
+const now = useNow(5000);
+const refusal = computed(() => {
+  const recent = recentRefusal(props.refused, now.value);
+  return recent && usbRefusalMessage(recent);
+});
 const error = ref<string | null>(null);
 
 /**
@@ -265,6 +274,14 @@ async function automatic() {
       >
         {{ t("usbDevices.adb.unstable") }}
       </p>
+      <div
+        v-if="refusal"
+        class="flex flex-col gap-1 rounded-xl border border-cat-orange/40 bg-cat-orange/10 p-3 text-xs text-[#F3D2BA]"
+        data-usb-refused
+      >
+        <p>{{ t(refusal.key, refusal.params) }}</p>
+        <p class="text-muted-2">{{ t(refusal.hintKey) }}</p>
+      </div>
       <p v-if="error" class="text-cat-red">{{ error }}</p>
     </div>
 

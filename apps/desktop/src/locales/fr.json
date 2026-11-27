@@ -148,7 +148,25 @@
         "failed": "La tablette a refusé : {detail}"
       }
     },
-    "driverHelp": "La tablette branchée n’apparaît pas ?"
+    "driverHelp": "La tablette branchée n’apparaît pas ?",
+    "refused": {
+      "notAdb": {
+        "program": "Connexion au port USB refusée : elle venait de {program} (PID {pid}), pas du serveur adb.",
+        "unknown": "Connexion au port USB refusée : elle venait d’un autre programme que le serveur adb, peut-être d’un autre compte de ce PC."
+      },
+      "unverifiable": {
+        "noAdbServer": "Connexion USB refusée : aucun serveur adb ne tourne, Padboard ne peut donc pas vérifier qu’elle vient de la tablette.",
+        "peerNotFound": "Connexion USB refusée : elle s’est fermée avant que Padboard ait pu vérifier qu’elle venait du serveur adb.",
+        "ownersUnknown": "Connexion USB refusée : le système ne permet pas de savoir si elle vient du serveur adb (il tourne sans doute sous un autre compte, par exemple lancé avec sudo).",
+        "tableUnreadable": "Connexion USB refusée : Padboard n’a pas pu lire la liste des connexions du système pour vérifier qu’elle vient du serveur adb."
+      },
+      "hint": {
+        "notAdb": "En USB, Padboard n’accepte que les tablettes branchées, à travers adb : un autre programme du PC n’a pas à s’y connecter. Si tu ne sais pas ce que c’est, ferme-le.",
+        "replug": "Débranche puis rebranche la tablette : Padboard relance adb. Si ça continue, associe la tablette en Wi-Fi.",
+        "retry": "Rien à faire : la tablette réessaie toute seule.",
+        "ownAccount": "Arrête ce serveur adb (sudo adb kill-server), puis débranche et rebranche la tablette : Padboard relance adb sous ton compte. Sinon, associe la tablette en Wi-Fi."
+      }
+    }
   },
   "tabletUpdate": {
     "version": "Padboard {version}",
