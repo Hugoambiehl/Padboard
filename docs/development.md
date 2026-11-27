@@ -186,6 +186,17 @@ kiosk mode (API 24 guards #24; the API 37 emulator skips it).
 `PADBOARD_TEST_GPU`, `PADBOARD_TEST_RAM` and `PADBOARD_TEST_ARGS` (more
 `am instrument` arguments) change the run.
 
+The older system images are not kept installed (3–4 GB each). Install the
+one a run needs, then remove it afterwards:
+
+```sh
+sdkmanager="$HOME/Android/Sdk/cmdline-tools/latest/bin/sdkmanager"
+"$sdkmanager" "system-images;android-32;google_apis;x86_64"   # Android 12L, the tablet's
+"$sdkmanager" "system-images;android-24;default;x86_64"       # Android 7.0, minSdk (#21, #24)
+PADBOARD_TEST_IMAGE="system-images;android-24;default;x86_64" scripts/tablet-ui-tests.sh
+"$sdkmanager" --uninstall "system-images;android-24;default;x86_64"
+```
+
 Three more androidTests are skipped unless given their arguments, since they
 need a PC or change the device. The first two were run on an Android 7.0
 (API 24) emulator for #21.
