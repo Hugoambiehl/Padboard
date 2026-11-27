@@ -15,7 +15,20 @@ version + SHA-256 pinned in the code (fallback for an archive Google
 republished under the same version: Google's index, same size + SHA-1,
 #18) and every `.exe`/`.dll` checked for a valid "Google LLC" Authenticode
 signature; listed in the app's
-"Licences" dialog as downloaded on request. No other exception.
+"Licences" dialog as downloaded on request.
+**Second exception, decided by Hugo for 0.5 (#20)**: the second screen on
+Windows uses [Virtual Display Driver](https://github.com/VirtualDrivers/Virtual-Display-Driver)
+(MIT, parts MS-PL from Microsoft's IndirectDisplay sample) despite the
+open license question of its ancestor `roshkins/IddSampleDriver` (no
+license file, ~40 lines; risk judged very low, no answer awaited). To
+limit that risk it is **never bundled** in Padboard's installer:
+downloaded on demand from the official signed release of
+`VirtualDrivers/Virtual-Display-Driver`, like "Installer adb" (version +
+SHA-256 pinned in the code, SignPath Foundation Authenticode signature
+checked, honest dialog first naming MIT and MS-PL and saying it is a
+separate project), then installed with an administrator prompt;
+listed in the "Licences" dialog as downloaded on request.
+No other exception.
 
 **One install only (durable rule, decided by Hugo).** The user installs
 Padboard and nothing else. Every feature or integration must work without
