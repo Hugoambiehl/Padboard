@@ -1256,6 +1256,20 @@ installer was started and run by the tester.
   *Confirmer : quitter le mode kiosque*, and the screen-off release was
   done again from the start.
 
+## 17. 0.5: "Supprimer adb" while our adb runs (#35)
+
+0.4.0-rc.2 refused *Supprimer adb* with *Accès refusé. (os error 5)*
+while our `adb.exe` was running (15.2). From 0.5 the removal puts adb on
+hold, stops our server and waits for it, then moves the folder aside,
+retried for about 5 s.
+
+| Step | Do | Expected |
+|---|---|---|
+| Busy copy | Padboard's own copy installed, the tablet plugged over USB and connected; in a terminal, keep our copy busy: `…\platform-tools\adb.exe -s <serial> shell sleep 3`, then at once **Supprimer adb** | The folder is gone (no `platform-tools.removing` left either); no error; `padboard.log`: *adb on hold*, *our adb server stopped*, possibly *platform-tools in use, trying again*, then *platform-tools removed*, *adb hold released* |
+| Still in use | Install again; start `…\platform-tools\adb.exe -s <serial> shell sleep 30`, then **Supprimer adb** | After about 5 s, the clear message (*adb n’a pas pu être supprimé : un de ses fichiers est encore utilisé…*), not *os error 5*; the folder is still there and whole, and the USB connection comes back; once the command is over, **Supprimer adb** works |
+| Another program's server | As in 8.2 (Touch Portal's adb running) | Unchanged: the other server keeps running |
+| Back | *Installer adb…* again | Installed without error |
+
 ## Known Windows limits
 
 - Keys cannot be sent to elevated (administrator) windows.
