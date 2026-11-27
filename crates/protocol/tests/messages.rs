@@ -1,7 +1,7 @@
 use padboard_protocol::{
-    AuthStatus, ButtonEvent, ButtonView, Category, ErrorCode, ErrorPayload, Folder, GridSize,
-    Heartbeat, HelloPayload, KioskExitOrigin, KioskLeft, Layout, Message, NavigatePayload,
-    NavigateTarget, PROTOCOL_VERSION, Page, PairFailurePayload, PairFailureReason,
+    AuthStatus, ButtonEvent, ButtonView, Category, ErrorCode, ErrorPayload, ErrorReason, Folder,
+    GridSize, Heartbeat, HelloPayload, KioskExitOrigin, KioskLeft, Layout, Message,
+    NavigatePayload, NavigateTarget, PROTOCOL_VERSION, Page, PairFailurePayload, PairFailureReason,
     PairRequestPayload, PairSuccessPayload, ProfileInfo, REDACTED, SessionMode,
     SystemStatusPayload, TabletCommandPayload, TabletOrder, TabletSettingsPayload,
     TabletStatusPayload, UPDATE_CHUNK_SIZE, UpdateOfferPayload, UpdateOutcome,
@@ -83,6 +83,12 @@ fn all_messages() -> Vec<Message> {
         Message::Error(ErrorPayload {
             code: ErrorCode::UnknownButton,
             message: "nope".into(),
+            reason: None,
+        }),
+        Message::Error(ErrorPayload {
+            code: ErrorCode::Unauthorized,
+            message: "not verified".into(),
+            reason: Some(ErrorReason::UsbUnverified),
         }),
         Message::LayoutSync(layout(5, 3, vec![vec![button("a", 0, 0)]])),
         Message::ButtonPress(ButtonEvent {

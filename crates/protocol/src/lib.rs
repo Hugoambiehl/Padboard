@@ -366,6 +366,22 @@ pub struct ErrorPayload {
     /// Developer-oriented details (English). Clients display a localized text
     /// based on `code`, never this message.
     pub message: String,
+    /// More precise than `code`, when the tablet has something specific to
+    /// show. Optional (frozen core): older tablets ignore it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<ErrorReason>,
+}
+
+/// What a tablet shows for an `error`, beyond its `code`. A new value makes
+/// the whole message unreadable to tablets that predate it (they then only
+/// see the connection close): add values with that in mind.
+#[typeshare]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorReason {
+    /// USB connection refused: the PC could not check that it came from
+    /// the adb server (`unauthorized`). The PC's USB card says what to do.
+    UsbUnverified,
 }
 
 #[typeshare]

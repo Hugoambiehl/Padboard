@@ -92,12 +92,26 @@ enum class ErrorCode(val string: String) {
 	Superseded("superseded"),
 }
 
+/// What a tablet shows for an `error`, beyond its `code`. A new value makes
+/// the whole message unreadable to tablets that predate it (they then only
+/// see the connection close): add values with that in mind.
+@Serializable
+enum class ErrorReason(val string: String) {
+	/// USB connection refused: the PC could not check that it came from
+	/// the adb server (`unauthorized`). The PC's USB card says what to do.
+	@SerialName("usb_unverified")
+	UsbUnverified("usb_unverified"),
+}
+
 @Serializable
 data class ErrorPayload (
 	val code: ErrorCode,
 	/// Developer-oriented details (English). Clients display a localized text
 	/// based on `code`, never this message.
-	val message: String
+	val message: String,
+	/// More precise than `code`, when the tablet has something specific to
+	/// show. Optional (frozen core): older tablets ignore it.
+	val reason: ErrorReason? = null
 )
 
 @Serializable
