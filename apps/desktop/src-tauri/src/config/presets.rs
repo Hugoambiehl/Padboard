@@ -103,7 +103,7 @@ fn volume(id: &str, icon: &str, command: VolumeCommand) -> Preset {
 
 /// The library for this operating system.
 #[must_use]
-pub fn presets() -> Vec<Preset> {
+pub fn presets(second_screen: bool) -> Vec<Preset> {
     use Category::{Blue, Grey, Red, Teal, Violet};
     use Key::{AltLeft, ControlLeft, KeyC, KeyD, KeyV, KeyX, KeyZ, MetaLeft, ShiftLeft};
     use PresetGroup::{Media, System};
@@ -193,6 +193,16 @@ pub fn presets() -> Vec<Preset> {
             Grey,
             "Terminal",
             &[ControlLeft, AltLeft, Key::KeyT],
+        ));
+    }
+    if second_screen {
+        // Shows the PC on the tablet that pressed it (#20).
+        list.push(with_action(
+            "secondScreen",
+            System,
+            Blue,
+            "MonitorSmartphone",
+            Action::SecondScreen,
         ));
     }
     list.extend([
@@ -289,7 +299,7 @@ mod tests {
 
     #[test]
     fn presets_are_valid_and_unique() {
-        let list = presets();
+        let list = presets(true);
         let ids: HashSet<_> = list.iter().map(|p| p.id.as_str()).collect();
         assert_eq!(ids.len(), list.len());
         for p in &list {
@@ -315,9 +325,16 @@ mod tests {
     }
 
     #[test]
+    fn the_second_screen_is_listed_only_with_a_source() {
+        let has = |listed: bool| presets(listed).iter().any(|p| p.id == "secondScreen");
+        assert!(has(true));
+        assert!(!has(false));
+    }
+
+    #[test]
     fn shortcuts_follow_the_operating_system() {
         let keys = |id: &str| {
-            let p = presets().into_iter().find(|p| p.id == id).unwrap();
+            let p = presets(true).into_iter().find(|p| p.id == id).unwrap();
             let Action::Hotkey(h) = p.action else {
                 unreachable!()
             };
@@ -331,7 +348,7 @@ mod tests {
         } else {
             assert_eq!(keys("screenshot"), [Key::PrintScreen]);
         }
-        let lock = presets().into_iter().find(|p| p.id == "lock").unwrap();
+        let lock = presets(true).into_iter().find(|p| p.id == "lock").unwrap();
         assert_eq!(lock.action, Action::Lock);
     }
 }

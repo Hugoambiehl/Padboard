@@ -8,6 +8,7 @@ import DraftInput from "./DraftInput.vue";
 import { isWindows } from "../../editor/keys";
 import { useEditor } from "../../composables/useEditor";
 import { useObs } from "../../composables/useObs";
+import { useLibrary } from "../../composables/useLibrary";
 import { defaultAction, ACTION_KINDS, type ActionKind } from "../../editor/actionDefaults";
 import { appSuggestion } from "../../editor/appSuggestion";
 import type { Action, MultiStep } from "../../generated/types";
@@ -25,7 +26,19 @@ const { t } = useI18n();
 const { editedProfile } = useEditor();
 const { info: obs } = useObs();
 
-const kinds = computed(() => ACTION_KINDS.filter((k) => props.allowMulti || k !== "multi"));
+const { presets } = useLibrary();
+/** The second screen is offered only where the PC has a picture source (it
+ *  is then in the library), and never as a step of a multi action. */
+const secondScreen = computed(
+  () =>
+    props.action.type === "secondScreen" ||
+    (props.allowMulti && (presets.value ?? []).some((p) => p.id === "secondScreen")),
+);
+const kinds = computed(() =>
+  ACTION_KINDS.filter(
+    (k) => (props.allowMulti || k !== "multi") && (k !== "secondScreen" || secondScreen.value),
+  ),
+);
 
 function change(action: Action, commit = true) {
   emit("change", action, commit);
@@ -38,7 +51,7 @@ function setKind(kind: ActionKind) {
 /** Changes some params of the current action. */
 function params(patch: Record<string, unknown>, commit = true) {
   const current = props.action;
-  if (current.type === "lock") return;
+  if (current.type === "lock" || current.type === "secondScreen") return;
   change({ type: current.type, params: { ...current.params, ...patch } } as Action, commit);
 }
 
@@ -234,6 +247,10 @@ function delay(event: Event): number {
 
     <p v-else-if="action.type === 'lock'" class="text-sm text-muted-2">
       {{ t("actions.form.lockHint") }}
+    </p>
+
+    <p v-else-if="action.type === 'secondScreen'" class="text-sm text-muted-2">
+      {{ t("actions.form.secondScreenHint") }}
     </p>
 
     <template v-else-if="action.type === 'navigate'">

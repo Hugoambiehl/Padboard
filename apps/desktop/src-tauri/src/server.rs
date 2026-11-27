@@ -144,6 +144,9 @@ pub struct ServerContext {
     pub usb_peers: UsbPeers,
     /// The second screen: its pending offer or running stream.
     pub screens: crate::screen::Screens,
+    /// Where the second screen's pictures come from on this PC (`None`:
+    /// not available here).
+    pub screen_source: Option<crate::screen::SourceFactory>,
 }
 
 /// What the UI can reach of one session.
@@ -158,7 +161,6 @@ pub struct SessionHandle {
     /// The tablet installs updates without asking (kiosk mode).
     silent_install: bool,
     /// What it can show as a second screen.
-    #[cfg_attr(not(test), allow(dead_code))]
     screen: Option<ScreenCapability>,
 }
 
@@ -215,12 +217,11 @@ impl ServerContext {
     ///
     /// # Errors
     /// Why no stream is offered.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub fn offer_screen(
         self: &Arc<Self>,
         client_id: u64,
         encoders: &[VideoCodec],
-        make: impl FnOnce(StreamFormat) -> Box<dyn FrameSource>,
+        make: impl FnOnce(StreamFormat) -> Result<Box<dyn FrameSource>, String>,
     ) -> Result<StreamFormat, ScreenError> {
         let sessions = self
             .sessions
@@ -231,9 +232,10 @@ impl ServerContext {
         let capability = handle.screen.as_ref().ok_or(ScreenError::NoCapability)?;
         let format = crate::screen::format::choose(capability, encoders)
             .ok_or(ScreenError::NoCommonCodec)?;
+        let source = make(format).map_err(ScreenError::Source)?;
         let offered = self
             .screens
-            .offer(client_id, format, make(format), std::time::Instant::now())
+            .offer(client_id, format, source, std::time::Instant::now())
             .map_err(|e| ScreenError::Random(e.to_string()))?;
         if let Some(old) = offered.replaced
             && let Some(outbox) = sessions.get(&old).and_then(|h| h.outbox.as_ref())
@@ -266,7 +268,6 @@ impl ServerContext {
     }
 
     /// Stops the second screen ("Arrêter" on the PC); false if none runs.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub fn stop_screen(&self) -> bool {
         let Some(client) = self.screens.stop(None) else {
             return false;
@@ -288,7 +289,6 @@ impl ServerContext {
 }
 
 /// Why a second screen could not be offered.
-#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ScreenError {
     #[error("the tablet is not connected")]
@@ -297,6 +297,8 @@ pub enum ScreenError {
     NoCapability,
     #[error("no video format both sides know")]
     NoCommonCodec,
+    #[error("the picture source did not start: {0}")]
+    Source(String),
     #[error("{0}")]
     Random(String),
 }
@@ -349,6 +351,14 @@ pub enum ServerEvent {
     },
     /// A connection to the USB port was refused (`usb_peer`).
     UsbRefused(crate::usb_peer::UsbRefusal),
+    /// A second screen stream started for this tablet's session.
+    ScreenStarted {
+        client_id: u64,
+    },
+    /// It ended.
+    ScreenEnded {
+        client_id: u64,
+    },
     ClientDisconnected {
         id: u64,
         /// Silent for too long (no TCP close): over Wi-Fi, typically a
@@ -1332,6 +1342,11 @@ where
         let reason = format!("no button {button_id:?} in the current layout");
         return send_error(ws, ErrorCode::UnknownButton, reason).await;
     };
+    if matches!(action, Action::SecondScreen) {
+        let outcome = start_second_screen(ctx, client_id);
+        finish(ctx, outbox, client_id, button_id, outcome);
+        return Ok(());
+    }
     if matches!(action, Action::Multi(_)) {
         // Steps and pauses can take seconds: in their own task, so the
         // session keeps answering pings and other buttons.
@@ -1359,6 +1374,37 @@ where
     let outcome = perform(ctx, action, Some(outbox)).await;
     finish(ctx, outbox, client_id, button_id, outcome);
     Ok(())
+}
+
+/// "Second écran" pressed on tablet `client_id`: a stream offered to it
+/// (it then opens the stream connection), or why not.
+fn start_second_screen(ctx: &Arc<ServerContext>, client_id: u64) -> ActionOutcome {
+    let unavailable = |m: String| ActionOutcome::from_error(&ActionError::Unavailable(m));
+    let Some(source) = ctx.screen_source else {
+        return unavailable("the second screen is not available on this PC yet".into());
+    };
+    let encoders = (source.encoders)();
+    if encoders.is_empty() {
+        return unavailable(format!(
+            "the second screen needs these packages on the PC: {}",
+            (source.missing)().join(", ")
+        ));
+    }
+    match ctx.offer_screen(client_id, &encoders, source.start) {
+        Ok(format) => {
+            tracing::info!(
+                client = client_id,
+                source = source.name,
+                ?format,
+                "second screen"
+            );
+            ActionOutcome::Ok
+        }
+        Err(ScreenError::NoCapability) => {
+            unavailable("this tablet's Padboard cannot show a second screen: update it".into())
+        }
+        Err(e) => ActionOutcome::from_error(&ActionError::Failed(e.to_string())),
+    }
 }
 
 /// Reports the outcome of a press: an error to the tablet, the activity to the UI.
@@ -1438,6 +1484,11 @@ async fn perform_step(
         }
         Action::Multi(_) => ActionOutcome::from_error(&ActionError::Invalid(
             "a multi action cannot be a step".into(),
+        )),
+        // Started from its own button on a tablet (`press`), which it is
+        // shown on: not from a multi action or the editor's test.
+        Action::SecondScreen => ActionOutcome::from_error(&ActionError::Invalid(
+            "the second screen starts from its own button on the tablet".into(),
         )),
         Action::Obs(obs) => {
             if let Err(e) = Action::Obs(obs.clone()).validate() {
@@ -1607,8 +1658,10 @@ async fn serve_stream<S>(
     };
     let (client, serial) = (job.client_id, job.serial());
     tracing::info!(%peer, client, format = ?job.format, "second screen stream started");
+    emit(ctx, ServerEvent::ScreenStarted { client_id: client });
     let end = crate::screen::stream::serve(ws, job).await;
     ctx.screens.ended(serial);
+    emit(ctx, ServerEvent::ScreenEnded { client_id: client });
     tracing::info!(client, ?end, "second screen stream ended");
     if matches!(end, StreamEnd::SourceEnded | StreamEnd::Stalled) {
         ctx.tell_screen_stopped(client, ScreenStoppedReason::Failed);
@@ -1708,6 +1761,7 @@ mod tests {
             sessions: std::sync::Mutex::default(),
             usb_peers,
             screens: crate::screen::Screens::default(),
+            screen_source: Some(crate::screen::testing::fake_factory()),
         })
     }
 
@@ -2045,7 +2099,7 @@ mod tests {
         let (mut client, id) = screen_tablet(&mut h).await;
         let format = h
             .ctx
-            .offer_screen(id, &[VideoCodec::H264], |_| fake_source())
+            .offer_screen(id, &[VideoCodec::H264], |_| Ok(fake_source()))
             .unwrap();
         assert_eq!((format.width, format.height), (1728, 1080));
         let offer = next_offer(&mut client).await;
@@ -2086,7 +2140,7 @@ mod tests {
         let mut h = start(Transport::Usb, false).await;
         let (mut client, id) = screen_tablet(&mut h).await;
         h.ctx
-            .offer_screen(id, &[VideoCodec::H264], |_| fake_source())
+            .offer_screen(id, &[VideoCodec::H264], |_| Ok(fake_source()))
             .unwrap();
         let offer = next_offer(&mut client).await;
         for ticket in [None, Some("forged")] {
@@ -2104,7 +2158,7 @@ mod tests {
         let mut h = start(Transport::Usb, false).await;
         let (mut client, id) = screen_tablet(&mut h).await;
         h.ctx
-            .offer_screen(id, &[VideoCodec::H264], |_| fake_source())
+            .offer_screen(id, &[VideoCodec::H264], |_| Ok(fake_source()))
             .unwrap();
         let offer = next_offer(&mut client).await;
         let mut stream = open_stream(&h, Some(&offer.ticket)).await;
@@ -2126,16 +2180,61 @@ mod tests {
         let (id, _) = connected_id(&mut h).await;
         assert_eq!(
             h.ctx
-                .offer_screen(id, &[VideoCodec::H264], |_| fake_source())
+                .offer_screen(id, &[VideoCodec::H264], |_| Ok(fake_source()))
                 .unwrap_err(),
             ScreenError::NoCapability
         );
         assert_eq!(
             h.ctx
-                .offer_screen(9999, &[VideoCodec::H264], |_| fake_source())
+                .offer_screen(9999, &[VideoCodec::H264], |_| Ok(fake_source()))
                 .unwrap_err(),
             ScreenError::Gone
         );
+    }
+
+    /// "Second écran" pressed on a tablet that can show it: the stream is
+    /// offered to it, and the UI learns when it starts and ends.
+    #[tokio::test]
+    async fn the_second_screen_button_offers_a_stream_to_its_tablet() {
+        let mut h = start(Transport::Usb, false).await;
+        with_copy_bound_to(&h, Action::SecondScreen);
+        let (mut client, id) = screen_tablet(&mut h).await;
+        send_msg(&mut client, &press("copy")).await;
+        let offer = next_offer(&mut client).await;
+        let mut stream = open_stream(&h, Some(&offer.ticket)).await;
+        assert!(next_video(&mut stream).await.is_some());
+        let mut started = false;
+        while !started {
+            started = matches!(
+                next_event(&mut h).await,
+                ServerEvent::ScreenStarted { client_id } if client_id == id
+            );
+        }
+        assert!(h.ctx.stop_screen());
+        loop {
+            if let ServerEvent::ScreenEnded { client_id } = next_event(&mut h).await {
+                assert_eq!(client_id, id);
+                break;
+            }
+        }
+        // Nothing ran on the PC's executor.
+        assert!(h.executor.executed.lock().unwrap().is_empty());
+    }
+
+    /// A tablet whose app predates the second screen is told why.
+    #[tokio::test]
+    async fn the_second_screen_button_explains_an_old_tablet() {
+        let h = start(Transport::Usb, false).await;
+        with_copy_bound_to(&h, Action::SecondScreen);
+        let mut client = connected(&h).await;
+        send_msg(&mut client, &press("copy")).await;
+        loop {
+            if let Message::Error(error) = recv_msg(&mut client).await {
+                assert_eq!(error.code, ErrorCode::ActionFailed);
+                assert!(error.message.contains("update it"), "{}", error.message);
+                break;
+            }
+        }
     }
 
     #[tokio::test]

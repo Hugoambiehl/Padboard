@@ -225,5 +225,7 @@ export interface Snapshot {
   droppedWifi: DroppedTablet[];
   /** The last connection refused on the USB port. */
   usbRefused: UsbRefusal | null;
+  /** The tablet showing the second screen (shown with "Arrêter"). */
+  secondScreen: { clientId: number; deviceName: string } | null;
   activity: ActivityEntry[];
 }

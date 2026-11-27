@@ -21,6 +21,7 @@ export const ACTION_KINDS = [
   "navigate",
   "multi",
   "obs",
+  "secondScreen",
 ] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
 
@@ -38,6 +39,8 @@ export function defaultAction(kind: ActionKind): Action {
       return { type: "open", params: { target: "" } };
     case "lock":
       return { type: "lock" };
+    case "secondScreen":
+      return { type: "secondScreen" };
     case "navigate":
       return { type: "navigate", params: { to: "next" as NavigateTo } };
     case "multi":

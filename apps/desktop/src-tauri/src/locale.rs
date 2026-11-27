@@ -135,6 +135,9 @@ pub struct TrayTexts {
     pub no_tablet: &'static str,
     /// `{n}` tablets connected (2 or more).
     pub tablets: &'static str,
+    /// The second screen runs on `{name}`.
+    pub screen: &'static str,
+    pub stop_screen: &'static str,
 }
 
 const TRAY_FR: TrayTexts = TrayTexts {
@@ -143,6 +146,8 @@ const TRAY_FR: TrayTexts = TrayTexts {
     quit: "Quitter Padboard",
     no_tablet: "Aucune tablette connectée",
     tablets: "{n} tablettes connectées",
+    screen: "Second écran : {name}",
+    stop_screen: "Arrêter le second écran",
 };
 
 const TRAY_EN: TrayTexts = TrayTexts {
@@ -151,6 +156,8 @@ const TRAY_EN: TrayTexts = TrayTexts {
     quit: "Quit Padboard",
     no_tablet: "No tablet connected",
     tablets: "{n} tablets connected",
+    screen: "Second screen: {name}",
+    stop_screen: "Stop the second screen",
 };
 
 #[must_use]

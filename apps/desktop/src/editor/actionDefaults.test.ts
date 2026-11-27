@@ -9,6 +9,7 @@ describe("defaultAction", () => {
 
   it("matches the JSON the desktop expects", () => {
     expect(defaultAction("lock")).toEqual({ type: "lock" });
+    expect(defaultAction("secondScreen")).toEqual({ type: "secondScreen" });
     expect(defaultAction("multi")).toEqual({ type: "multi", params: { steps: [] } });
     expect(defaultAction("volume")).toEqual({ type: "volume", params: { command: "up" } });
   });

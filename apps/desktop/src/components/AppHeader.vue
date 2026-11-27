@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { Download, Redo2, Undo2 } from "lucide-vue-next";
+import { invoke } from "@tauri-apps/api/core";
+import { Download, MonitorSmartphone, Redo2, Undo2 } from "lucide-vue-next";
 import ProfileMenu from "./ProfileMenu.vue";
 import { useEditor } from "../composables/useEditor";
 import { useStatus } from "../composables/useStatus";
@@ -20,6 +21,11 @@ const newVersion = computed(() => {
 });
 
 const clients = computed(() => snapshot.value?.clients ?? []);
+/** The second screen, always shown while it runs (with "Arrêter"). */
+const screen = computed(() => snapshot.value?.secondScreen ?? null);
+function stopScreen() {
+  void invoke("stop_second_screen");
+}
 /** "Galaxy Tab A · USB" for one tablet, "2 tablettes" for more. */
 const pill = computed(() => {
   const list = clients.value;
@@ -65,6 +71,21 @@ const pill = computed(() => {
       </div>
     </div>
     <div class="flex flex-wrap items-center gap-2.5">
+      <div
+        v-if="screen"
+        class="flex items-center gap-2 rounded-full border border-cat-blue/40 bg-cat-blue/12 py-1 pr-1 pl-3 text-[13px] text-[#BFDCFF]"
+        data-second-screen
+      >
+        <MonitorSmartphone :size="14" aria-hidden="true" />
+        {{ t("app.secondScreen", { name: screen.deviceName }) }}
+        <button
+          type="button"
+          class="rounded-full bg-cat-blue/20 px-2.5 py-0.5 text-xs hover:bg-cat-blue/30"
+          @click="stopScreen"
+        >
+          {{ t("app.stopSecondScreen") }}
+        </button>
+      </div>
       <button
         v-if="newVersion"
         type="button"
