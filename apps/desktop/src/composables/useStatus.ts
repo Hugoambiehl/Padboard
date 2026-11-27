@@ -1,7 +1,8 @@
-import { ref } from "vue";
+import { ref, toRaw } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { Snapshot } from "../types/status";
+import { reconcile } from "./reconcile";
 
 // One subscription for the whole app (header, editor and connections view).
 const snapshot = ref<Snapshot | null>(null);
@@ -12,7 +13,10 @@ async function start() {
   try {
     // Subscribe first so no update is lost between the fetch and the subscription.
     await listen<Snapshot>("status", (event) => {
-      snapshot.value = event.payload;
+      // Every server event sends the whole snapshot: keep what it did not
+      // change, so a tablet reconnecting only redraws the tablets card.
+      const previous = snapshot.value ? toRaw(snapshot.value) : null;
+      snapshot.value = previous ? reconcile(previous, event.payload) : event.payload;
     });
     const initial = await invoke<Snapshot>("get_status");
     snapshot.value ??= initial;

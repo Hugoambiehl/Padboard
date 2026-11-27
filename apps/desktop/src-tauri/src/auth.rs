@@ -7,7 +7,7 @@
 //! Tokens: 32 bytes from the OS CSPRNG, only their hash is stored
 //! (`paired.rs`). USB connections never go through here: the cable is the proof.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -275,6 +275,49 @@ struct Inner {
     paired: PairedDevices,
     pin: Pin,
     sessions: HashMap<String, Session>,
+    supersedes: SupersedeWatch,
+}
+
+/// A tablet replacing its own session again and again: two copies of the
+/// app's connection on one tablet (seen on Android 12L in kiosk mode, two
+/// activities: a new session every half second, for hours). Counted per
+/// device over [`Self::WINDOW`]; reported at most once per window.
+#[derive(Default)]
+struct SupersedeWatch {
+    recent: HashMap<String, VecDeque<Instant>>,
+    reported: HashMap<String, Instant>,
+}
+
+impl SupersedeWatch {
+    const WINDOW: Duration = Duration::from_secs(60);
+    /// A USB ↔ Wi-Fi switch supersedes once; a few a minute is still normal.
+    const LOOP: usize = 5;
+
+    /// Records a superseded session; returns how many happened in the last
+    /// window when that is a loop worth reporting now.
+    fn record(&mut self, device_id: &str, now: Instant) -> Option<usize> {
+        let recent = self.recent.entry(device_id.to_owned()).or_default();
+        recent.push_back(now);
+        while recent
+            .front()
+            .is_some_and(|t| now.duration_since(*t) > Self::WINDOW)
+        {
+            recent.pop_front();
+        }
+        let count = recent.len();
+        if count < Self::LOOP {
+            return None;
+        }
+        let due = self
+            .reported
+            .get(device_id)
+            .is_none_or(|at| now.duration_since(*at) >= Self::WINDOW);
+        if !due {
+            return None;
+        }
+        self.reported.insert(device_id.to_owned(), now);
+        Some(count)
+    }
 }
 
 pub struct Auth {
@@ -305,6 +348,7 @@ impl Auth {
                     state: PinState::Idle,
                 },
                 sessions: HashMap::new(),
+                supersedes: SupersedeWatch::default(),
             }),
             listener,
         }
@@ -434,7 +478,8 @@ impl Auth {
         transport: Transport,
     ) -> oneshot::Receiver<Kick> {
         let (tx, rx) = oneshot::channel();
-        let previous = self.lock().sessions.insert(
+        let mut inner = self.lock();
+        let previous = inner.sessions.insert(
             device_id.to_owned(),
             Session {
                 connection_id,
@@ -449,6 +494,14 @@ impl Auth {
                 new = connection_id,
                 "session superseded"
             );
+            if let Some(count) = inner.supersedes.record(device_id, Instant::now()) {
+                tracing::warn!(
+                    device_id,
+                    count,
+                    "this tablet keeps replacing its own session ({count} in a minute): \
+                     two copies of the app's connection on the tablet?"
+                );
+            }
             let _ = previous.kick.send(Kick::Superseded);
         }
         rx
@@ -753,6 +806,30 @@ mod tests {
         auth.close_session("tab", 1);
         let _third = auth.open_session("tab", 3, Transport::Wifi);
         assert_eq!(usb.try_recv(), Ok(Kick::Superseded));
+    }
+
+    #[test]
+    fn a_supersede_loop_is_reported_once_a_minute() {
+        let mut watch = SupersedeWatch::default();
+        let start = Instant::now();
+        let at = |ms: u64| start + Duration::from_millis(ms);
+        // A USB ↔ Wi-Fi switch now and then: nothing to report.
+        for i in 0..4 {
+            assert_eq!(watch.record("tab", at(i * 20_000)), None);
+        }
+        // Two copies on one tablet: one every 0.52 s.
+        let mut reports = Vec::new();
+        for i in 0..400 {
+            if let Some(count) = watch.record("loop", at(100_000 + i * 520)) {
+                reports.push((i, count));
+            }
+        }
+        // 400 × 0.52 s ≈ 3.5 min: reported at the 5th, then once a minute.
+        assert_eq!(reports.len(), 4, "{reports:?}");
+        assert_eq!(reports[0], (4, 5));
+        assert!(reports[1].1 > 100);
+        // Another tablet is counted on its own.
+        assert_eq!(watch.record("other", at(400_000)), None);
     }
 
     #[test]
