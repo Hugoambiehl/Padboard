@@ -3,7 +3,7 @@
 Notable changes of Padboard, generated from the commit history with
 [git-cliff](https://git-cliff.org). Versions follow [Semantic Versioning](https://semver.org).
 
-## 0.4.0-rc.1 (2026-11-26)
+## 0.4.0-rc.2 (2026-11-27)
 
 ### Features
 
@@ -12,6 +12,9 @@ Notable changes of Padboard, generated from the commit history with
 ### Fixes
 
 - **android**: Stay in front after leaving kiosk mode on Android 7
+- **android**: Back off when another session of the tablet takes the PC
+- **android**: Keep one screen and one connection in kiosk mode
+- **desktop**: Log a tablet superseding itself, redraw only what changed
 
 ## 0.3.0 (2026-11-26)
 
