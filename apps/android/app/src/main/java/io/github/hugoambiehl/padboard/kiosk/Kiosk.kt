@@ -57,17 +57,21 @@ object Kiosk {
         .setComponent(home(context))
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-    /** The screen in front runs as the home entry (set by it while resumed). */
-    @Volatile
-    var homeInFront = false
+    /**
+     * Live screens started as the home entry (main thread), in front or not:
+     * the screen is off, or a system window covers it (#32). Android closes
+     * them when the entry is disabled, so it waits until they are gone.
+     */
+    var homeScreens = 0
 
     /** Reads the device owner state and applies the kiosk policies when it is set. */
     fun refresh(context: Context) {
         val owner = dpm(context).isDeviceOwnerApp(context.packageName)
         if (owner) {
             apply(context)
-        } else if (!homeInFront) {
-            // Left while the home entry was closing (the app stopped first).
+        } else if (homeScreens == 0) {
+            // Left while a home entry's screen was alive, and the app stopped
+            // before that screen handed over.
             setHome(context, enabled = false)
         }
         _active.value = owner
@@ -119,10 +123,11 @@ object Kiosk {
             dpm.setStatusBarDisabled(admin, false)
             dpm.setLockTaskPackages(admin, emptyArray())
         }.onFailure { log.warning("undoing kiosk policies: $it") }
-        // Android closes the screens of a disabled home entry: the one in
-        // front first reopens the app as itself, then disables it
-        // (MainActivity.followKiosk, disableHome).
-        if (!homeInFront) setHome(context, enabled = false)
+        // Android closes the screens of a disabled home entry: such a screen
+        // first reopens the app as itself (at once in front, otherwise when
+        // it comes back), then disables it (MainActivity.followKiosk,
+        // disableHome).
+        if (homeScreens == 0) setHome(context, enabled = false)
         @Suppress("DEPRECATION") // the only way for a device owner to give up the role
         dpm.clearDeviceOwnerApp(context.packageName)
         log.info("kiosk mode left (${describe(by)}): no longer the device owner")

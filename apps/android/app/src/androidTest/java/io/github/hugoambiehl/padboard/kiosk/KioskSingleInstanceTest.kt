@@ -81,6 +81,41 @@ class KioskSingleInstanceTest {
         }
     }
 
+    /**
+     * #32: "Libérer la tablette" while the tablet's screen is off. No screen
+     * of the app is in front then; at wake-up it must be, as a normal app.
+     */
+    @Test
+    fun leavingFromThePcWhileTheScreenIsOffKeepsTheAppInFront() {
+        assumeFalse(
+            "API 37 emulator: task switches crash the system",
+            Build.VERSION.SDK_INT >= 37 && Build.HARDWARE == "ranchu"
+        )
+        shell("am start -W -n $pkg/.MainActivity")
+        waitFor("the app in front") { resumed() != null }
+        enableKioskLikeThePc()
+        check("kiosk mode turned on", kiosk = true)
+        // The PC's order arrives 1.5 s into a 4 s sleep (one shell command:
+        // a sleeping emulator may suspend before a second one).
+        var stageAtExit: Stage? = null
+        val exit =
+            Thread {
+                SystemClock.sleep(1_500)
+                instrumentation.runOnMainSync {
+                    val monitor = ActivityLifecycleMonitorRegistry.getInstance()
+                    stageAtExit =
+                        Stage.entries
+                            .firstOrNull { stage -> monitor.getActivitiesInStage(stage).any { it is MainActivity } }
+                    Kiosk.exit(app, KioskExitOrigin.Pc)
+                }
+            }
+        exit.start()
+        shell("input keyevent KEYCODE_SLEEP && sleep 4 && input keyevent KEYCODE_WAKEUP")
+        exit.join()
+        Log.i(TAG, "screen off: the app's screen was $stageAtExit when the order came")
+        check("woken up after leaving kiosk mode", kiosk = false)
+    }
+
     /** What the PC's "Activer" does (`adb.rs`, `enable_kiosk`). */
     private fun enableKioskLikeThePc() {
         val owner = "$pkg/.kiosk.KioskAdmin"
