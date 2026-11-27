@@ -758,7 +758,8 @@
       },
       "fallback": "The tablet works over Wi-Fi without adb. For USB, you can also download Platform-Tools from Google's page, extract the archive, then choose adb.exe.",
       "signature": "{file} is not signed by Google LLC: nothing was installed.",
-      "install": "Cannot install: {detail}"
+      "install": "Cannot install: {detail}",
+      "inUse": "adb could not be removed: one of its files is still used by a running program (an adb command, or another tool using this copy). Nothing was removed. Try again in a moment; if it happens again, close any open Android tools, then try again."
     }
   }
 }

@@ -13,7 +13,7 @@ import {
   setAdbPath,
   updateUsbTablet,
 } from "../commands";
-import type { PlatformToolsInfo } from "../types/platformTools";
+import type { PlatformToolsError, PlatformToolsInfo } from "../types/platformTools";
 import type { DeviceState, UsbStatus } from "../types/status";
 import { kioskActiveKey, kioskErrorMessage } from "../usb/kiosk";
 import { devMismatch, needsUpdate, usbUpdateErrorMessage } from "../usb/update";
@@ -151,7 +151,9 @@ async function removeTools() {
   try {
     tools.value = await removePlatformTools();
   } catch (e) {
-    error.value = typeof e === "object" && e && "detail" in e ? String(e.detail) : String(e);
+    const failure = e as Partial<PlatformToolsError> | null;
+    if (failure?.code === "inUse") error.value = t("platformTools.error.inUse");
+    else error.value = typeof e === "object" && e && "detail" in e ? String(e.detail) : String(e);
   } finally {
     removing.value = false;
   }

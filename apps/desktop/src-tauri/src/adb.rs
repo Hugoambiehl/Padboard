@@ -713,17 +713,29 @@ struct Setup {
 /// Runs forever: finds `adb`, tracks devices, sets them up. Restarts when the
 /// chosen path changes. `report` receives the full status on every change.
 /// A message on `refresh` checks the ready devices again (kiosk mode
-/// turned on or off).
+/// turned on or off). While `hold` is true ("Supprimer adb" is removing
+/// the downloaded copy), the session is dropped and no `adb` command is
+/// started: it would start a server from the copy being removed (#35).
 pub async fn run<R: Runner + Clone>(
     config: Config,
     runner: R,
     mut chosen: watch::Receiver<Option<PathBuf>>,
+    mut hold: watch::Receiver<bool>,
     mut refresh: mpsc::UnboundedReceiver<()>,
     report: impl Fn(UsbStatus) + Send + 'static,
 ) {
     let mut retry = RETRY_MIN;
     let mut restarts = Restarts::default();
     loop {
+        if *hold.borrow_and_update() {
+            tracing::info!("adb on hold: no command until the removal is over");
+            if hold.wait_for(|held| !held).await.is_err() {
+                return; // the app is shutting down
+            }
+            tracing::info!("adb hold released");
+            retry = RETRY_MIN;
+            continue;
+        }
         let path = chosen.borrow_and_update().clone();
         let unstable = restarts.frequent(tokio::time::Instant::now());
         let outcome = tokio::select! {
@@ -735,6 +747,8 @@ pub async fn run<R: Runner + Clone>(
                 retry = RETRY_MIN;
                 continue;
             }
+            // A closed sender (tests) disables this branch.
+            Ok(()) = hold.changed() => continue,
         };
         match outcome {
             // Tracked until the server went away: reconnect quickly.
@@ -755,6 +769,7 @@ pub async fn run<R: Runner + Clone>(
                 }
                 retry = RETRY_MIN;
             }
+            Ok(()) = hold.changed() => {}
         }
     }
 }
@@ -1558,6 +1573,7 @@ Error: unknown command 'list-owners'
             },
             runner.clone(),
             chosen,
+            watch::channel(false).1,
             mpsc::unbounded_channel().1,
             move |s| {
                 let _ = status_tx.send(s);
@@ -1602,6 +1618,53 @@ Error: unknown command 'list-owners'
     }
 
     #[tokio::test]
+    async fn no_adb_command_runs_while_on_hold() {
+        let tmp = tempfile::tempdir().unwrap();
+        let adb = tmp.path().join("adb");
+        std::fs::write(&adb, "").unwrap();
+        let (server_port, lists) = fake_server().await;
+        let runner = FakeRunner::default();
+        runner.installed.lock().unwrap().push("TABLET".into());
+        let (_chosen_tx, chosen) = watch::channel(Some(adb));
+        let (hold_tx, hold) = watch::channel(false);
+        let (status_tx, mut statuses) = mpsc::unbounded_channel();
+        tokio::spawn(run(
+            Config {
+                usb_port: 47321,
+                server_port,
+            },
+            runner.clone(),
+            chosen,
+            hold,
+            mpsc::unbounded_channel().1,
+            move |s| {
+                let _ = status_tx.send(s);
+            },
+        ));
+        wait_for(&mut statuses, |s| matches!(s.adb, AdbState::Ready { .. })).await;
+        assert_eq!(runner.calls_matching("version"), 1);
+
+        // "Supprimer adb": the session is dropped, nothing starts again,
+        // even past RETRY_MIN, and a tablet plugged meanwhile is not set up.
+        hold_tx.send_replace(true);
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        lists.send("TABLET\tdevice\n".into()).unwrap();
+        tokio::time::sleep(RETRY_MIN + Duration::from_millis(500)).await;
+        assert_eq!(runner.calls_matching("version"), 1);
+        assert_eq!(runner.calls_matching("reverse"), 0);
+
+        // Released: adb is looked for again at once.
+        hold_tx.send_replace(false);
+        timeout(Duration::from_secs(5), async {
+            while runner.calls_matching("version") < 2 {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("no new session after the hold");
+    }
+
+    #[tokio::test]
     async fn the_kiosk_state_is_read_on_detection_and_on_request() {
         let tmp = tempfile::tempdir().unwrap();
         let adb = tmp.path().join("adb");
@@ -1619,6 +1682,7 @@ Error: unknown command 'list-owners'
             },
             runner.clone(),
             chosen,
+            watch::channel(false).1,
             refresh_rx,
             move |s| {
                 let _ = status_tx.send(s);
@@ -1669,6 +1733,7 @@ Error: unknown command 'list-owners'
             },
             runner.clone(),
             chosen,
+            watch::channel(false).1,
             mpsc::unbounded_channel().1,
             move |s| {
                 let _ = status_tx.send(s);
@@ -1709,6 +1774,7 @@ Error: unknown command 'list-owners'
             },
             FakeRunner::default(),
             chosen,
+            watch::channel(false).1,
             mpsc::unbounded_channel().1,
             move |s| {
                 let _ = status_tx.send(s);
@@ -1747,6 +1813,7 @@ Error: unknown command 'list-owners'
             },
             FakeRunner::default(),
             chosen,
+            watch::channel(false).1,
             mpsc::unbounded_channel().1,
             move |s| {
                 let _ = status_tx.send(s);
@@ -1803,6 +1870,7 @@ Error: unknown command 'list-owners'
             },
             runner.clone(),
             chosen,
+            watch::channel(false).1,
             mpsc::unbounded_channel().1,
             move |s| {
                 let _ = status_tx.send(s);
@@ -1839,6 +1907,7 @@ Error: unknown command 'list-owners'
             },
             runner.clone(),
             chosen,
+            watch::channel(false).1,
             mpsc::unbounded_channel().1,
             move |s| {
                 let _ = status_tx.send(s);

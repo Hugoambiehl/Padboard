@@ -758,7 +758,8 @@
       },
       "fallback": "La tablette fonctionne en Wi-Fi sans adb. Pour l’USB, tu peux aussi télécharger les Platform-Tools sur la page de Google, extraire l’archive, puis indiquer adb.exe.",
       "signature": "{file} n’est pas signé par Google LLC : rien n’a été installé.",
-      "install": "Installation impossible : {detail}"
+      "install": "Installation impossible : {detail}",
+      "inUse": "adb n’a pas pu être supprimé : un de ses fichiers est encore utilisé par un programme en cours (une commande adb, ou un autre outil qui utilise cette copie). Rien n’a été supprimé. Réessaie dans un moment ; si ça recommence, ferme les outils Android ouverts, puis réessaie."
     }
   }
 }

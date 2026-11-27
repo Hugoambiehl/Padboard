@@ -23,8 +23,10 @@
 
 #[cfg(windows)]
 pub(crate) mod authenticode;
+mod removal;
 mod server_owner;
 
+pub use removal::{discard_leftover, remove, wait_until};
 pub use server_owner::{same_program, server_owner};
 
 use std::io::Read as _;
@@ -132,6 +134,11 @@ pub enum PlatformToolsError {
     /// Unreadable archive, or a file that cannot be written.
     #[error("cannot install: {detail}")]
     Install { detail: String },
+    /// "Supprimer adb": a file of the copy stayed in use by a running
+    /// program (our `adb.exe` in flight, or another tool); the copy is
+    /// left whole.
+    #[error("a file is in use: {detail}")]
+    InUse { detail: String },
 }
 
 /// Why a download is not the pinned archive, guessed from what was received
@@ -222,6 +229,7 @@ pub async fn install(
     dir: &Path,
     verify: impl Fn(&Path) -> Result<(), String>,
 ) -> Result<(PathBuf, Option<FromIndex>), PlatformToolsError> {
+    discard_leftover(dir);
     let received = download(http, archive).await?;
     let sha256 = hex(&Sha256::digest(&received.bytes));
     let mut from_index = None;
@@ -464,24 +472,6 @@ fn windows_archive(xml: &str, version: &str) -> Result<Option<IndexArchive>, Str
             Event::Eof => return Ok(None),
             _ => {}
         }
-    }
-}
-
-/// Removes the downloaded copy (its adb server must be stopped first:
-/// Windows keeps a running program's file locked).
-///
-/// # Errors
-/// The folder cannot be removed.
-pub fn remove(dir: &Path) -> Result<(), PlatformToolsError> {
-    match std::fs::remove_dir_all(dir) {
-        Ok(()) => {
-            tracing::info!(path = %dir.display(), "platform-tools removed");
-            Ok(())
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(PlatformToolsError::Install {
-            detail: e.to_string(),
-        }),
     }
 }
 
