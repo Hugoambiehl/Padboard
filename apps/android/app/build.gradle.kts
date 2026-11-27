@@ -26,7 +26,9 @@ val releaseSigning: Properties? =
 android {
     namespace = "io.github.hugoambiehl.padboard"
     compileSdk {
-        version = release(37)
+        // 37.1: Compose UI and Foundation 1.13 require it (minCompileMinorSdk
+        // in their AAR metadata). Compiling only: targetSdk stays 37.
+        version = release(37) { minorApiLevel = 1 }
     }
 
     defaultConfig {
