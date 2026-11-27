@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
 
-use padboard_protocol::{Message, short_fingerprint, spki_sha256};
+use padboard_protocol::{Message, StreamFrame, StreamFrameError, short_fingerprint, spki_sha256};
 use serde_json::Value;
 
 fn fixtures_dir() -> PathBuf {
@@ -42,6 +42,9 @@ fn fixture_stem(message: &Message) -> &'static str {
         Message::UpdateOffer(_) => "update_offer",
         Message::UpdateRequest(_) => "update_request",
         Message::UpdateResult(_) => "update_result",
+        Message::ScreenOffer(_) => "screen_offer",
+        Message::ScreenStop(_) => "screen_stop",
+        Message::ScreenStopped(_) => "screen_stopped",
     }
 }
 
@@ -107,6 +110,9 @@ fn every_message_type_has_a_fixture() {
         "update_offer",
         "update_request",
         "update_result",
+        "screen_offer",
+        "screen_stop",
+        "screen_stopped",
     ]
     .into_iter()
     .map(String::from)
@@ -166,7 +172,12 @@ fn the_frozen_core_of_every_version_still_decodes() {
                 &fs::read_to_string(fixtures_dir().join(format!("{stem}.json"))).unwrap(),
             )
             .unwrap();
-            assert_eq!(top, value, "core/{name}.json differs from {stem}.json");
+            // The top-level fixture may carry optional fields added since
+            // (same version: the core only gains optional fields).
+            assert!(
+                contained_in(&value, &top),
+                "core/{name}.json is not contained in {stem}.json"
+            );
         }
     }
     let expected: BTreeSet<String> = [
@@ -210,6 +221,57 @@ fn fingerprint_vector() {
         short_fingerprint(&spki),
         vector["shortFingerprint"].as_str().unwrap()
     );
+}
+
+/// Every key of `part` is in `whole` with a value contained in it (objects
+/// compared key by key, anything else equal).
+fn contained_in(part: &Value, whole: &Value) -> bool {
+    match (part, whole) {
+        (Value::Object(p), Value::Object(w)) => p
+            .iter()
+            .all(|(k, v)| w.get(k).is_some_and(|wv| contained_in(v, wv))),
+        _ => part == whole,
+    }
+}
+
+/// Test vectors shared with the tablet (`fixtures/vectors/stream.json`):
+/// each frame decodes to its meaning and encodes back to the same bytes
+/// (except the ack carrying later fields, which are dropped).
+#[test]
+fn stream_vectors() {
+    let path = fixtures_dir().join("vectors").join("stream.json");
+    let vector: Value = serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+    for case in vector["frames"].as_array().unwrap() {
+        let bytes = hex(case["hex"].as_str().unwrap());
+        let time = |key: &str| case[key].as_str().unwrap().parse::<u64>().unwrap();
+        let data = case["dataHex"].as_str().map(hex).unwrap_or_default();
+        let expected = match case["kind"].as_str().unwrap() {
+            "video" => StreamFrame::Video {
+                key_frame: case["keyFrame"].as_bool().unwrap(),
+                capture_us: time("captureUs"),
+                data: &data,
+            },
+            "ack" => StreamFrame::Ack {
+                capture_us: time("captureUs"),
+                decode_us: u32::try_from(case["decodeUs"].as_u64().unwrap()).unwrap(),
+            },
+            "keyFrameRequest" => StreamFrame::KeyFrameRequest,
+            other => panic!("unknown kind {other}"),
+        };
+        assert_eq!(StreamFrame::decode(&bytes), Ok(expected.clone()), "{case}");
+        let encoded = expected.encode();
+        assert!(bytes.starts_with(&encoded), "{case}");
+    }
+    for case in vector["refused"].as_array().unwrap() {
+        let bytes = hex(case["hex"].as_str().unwrap());
+        let error = match case["error"].as_str().unwrap() {
+            "empty" => StreamFrameError::Empty,
+            "unknownKind" => StreamFrameError::UnknownKind(bytes[0]),
+            "truncated" => StreamFrameError::Truncated,
+            other => panic!("unknown error {other}"),
+        };
+        assert_eq!(StreamFrame::decode(&bytes), Err(error), "{case}");
+    }
 }
 
 fn hex(s: &str) -> Vec<u8> {

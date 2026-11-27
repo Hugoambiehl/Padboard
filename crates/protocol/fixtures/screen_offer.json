@@ -1,0 +1,10 @@
+{
+  "type": "screen:offer",
+  "payload": {
+    "ticket": "fixture-ticket-not-a-secret",
+    "codec": "h264",
+    "width": 1728,
+    "height": 1080,
+    "fps": 60
+  }
+}

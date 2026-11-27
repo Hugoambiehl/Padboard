@@ -7,6 +7,23 @@
     "token": "q8T1yZ0vKc3m5WjR7aLbN2xHf4pGsD9eUoVtEiMnQwA",
     "appVersion": "0.2.0",
     "appVersionCode": 20099,
-    "silentInstall": true
+    "silentInstall": true,
+    "screen": {
+      "displayWidth": 1920,
+      "displayHeight": 1200,
+      "decoders": [
+        {
+          "codec": "h264",
+          "maxWidth": 1920,
+          "maxHeight": 1088
+        },
+        {
+          "codec": "vp8",
+          "maxWidth": 1920,
+          "maxHeight": 1088
+        }
+      ],
+      "touch": true
+    }
   }
 }

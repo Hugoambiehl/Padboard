@@ -205,6 +205,38 @@ export interface Heartbeat {
 	seq: number;
 }
 
+/**
+ * Video formats of the stream. Never gains a value without a capability
+ * to announce it (an older tablet could not read it).
+ */
+export enum VideoCodec {
+	/** H.264, Annex B byte stream, parameter sets before each key frame. */
+	H264 = "h264",
+	/** VP8, one frame per access unit. */
+	Vp8 = "vp8",
+}
+
+export interface ScreenDecoder {
+	codec: VideoCodec;
+	/** Largest picture the decoder takes (SM-T580's H.264: 1920×1088). */
+	maxWidth: number;
+	maxHeight: number;
+}
+
+/** What the tablet can show, in `hello` (optional). */
+export interface ScreenCapability {
+	/** The tablet's screen in pixels, landscape (width ≥ height). */
+	displayWidth: number;
+	displayHeight: number;
+	/**
+	 * Hardware decoders, best first. The PC picks the first codec it can
+	 * encode, at a size within that decoder's limits.
+	 */
+	decoders: ScreenDecoder[];
+	/** The tablet sends touches as mouse input on the stream connection. */
+	touch: boolean;
+}
+
 export interface HelloPayload {
 	protocolVersion: number;
 	/** Human-readable name of the tablet (e.g. "Galaxy Tab A"). */
@@ -223,6 +255,11 @@ export interface HelloPayload {
 	 * Protocol 5.
 	 */
 	silentInstall?: boolean;
+	/**
+	 * What the tablet can show as a second screen; absent: no second
+	 * screen. Protocol 5 (0.5).
+	 */
+	screen?: ScreenCapability;
 }
 
 /**
@@ -413,6 +450,62 @@ export interface Preset {
 	/** Lucide icon name (the frontend resolves its paths). */
 	icon: string;
 	action: Action;
+}
+
+/**
+ * PC → tablet: a stream is ready. Open the stream connection with
+ * `ticket` within 10 seconds.
+ */
+export interface ScreenOfferPayload {
+	/** One-time secret (base64url, 32 random bytes), bound to this session. */
+	ticket: string;
+	codec: VideoCodec;
+	/** Size of the pictures, within the chosen decoder's limits. */
+	width: number;
+	height: number;
+	/** Frames per second at most (fewer when the screen does not change). */
+	fps: number;
+}
+
+/**
+ * Why the tablet stopped. Never gains a value (an older PC could not read
+ * it): a new cause is sent as the closest one.
+ */
+export enum ScreenStopReason {
+	/** The user asked for the grid (long press on a volume key). */
+	User = "user",
+	/** The decoder refused the stream or failed. */
+	DecoderFailed = "decoder_failed",
+	/** The stream connection could not be opened or was lost. */
+	StreamFailed = "stream_failed",
+}
+
+/** Tablet → PC: the tablet left the second screen. */
+export interface ScreenStopPayload {
+	reason: ScreenStopReason;
+}
+
+/**
+ * Why the PC stopped. Never gains a value (an older tablet could not read
+ * it): a new cause is sent as the closest one, `failed` by default.
+ */
+export enum ScreenStoppedReason {
+	/** "Arrêter le second écran" on the PC, or the tablet's own `screen:stop`. */
+	Stopped = "stopped",
+	/**
+	 * The user refused it on the PC (first-time confirmation, or the
+	 * system's screen sharing dialog).
+	 */
+	Refused = "refused",
+	/** Another device took the second screen. */
+	Replaced = "replaced",
+	/** Capture or encoding failed, or the ticket was not used in time. */
+	Failed = "failed",
+}
+
+/** PC → tablet: the second screen ended on the PC's side; back to the grid. */
+export interface ScreenStoppedPayload {
+	reason: ScreenStoppedReason;
 }
 
 export interface SystemStatusPayload {
@@ -758,5 +851,14 @@ export type Message =
 	 * Tablet → desktop (frozen core): how the offered update ended on the
 	 * tablet's side.
 	 */
-	| { type: "update:result", payload: UpdateResultPayload };
+	| { type: "update:result", payload: UpdateResultPayload }
+	/**
+	 * Desktop → tablet: a second screen stream is ready (only to tablets
+	 * that announced [`ScreenCapability`]); see the `screen` module.
+	 */
+	| { type: "screen:offer", payload: ScreenOfferPayload }
+	/** Tablet → desktop: the tablet left the second screen. */
+	| { type: "screen:stop", payload: ScreenStopPayload }
+	/** Desktop → tablet: the second screen ended on the PC's side. */
+	| { type: "screen:stopped", payload: ScreenStoppedPayload };
 
