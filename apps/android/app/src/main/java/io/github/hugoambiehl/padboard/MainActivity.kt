@@ -28,6 +28,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         instances += WeakReference(this)
+        if (isHome) Kiosk.homeScreens++
         enableEdgeToEdge()
         hideSystemBars()
         setContent {
@@ -46,23 +47,22 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         closeOtherInstances()
         if (isFinishing) return
-        Kiosk.homeInFront = isHome
         Kiosk.stopLockTask = endLockTask
         // Device owner set or removed with adb while the app was away.
         Kiosk.refresh(this)
     }
 
     override fun onPause() {
-        if (Kiosk.stopLockTask === endLockTask) {
-            Kiosk.stopLockTask = null
-            Kiosk.homeInFront = false
-        }
+        if (Kiosk.stopLockTask === endLockTask) Kiosk.stopLockTask = null
         super.onPause()
     }
 
     override fun onDestroy() {
         instances.removeAll { it.get().let { activity -> activity == null || activity === this } }
-        if (isHome) Kiosk.disableHome(this)
+        if (isHome) {
+            Kiosk.homeScreens--
+            Kiosk.disableHome(this)
+        }
         super.onDestroy()
     }
 
@@ -116,7 +116,6 @@ class MainActivity : ComponentActivity() {
             // is disabled (in onDestroy). The app reopens as itself, in a new
             // task: finished first, this screen no longer takes the intent.
             log.info("kiosk mode left: the app reopens as itself")
-            Kiosk.homeInFront = false
             finish()
             startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             return
