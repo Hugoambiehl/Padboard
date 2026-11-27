@@ -267,6 +267,11 @@ SM-T580, always measure in release builds.
   `tauri-plugin-dialog` / `@tauri-apps/plugin-dialog` stay on `~2.7` (2.8 needs 2.12).
 - **Desktop dev launch**: `scripts/desktop-dev.sh`. It strips the GTK/GIO
   variables leaked by snap terminals (VS Code snap), which crash WebKitGTK.
+- **Status in the UI**: every server event sends the whole `Snapshot`;
+  `useStatus` merges it with `reconcile` (`composables/reconcile.ts`):
+  unchanged parts keep their identity, so a tablet reconnecting only
+  redraws what changed (a supersede loop made the whole connections view
+  render twice a second on Windows).
 - **WebSocket server**: rejects handshakes carrying an `Origin` header (browsers),
   so a web page on the PC cannot drive it; executes actions via `spawn_blocking`;
   is independent from Tauri (reports `ServerEvent`s, tested end-to-end in
@@ -393,8 +398,33 @@ SM-T580, always measure in release builds.
   clear refusal (codes in `adb::KioskError`, translated by the UI).
 - **Kiosk mode and updates**: an `adb install -r` stops the app and the
   tablet would show the regular launcher; `KioskUpdated`
-  (`MY_PACKAGE_REPLACED`) brings it back in front at once (a device owner
-  may start an activity from the background).
+  (`MY_PACKAGE_REPLACED`) brings it back in front at once, as the home
+  entry (a device owner may start an activity from the background).
+- **One screen, one connection** (0.4.0-rc.2; rc.1 loop on the SM-T580):
+  Android 12L kept two `MainActivity` instances in kiosk mode (the PC's
+  `am start` in a standard task, `HomeAlias` started by the system at the
+  first wake-up in a home task), each with its own connection: the PC saw
+  the tablet supersede itself every 0.52 s. Now the connection belongs to
+  the process (`connection/TabletLink.kt`, reference-counted by the
+  ViewModels); kiosk mode runs in the home entry only: a screen that is
+  not the home entry hands over to it (`Kiosk.homeIntent`, once per
+  screen, without locking) and is closed by it; **no `lockTaskMode` in
+  the manifest** (it locked the PC's `am start` too, and Android never
+  lets the root of a lock task finish; a closed home entry is started
+  again at once by the system). Android 7 hands the home intent to the
+  same instance, which then locks itself. Leaving kiosk mode from the
+  home entry: it finishes, reopens `MainActivity` in a normal task, and
+  the alias is disabled in its `onDestroy` (disabling it first closes the
+  screen: the launcher came in front); `Kiosk.refresh` disables a
+  leftover alias. A session superseded by another of the same tablet (not
+  our USB probe) waits `supersededPause` (5 s, doubled up to 2 min) before
+  taking the PC back; the PC warns *keeps replacing its own session*
+  (5 in a minute, `auth.rs` `SupersedeWatch`). `KioskSingleInstanceTest`
+  (androidTest) fails without the fix on API 32 only (image
+  `android-32;google_apis`, local test tool); skipped on the API 37
+  emulator (task switches crash its system_server). Android 17 shows an
+  `NsdPickerActivity` (local network) when the app starts mDNS: the test
+  turns it down.
 - **Tablet screensaver** (`ui/screensaver/Screensaver.kt`): settings stored
   on the PC (`preferences.json`, "Écran de veille" card, 15 s–1 h, default
   on after 5 min), sent with `tablet:settings` on connect and on change;

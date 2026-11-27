@@ -1098,6 +1098,26 @@ Restore the autostart state and the sound noted in 14.0, compare the
 configuration with the backup of 14.0 (only `update-pending.json` may
 differ), then send the report with the `padboard.log` files.
 
+## 15. Release candidate 0.4.0-rc.2: one screen in kiosk mode, through sleep
+
+0.4.0-rc.1 was never published: rc.2 replaces it. Run section 14 with
+0.4.0-rc.2 instead (tablet versionCode 40002), then 15.1 before 14.4.
+
+rc.1 was stopped by a loop seen on the SM-T580: after the PC turned kiosk
+mode on, the first wake-up of the screen started the app a second time
+(the home entry, `HomeAlias`, beside the activity the PC had started), and
+the two connections of the same tablet replaced each other on the PC
+every 0.52 s (about 4,000 `session superseded` an hour; the PC's window
+seemed to reload every second). rc.2: kiosk mode runs in the home entry
+only, one connection per app, a tablet replaced by its own other session
+waits longer and longer before taking the PC back, and the PC logs such a
+loop.
+
+### 15.1 SM-T580: kiosk mode, sleep, wake-up
+
+The checks of [tablet-test-plan.md](tablet-test-plan.md), section
+*Release candidate 0.4.0-rc.2*, with this PC.
+
 ## Known Windows limits
 
 - Keys cannot be sent to elevated (administrator) windows.
