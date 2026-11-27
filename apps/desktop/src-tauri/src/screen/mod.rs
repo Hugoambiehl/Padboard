@@ -12,6 +12,8 @@
 
 pub mod flow;
 pub mod format;
+#[cfg(target_os = "linux")]
+pub mod gst;
 pub mod stream;
 pub mod ticket;
 
