@@ -3,7 +3,7 @@
 Notable changes of Padboard, generated from the commit history with
 [git-cliff](https://git-cliff.org). Versions follow [Semantic Versioning](https://semver.org).
 
-## 0.4.0-rc.2 (2026-11-27)
+## 0.4.0-rc.3 (2026-11-27)
 
 ### Features
 
@@ -15,6 +15,8 @@ Notable changes of Padboard, generated from the commit history with
 - **android**: Back off when another session of the tablet takes the PC
 - **android**: Keep one screen and one connection in kiosk mode
 - **desktop**: Log a tablet superseding itself, redraw only what changed
+- **android**: Keep a home entry's screen alive until it hands over
+- **android**: Ask for the local network only when Wi-Fi is wanted
 
 ## 0.3.0 (2026-11-26)
 
