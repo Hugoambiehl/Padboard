@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Runs the tablet app's UI tests (apps/android/app/src/androidTest, e.g.
 # KioskCornerTest: nothing on any screen in the corner that leaves kiosk
-# mode) on a throwaway emulator at the SM-T580's size (1920 × 1200, 240 dpi
-# = 1280 × 800 dp). Local only (not in CI).
+# mode; KioskSingleInstanceTest: one screen and one connection through
+# kiosk mode, sleep, wake-up and exit) on a throwaway emulator at the
+# SM-T580's size (1920 × 1200, 240 dpi = 1280 × 800 dp). Local only (not in
+# CI). KioskSingleInstanceTest needs Android 12L, the tablet's version, to
+# catch two screens (PADBOARD_TEST_IMAGE="system-images;android-32;google_apis;x86_64")
+# and guards #24 on API 24; it is skipped on API 37 (see below).
 #
 #   scripts/tablet-ui-tests.sh
 #
@@ -15,7 +19,9 @@
 # !rcEnc->featureInfo()->hasReadColorBufferDma"): SurfaceFlinger when the
 # launcher samples the screen, system_server when it snapshots a task
 # switch. Hence `-gpu guest`, the launcher turned off, and every screen
-# checked within one activity. Screenshots (screencap) fail the same way.
+# checked within one activity. Screenshots (screencap) fail the same way,
+# and so does any switch between two tasks, whatever -gpu (the AOSP image
+# too): KioskSingleInstanceTest is skipped there.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -82,7 +88,7 @@ adb install -r -t "$outputs/debug/app-debug.apk" > /dev/null
 adb install -r -t "$outputs/androidTest/debug/app-debug-androidTest.apk" > /dev/null
 result="$(adb shell am instrument -w io.github.hugoambiehl.padboard.test/androidx.test.runner.AndroidJUnitRunner)"
 echo "$result"
-adb logcat -d -s KioskCornerTest:I | grep -v '^-' || true
+adb logcat -d -s KioskCornerTest:I KioskSingleInstanceTest:I | grep -v '^-' || true
 if ! grep -q '^OK (' <<< "$result"; then
   adb logcat -d -b crash | grep -m3 'Abort message' >&2 || true
   exit 1

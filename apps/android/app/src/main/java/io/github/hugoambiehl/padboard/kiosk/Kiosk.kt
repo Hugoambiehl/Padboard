@@ -10,7 +10,6 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.edit
-import io.github.hugoambiehl.padboard.MainActivity
 import io.github.hugoambiehl.padboard.connection.KioskExitLog
 import io.github.hugoambiehl.padboard.protocol.KioskExitOrigin
 import io.github.hugoambiehl.padboard.protocol.KioskLeft
@@ -52,11 +51,31 @@ object Kiosk {
 
     private fun home(context: Context) = ComponentName(context, "${context.packageName}.HomeAlias")
 
+    /** Starts the app as the home entry, where kiosk mode runs (see MainActivity). */
+    fun homeIntent(context: Context): Intent = Intent(Intent.ACTION_MAIN)
+        .addCategory(Intent.CATEGORY_HOME)
+        .setComponent(home(context))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+    /** The screen in front runs as the home entry (set by it while resumed). */
+    @Volatile
+    var homeInFront = false
+
     /** Reads the device owner state and applies the kiosk policies when it is set. */
     fun refresh(context: Context) {
         val owner = dpm(context).isDeviceOwnerApp(context.packageName)
-        if (owner) apply(context)
+        if (owner) {
+            apply(context)
+        } else if (!homeInFront) {
+            // Left while the home entry was closing (the app stopped first).
+            setHome(context, enabled = false)
+        }
         _active.value = owner
+    }
+
+    /** Kiosk mode left: the home entry's screen has handed over, the entry goes. */
+    fun disableHome(context: Context) {
+        if (!_active.value) setHome(context, enabled = false)
     }
 
     private fun apply(context: Context) {
@@ -100,7 +119,10 @@ object Kiosk {
             dpm.setStatusBarDisabled(admin, false)
             dpm.setLockTaskPackages(admin, emptyArray())
         }.onFailure { log.warning("undoing kiosk policies: $it") }
-        setHome(context, enabled = false)
+        // Android closes the screens of a disabled home entry: the one in
+        // front first reopens the app as itself, then disables it
+        // (MainActivity.followKiosk, disableHome).
+        if (!homeInFront) setHome(context, enabled = false)
         @Suppress("DEPRECATION") // the only way for a device owner to give up the role
         dpm.clearDeviceOwnerApp(context.packageName)
         log.info("kiosk mode left (${describe(by)}): no longer the device owner")
@@ -161,16 +183,15 @@ class KioskExits(context: Context) : KioskExitLog {
 /**
  * An update stops the app, and the tablet then shows the regular launcher
  * until the home button is pressed: in kiosk mode, the app comes back at
- * once (a device owner may start an activity from the background).
+ * once as the home entry (a device owner may start an activity from the
+ * background).
  */
 class KioskUpdated : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
         val dpm = context.getSystemService(DevicePolicyManager::class.java)
         if (!dpm.isDeviceOwnerApp(context.packageName)) return
-        context.startActivity(
-            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
+        context.startActivity(Kiosk.homeIntent(context))
     }
 }
 
