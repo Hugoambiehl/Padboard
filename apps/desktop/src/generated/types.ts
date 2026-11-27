@@ -183,6 +183,19 @@ export enum ErrorCode {
 	Superseded = "superseded",
 }
 
+/**
+ * What a tablet shows for an `error`, beyond its `code`. A new value makes
+ * the whole message unreadable to tablets that predate it (they then only
+ * see the connection close): add values with that in mind.
+ */
+export enum ErrorReason {
+	/**
+	 * USB connection refused: the PC could not check that it came from
+	 * the adb server (`unauthorized`). The PC's USB card says what to do.
+	 */
+	UsbUnverified = "usb_unverified",
+}
+
 export interface ErrorPayload {
 	code: ErrorCode;
 	/**
@@ -190,6 +203,11 @@ export interface ErrorPayload {
 	 * based on `code`, never this message.
 	 */
 	message: string;
+	/**
+	 * More precise than `code`, when the tablet has something specific to
+	 * show. Optional (frozen core): older tablets ignore it.
+	 */
+	reason?: ErrorReason;
 }
 
 export interface Folder {
