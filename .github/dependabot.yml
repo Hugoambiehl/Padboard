@@ -19,6 +19,9 @@ updates:
       # zbus 6 needs Rust 1.89.
       - dependency-name: zbus
         update-types: ["version-update:semver-major"]
+      # gstreamer-rs 0.25 needs Rust 1.92 (0.x: the minor is the major).
+      - dependency-name: "gstreamer*"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /apps/desktop
