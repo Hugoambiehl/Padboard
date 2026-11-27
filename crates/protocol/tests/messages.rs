@@ -54,6 +54,7 @@ fn all_messages() -> Vec<Message> {
             app_version: None,
             app_version_code: None,
             silent_install: None,
+            screen: None,
         }),
         Message::Hello(HelloPayload {
             protocol_version: PROTOCOL_VERSION,
@@ -63,6 +64,7 @@ fn all_messages() -> Vec<Message> {
             app_version: Some("0.2.0".into()),
             app_version_code: Some(20_099),
             silent_install: Some(true),
+            screen: None,
         }),
         Message::Welcome(WelcomePayload {
             protocol_version: PROTOCOL_VERSION,
@@ -331,6 +333,7 @@ fn hello_token_is_omitted_before_pairing() {
         app_version: None,
         app_version_code: None,
         silent_install: None,
+        screen: None,
     })
     .unwrap();
     assert!(value.get("token").is_none());
@@ -403,6 +406,7 @@ fn debug_output_never_shows_a_secret() {
             app_version: None,
             app_version_code: None,
             silent_install: None,
+            screen: None,
         }),
         Message::PairRequest(PairRequestPayload {
             pin: "SECRET-PIN".into(),
@@ -428,6 +432,7 @@ fn debug_output_never_shows_a_secret() {
             app_version: None,
             app_version_code: None,
             silent_install: None,
+            screen: None,
         }
     );
     assert!(

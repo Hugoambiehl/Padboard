@@ -18,6 +18,9 @@
 //! - JSON fields are `camelCase`, enum values `snake_case`.
 //! - Every message type has a fixture in `fixtures/` (decoded by Rust and Kotlin tests).
 //!
+//! Protocol 5, 0.5: the second screen (`screen` module), gated by an
+//! optional capability in `hello`, so the version stays 5.
+//!
 //! Protocol 5: tablet updates pushed by the PC. `hello` carries the tablet
 //! app's version and whether it can install an update silently (kiosk mode);
 //! `welcome.mode` says whether the session is a normal one or limited to
@@ -60,9 +63,15 @@ use typeshare::typeshare;
 
 mod fingerprint;
 mod layout;
+mod screen;
 
 pub use fingerprint::{short_fingerprint, spki_sha256};
 pub use layout::{ButtonIcon, ButtonView, Category, Folder, GridSize, Layout, Page, ProfileInfo};
+pub use screen::{
+    STREAM_PATH, STREAM_TICKET_HEADER, ScreenCapability, ScreenDecoder, ScreenOfferPayload,
+    ScreenStopPayload, ScreenStopReason, ScreenStoppedPayload, ScreenStoppedReason, StreamFrame,
+    StreamFrameError, VideoCodec,
+};
 
 /// Version of the wire protocol. Checked during the `hello` / `welcome` handshake.
 pub const PROTOCOL_VERSION: u32 = 5;
@@ -187,6 +196,16 @@ pub enum Message {
     /// tablet's side.
     #[serde(rename = "update:result")]
     UpdateResult(UpdateResultPayload),
+    /// Desktop → tablet: a second screen stream is ready (only to tablets
+    /// that announced [`ScreenCapability`]); see the `screen` module.
+    #[serde(rename = "screen:offer")]
+    ScreenOffer(ScreenOfferPayload),
+    /// Tablet → desktop: the tablet left the second screen.
+    #[serde(rename = "screen:stop")]
+    ScreenStop(ScreenStopPayload),
+    /// Desktop → tablet: the second screen ended on the PC's side.
+    #[serde(rename = "screen:stopped")]
+    ScreenStopped(ScreenStoppedPayload),
 }
 
 #[typeshare]
@@ -213,6 +232,10 @@ pub struct HelloPayload {
     /// Protocol 5.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub silent_install: Option<bool>,
+    /// What the tablet can show as a second screen; absent: no second
+    /// screen. Protocol 5 (0.5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub screen: Option<ScreenCapability>,
 }
 
 #[typeshare]
@@ -291,6 +314,7 @@ impl fmt::Debug for HelloPayload {
             .field("app_version", &self.app_version)
             .field("app_version_code", &self.app_version_code)
             .field("silent_install", &self.silent_install)
+            .field("screen", &self.screen)
             .finish()
     }
 }
@@ -581,6 +605,9 @@ impl Message {
             Self::UpdateOffer(_) => "update:offer",
             Self::UpdateRequest(_) => "update:request",
             Self::UpdateResult(_) => "update:result",
+            Self::ScreenOffer(_) => "screen:offer",
+            Self::ScreenStop(_) => "screen:stop",
+            Self::ScreenStopped(_) => "screen:stopped",
         }
     }
 }

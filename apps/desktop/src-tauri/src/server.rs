@@ -484,6 +484,8 @@ where
         app_version,
         app_version_code,
         silent_install,
+        // The second screen (#20) is not served yet.
+        screen: _,
     } = hello;
     if device_id.is_empty()
         || device_id.chars().count() > MAX_ID_LEN
@@ -828,6 +830,8 @@ where
             Message::UpdateResult(UpdateResultPayload { outcome }) => {
                 finish_update(id, ctx, &mut transfer, outcome);
             }
+            // The second screen (#20) is not served yet: nothing to stop.
+            Message::ScreenStop(_) => {}
             other @ (Message::Hello(_)
             | Message::Welcome(_)
             | Message::Error(_)
@@ -840,7 +844,9 @@ where
             | Message::TabletCommand(_)
             | Message::TabletSettings(_)
             | Message::SystemStatus(_)
-            | Message::UpdateOffer(_)) => {
+            | Message::UpdateOffer(_)
+            | Message::ScreenOffer(_)
+            | Message::ScreenStopped(_)) => {
                 let reason = format!("unexpected {} after handshake", other.type_tag());
                 send_error(ws, ErrorCode::BadRequest, reason).await?;
             }
@@ -1487,6 +1493,7 @@ mod tests {
             app_version: Some("0.2.0".into()),
             app_version_code: Some(20_099),
             silent_install: None,
+            screen: None,
         })
     }
 

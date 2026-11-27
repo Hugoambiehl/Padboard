@@ -171,6 +171,7 @@ fn hello(id: &str, pairing: &Pairing) -> Message {
         app_version: Some(env!("CARGO_PKG_VERSION").to_owned()),
         app_version_code: None,
         silent_install: None,
+        screen: None,
     })
 }
 

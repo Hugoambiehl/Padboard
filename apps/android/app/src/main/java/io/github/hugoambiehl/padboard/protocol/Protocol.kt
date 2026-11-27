@@ -121,6 +121,39 @@ data class Heartbeat (
 	val seq: UInt
 )
 
+/// Video formats of the stream. Never gains a value without a capability
+/// to announce it (an older tablet could not read it).
+@Serializable
+enum class VideoCodec(val string: String) {
+	/// H.264, Annex B byte stream, parameter sets before each key frame.
+	@SerialName("h264")
+	H264("h264"),
+	/// VP8, one frame per access unit.
+	@SerialName("vp8")
+	Vp8("vp8"),
+}
+
+@Serializable
+data class ScreenDecoder (
+	val codec: VideoCodec,
+	/// Largest picture the decoder takes (SM-T580's H.264: 1920×1088).
+	val maxWidth: UInt,
+	val maxHeight: UInt
+)
+
+/// What the tablet can show, in `hello` (optional).
+@Serializable
+data class ScreenCapability (
+	/// The tablet's screen in pixels, landscape (width ≥ height).
+	val displayWidth: UInt,
+	val displayHeight: UInt,
+	/// Hardware decoders, best first. The PC picks the first codec it can
+	/// encode, at a size within that decoder's limits.
+	val decoders: List<ScreenDecoder>,
+	/// The tablet sends touches as mouse input on the stream connection.
+	val touch: Boolean
+)
+
 @Serializable
 data class HelloPayload (
 	val protocolVersion: UInt,
@@ -137,7 +170,10 @@ data class HelloPayload (
 	/// The app can install an update without asking (kiosk mode: it is the
 	/// device owner). Only such tablets are offered updates over Wi-Fi.
 	/// Protocol 5.
-	val silentInstall: Boolean? = null
+	val silentInstall: Boolean? = null,
+	/// What the tablet can show as a second screen; absent: no second
+	/// screen. Protocol 5 (0.5).
+	val screen: ScreenCapability? = null
 )
 
 @Serializable
@@ -243,6 +279,66 @@ data class PairRequestPayload (
 data class PairSuccessPayload (
 	/// Secret to present in the next `hello`s (base64url, 32 random bytes).
 	val token: String
+)
+
+/// PC → tablet: a stream is ready. Open the stream connection with
+/// `ticket` within 10 seconds.
+@Serializable
+data class ScreenOfferPayload (
+	/// One-time secret (base64url, 32 random bytes), bound to this session.
+	val ticket: String,
+	val codec: VideoCodec,
+	/// Size of the pictures, within the chosen decoder's limits.
+	val width: UInt,
+	val height: UInt,
+	/// Frames per second at most (fewer when the screen does not change).
+	val fps: UInt
+)
+
+/// Why the tablet stopped. Never gains a value (an older PC could not read
+/// it): a new cause is sent as the closest one.
+@Serializable
+enum class ScreenStopReason(val string: String) {
+	/// The user asked for the grid (long press on a volume key).
+	@SerialName("user")
+	User("user"),
+	/// The decoder refused the stream or failed.
+	@SerialName("decoder_failed")
+	DecoderFailed("decoder_failed"),
+	/// The stream connection could not be opened or was lost.
+	@SerialName("stream_failed")
+	StreamFailed("stream_failed"),
+}
+
+/// Tablet → PC: the tablet left the second screen.
+@Serializable
+data class ScreenStopPayload (
+	val reason: ScreenStopReason
+)
+
+/// Why the PC stopped. Never gains a value (an older tablet could not read
+/// it): a new cause is sent as the closest one, `failed` by default.
+@Serializable
+enum class ScreenStoppedReason(val string: String) {
+	/// "Arrêter le second écran" on the PC, or the tablet's own `screen:stop`.
+	@SerialName("stopped")
+	Stopped("stopped"),
+	/// The user refused it on the PC (first-time confirmation, or the
+	/// system's screen sharing dialog).
+	@SerialName("refused")
+	Refused("refused"),
+	/// Another device took the second screen.
+	@SerialName("replaced")
+	Replaced("replaced"),
+	/// Capture or encoding failed, or the ticket was not used in time.
+	@SerialName("failed")
+	Failed("failed"),
+}
+
+/// PC → tablet: the second screen ended on the PC's side; back to the grid.
+@Serializable
+data class ScreenStoppedPayload (
+	val reason: ScreenStoppedReason
 )
 
 @Serializable
@@ -482,5 +578,18 @@ sealed class Message {
 	@Serializable
 	@SerialName("update:result")
 	data class UpdateResult(val payload: UpdateResultPayload): Message()
+	/// Desktop → tablet: a second screen stream is ready (only to tablets
+	/// that announced [`ScreenCapability`]); see the `screen` module.
+	@Serializable
+	@SerialName("screen:offer")
+	data class ScreenOffer(val payload: ScreenOfferPayload): Message()
+	/// Tablet → desktop: the tablet left the second screen.
+	@Serializable
+	@SerialName("screen:stop")
+	data class ScreenStop(val payload: ScreenStopPayload): Message()
+	/// Desktop → tablet: the second screen ended on the PC's side.
+	@Serializable
+	@SerialName("screen:stopped")
+	data class ScreenStopped(val payload: ScreenStoppedPayload): Message()
 }
 

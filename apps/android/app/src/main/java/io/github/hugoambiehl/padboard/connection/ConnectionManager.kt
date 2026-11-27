@@ -719,7 +719,12 @@ class ConnectionManager(
             is Message.PairFailure,
             is Message.TabletStatus,
             is Message.UpdateRequest,
-            is Message.UpdateResult -> Unit
+            is Message.UpdateResult,
+            is Message.ScreenStop -> Unit
+            // The second screen (#20) is not shown yet: `hello` announces no
+            // capability, so the PC never offers one.
+            is Message.ScreenOffer,
+            is Message.ScreenStopped -> Unit
             is Message.UpdateOffer -> offered(link, message.payload)
         }
         return null

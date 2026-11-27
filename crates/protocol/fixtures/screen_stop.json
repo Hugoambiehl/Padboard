@@ -1,0 +1,6 @@
+{
+  "type": "screen:stop",
+  "payload": {
+    "reason": "user"
+  }
+}
