@@ -85,6 +85,8 @@ class ConnectionManagerTest {
             deadAfter = 1.seconds,
             retryMin = 50.milliseconds,
             retryMax = 200.milliseconds,
+            supersededPause = 500.milliseconds,
+            supersededPauseMax = 2.seconds,
             updatePiecePause = 20.milliseconds
         )
     private val manager = ConnectionManager(scope, OkHttpClient(), pairing, directory, "Test tablet", config)
@@ -193,6 +195,57 @@ class ConnectionManagerTest {
         assertTrue(pc.superseded.get() >= 1)
         manager.press("terminal")
         await(pc.pressesFlow, "press over USB") { "terminal" in it }
+    }
+
+    /**
+     * Two copies of this tablet's connection (two activities of the app, seen
+     * on Android 12L in kiosk mode) took the PC from each other every
+     * `retryMin`: thousands of sessions an hour. A session replaced by
+     * another one of this tablet now waits longer and longer before taking
+     * the PC back.
+     */
+    @Test
+    fun aTabletSupersededAgainAndAgainBacksOff() {
+        pc.usbAvailable = true
+        val twinScope = CoroutineScope(SupervisorJob())
+        try {
+            val twin =
+                ConnectionManager(twinScope, OkHttpClient(), MemoryPairing(), FakeDirectory(), "Test tablet", config)
+            manager.start(DEVICE_ID)
+            connected(Transport.Usb)
+            twin.start(DEVICE_ID)
+            Thread.sleep(3_000)
+            // Without the back-off: one supersede every retryMin + handshake (dozens).
+            assertTrue("superseded ${pc.superseded.get()} times in 3 s", pc.superseded.get() <= 8)
+        } finally {
+            twinScope.cancel()
+        }
+    }
+
+    /** Replaced once (the other copy went away): the PC is taken back after the pause. */
+    @Test
+    fun aTabletSupersededOnceComesBack() {
+        pc.usbAvailable = true
+        val twinScope = CoroutineScope(SupervisorJob())
+        val twin = ConnectionManager(twinScope, OkHttpClient(), MemoryPairing(), FakeDirectory(), "Test tablet", config)
+        manager.start(DEVICE_ID)
+        connected(Transport.Usb)
+        twin.start(DEVICE_ID)
+        val deadline = System.currentTimeMillis() + 5_000
+        while (pc.superseded.get() == 0) {
+            assertTrue("never superseded", System.currentTimeMillis() < deadline)
+            Thread.sleep(20)
+        }
+        twinScope.cancel()
+        // The press can only come from this manager, once it has the PC again.
+        runBlocking {
+            withTimeout(8.seconds) {
+                while ("copy" !in pc.pressesFlow.value) {
+                    manager.press("copy")
+                    kotlinx.coroutines.delay(100)
+                }
+            }
+        }
     }
 
     @Test

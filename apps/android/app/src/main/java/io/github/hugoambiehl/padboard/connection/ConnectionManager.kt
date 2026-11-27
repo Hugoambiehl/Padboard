@@ -32,6 +32,7 @@ import java.util.logging.Logger
 import kotlin.io.encoding.Base64
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
@@ -159,6 +160,15 @@ class ConnectionManager(
         val deadAfter: Duration = 15.seconds,
         val retryMin: Duration = 500.milliseconds,
         val retryMax: Duration = 5.seconds,
+        /**
+         * Replaced by another session of this tablet (another copy of the
+         * app's connection): wait this long before taking the PC back,
+         * doubled each time it happens again, up to [supersededPauseMax].
+         * Taking it back at once made two copies replace each other
+         * forever, twice a second.
+         */
+        val supersededPause: Duration = 5.seconds,
+        val supersededPauseMax: Duration = 2.minutes,
         /** An update whose next piece does not come for this long is abandoned. */
         val updateStall: Duration = 30.seconds,
         /**
@@ -353,7 +363,14 @@ class ConnectionManager(
         var current = initial
         var retry = config.retryMin
         var attempt = 0
+        var supersededInARow = 0
+        var holdOff: Duration? = null
         while (scope.isActive) {
+            holdOff?.let { pause ->
+                holdOff = null
+                _state.value = searching(retry, attempt)
+                delay(pause)
+            }
             if (current == null) current = tryUsb() ?: tryWifi()
             if (current != null) {
                 retry = config.retryMin
@@ -372,35 +389,55 @@ class ConnectionManager(
                             _state.value = LinkState.Incompatible
                             return
                         }
-                        End.Lost, End.Superseded -> {
+                        End.Lost -> {
                             // A link that keeps dropping right away must not spin.
                             if (started.elapsedNow() < config.pingEvery) delay(config.retryMin)
+                            null
+                        }
+                        End.Superseded -> {
+                            // Never our own USB probe (see hold): another
+                            // session of this tablet took the PC. Taking it
+                            // back at once would start a tug of war.
+                            if (started.elapsedNow() > config.supersededPauseMax * 2) supersededInARow = 0
+                            val pause =
+                                (config.supersededPause * (1 shl supersededInARow.coerceAtMost(16)))
+                                    .coerceAtMost(config.supersededPauseMax)
+                            supersededInARow++
+                            log.warning(
+                                "replaced by another session of this tablet ($supersededInARow in a row): " +
+                                    "taking the PC back in $pause"
+                            )
+                            holdOff = pause
                             null
                         }
                     }
                 continue
             }
-            val paired = pairing.load()
-            val last = lastServer
             attempt++
-            _state.value =
-                if (last != null && last.id != paired?.serverId) {
-                    // Lost a PC reached over USB that is not the paired one
-                    // (another PC on the cable): only the cable brings it back.
-                    LinkState.Searching(last.name, wifi = false, retry.inWholeMilliseconds, attempt)
-                } else if (paired != null) {
-                    LinkState.Searching(
-                        paired.serverName,
-                        wifi = true,
-                        retry.inWholeMilliseconds,
-                        attempt,
-                        announced = directory.pcs.value.any { it.serverId == paired.serverId }
-                    )
-                } else {
-                    LinkState.Unpaired
-                }
+            _state.value = searching(retry, attempt)
             withTimeoutOrNull(retry) { wakeUp.receive() }
             retry = (retry * 2).coerceAtMost(config.retryMax)
+        }
+    }
+
+    /** What the tablet shows while it looks for the PC. */
+    private suspend fun searching(retry: Duration, attempt: Int): LinkState {
+        val paired = pairing.load()
+        val last = lastServer
+        return if (last != null && last.id != paired?.serverId) {
+            // Lost a PC reached over USB that is not the paired one
+            // (another PC on the cable): only the cable brings it back.
+            LinkState.Searching(last.name, wifi = false, retry.inWholeMilliseconds, attempt)
+        } else if (paired != null) {
+            LinkState.Searching(
+                paired.serverName,
+                wifi = true,
+                retry.inWholeMilliseconds,
+                attempt,
+                announced = directory.pcs.value.any { it.serverId == paired.serverId }
+            )
+        } else {
+            LinkState.Unpaired
         }
     }
 
