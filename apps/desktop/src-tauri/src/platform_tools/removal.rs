@@ -180,7 +180,7 @@ mod tests {
         fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
             self.calls
                 .borrow_mut()
-                .push(format!("rename {} {}", from.display(), to.display()));
+                .push(format!("rename {} {}", slashes(from), slashes(to)));
             if !self.present.get() {
                 return Err(io::ErrorKind::NotFound.into());
             }
@@ -196,7 +196,7 @@ mod tests {
         fn remove_dir_all(&self, dir: &Path) -> io::Result<()> {
             self.calls
                 .borrow_mut()
-                .push(format!("remove {}", dir.display()));
+                .push(format!("remove {}", slashes(dir)));
             if !self.aside.get() {
                 return Err(io::ErrorKind::NotFound.into());
             }
@@ -206,6 +206,11 @@ mod tests {
             self.aside.set(false);
             Ok(())
         }
+    }
+
+    /// The path with `/` only, so the expected calls read the same on Windows.
+    fn slashes(path: &Path) -> String {
+        path.display().to_string().replace('\\', "/")
     }
 
     fn renames(fs: &FakeFs) -> usize {
