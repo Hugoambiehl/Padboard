@@ -23,6 +23,33 @@ Logs:
 Device owner: `adb shell dpm list-owners` (Padboard listed = kiosk mode on;
 nothing = off).
 
+## Release candidate 0.4.0-rc.2: one screen in kiosk mode, through sleep
+
+rc.1 was stopped by a loop on this tablet: after the PC turned kiosk mode
+on, the first wake-up of the screen started the app a second time (the
+home entry, `HomeAlias`, beside the activity the PC had started), and the
+two connections of the same tablet replaced each other on the PC every
+0.52 s (about 4,000 `session superseded` an hour; the PC's window seemed
+to reload every second). In rc.2 kiosk mode runs in the home entry only,
+the app has one connection whatever its screens, a tablet replaced by its
+own other session waits longer and longer before taking the PC back, and
+the PC logs such a loop. The emulators keep this case only on Android 12L
+(`KioskSingleInstanceTest`, API 32 image); a real wake-up is checked here.
+
+PC and tablet both on 0.4.0-rc.2, the tablet out of kiosk mode, Padboard
+open on it. `adb shell dumpsys activity activities | grep -E "Hist +#.*padboard"`
+lists the app's screens ("one screen" below: exactly one line).
+
+| Check | Do | Expected |
+| --- | --- | --- |
+| Kiosk on | *Activer le mode kiosque* in the PC's USB card | One screen, `.HomeAlias`; `dumpsys activity activities` shows `mLockTaskModeState=LOCKED`; Padboard in front, connected |
+| Sleep | Short press on the power button (screen off), wait 1 min, press it again | Padboard in front, connected again within seconds; still one screen, `.HomeAlias`; `LOCKED` |
+| No loop | Leave it connected 10 min, then read the PC log | At most a few `session superseded` (USB ↔ Wi-Fi switches), never *keeps replacing its own session*; *Tablettes connectées* keeps the same *connecté depuis* time; tablet log (`adb logcat -d -s ConnectionManager`): no *replaced by another session of this tablet* |
+| Leave by the corner | Hold the bottom-left corner 5 s, confirm after 2 s | Padboard stays in front as a normal app: one screen, `.MainActivity`; `adb shell cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME` does not list Padboard; `dpm list-owners` lists nothing |
+| Again, with sleep | *Activer le mode kiosque*, then *Sleep* as above | As *Kiosk on* and *Sleep* |
+| Leave from the PC | *Libérer la tablette* in *Tablettes connectées* (two clicks) | As *Leave by the corner* |
+| Kiosk on again | *Activer le mode kiosque* | As *Kiosk on*; leave the tablet in kiosk mode |
+
 ## Release candidate 0.2.0-rc.2: the kiosk exit corner
 
 The hidden gesture moved from the top-right corner (next to the
