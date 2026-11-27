@@ -19,7 +19,6 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:lockTaskMode="if_whitelisted"
             android:screenOrientation="sensorLandscape"
             android:theme="@style/Theme.Padboard"
             android:windowSoftInputMode="adjustResize"
@@ -31,7 +30,11 @@
             </intent-filter>
         </activity>
 
-        <!-- Home entry, enabled only in kiosk mode (Kiosk.kt). -->
+        <!--
+            Home entry, enabled only in kiosk mode (Kiosk.kt), which runs in it:
+            only this screen locks its task (MainActivity.followKiosk; no
+            lockTaskMode in the manifest, that locked the PC's `am start` too).
+        -->
         <activity-alias
             android:name=".HomeAlias"
             android:enabled="false"
