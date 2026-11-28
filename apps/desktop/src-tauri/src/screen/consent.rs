@@ -134,6 +134,10 @@ impl Consents {
     }
 
     /// Question `id` still waits for its answer.
+    #[cfg_attr(
+        not(target_os = "linux"),
+        allow(dead_code, reason = "only the Linux notification asks")
+    )]
     #[must_use]
     pub fn is_waiting(&self, id: u64) -> bool {
         self.pending
