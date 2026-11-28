@@ -130,7 +130,8 @@ source, for now only on request (Linux, GStreamer):
 `PADBOARD_SCREEN_SOURCE=screen` (a virtual monitor through the
 ScreenCast portal: GNOME asks the first time, then remembers it with the
 token in `screen-cast-token` in the config dir) or
-`PADBOARD_SCREEN_SOURCE=pattern` (a test pattern, no portal, any mode). A tablet whose app announces the capability then gets the
+`PADBOARD_SCREEN_SOURCE=pattern` (a test pattern, no portal, any mode). `PADBOARD_SCREEN_ENCODERS=vp8` keeps only
+these encoders (a PC without VA-API H.264, as Ubuntu 22.04). A tablet whose app announces the capability then gets the
 stream; the PC shows "Second écran : <tablet>" with *Arrêter* in the
 header and in the tray menu.
 

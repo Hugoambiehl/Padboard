@@ -473,7 +473,9 @@ SM-T580, always measure in release builds.
   bottom-left corner (`KIOSK_EXIT_CORNER`, 40 dp) 5 s on any screen
   (touches observed, never consumed), then confirming (red button armed
   after 2 s; cancel by default, closes alone after 30 s). Every screen
-  keeps that margin empty, checked by `KioskCornerTest` (androidTest,
+  keeps that margin empty (the second screen included), checked by
+  `KioskCornerTest` (androidTest, API 37 with
+  `PADBOARD_TEST_GPU=swiftshader_indirect` since the second screen,
   `scripts/tablet-ui-tests.sh`: throwaway emulator at the tablet's size).
   The top-right corner was used up to rc.1: next to the connection pill,
   it was triggered during a pairing. The tablet reports kiosk mode with
