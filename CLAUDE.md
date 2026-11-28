@@ -270,7 +270,18 @@ SM-T580, always measure in release builds.
   GStreamer 1.20). Encoders: `vah264enc` (VA-API, GStreamer 1.22+, in
   `gstreamer1.0-plugins-extra` on recent Ubuntu, `-bad` before), else VP8
   (`vp8enc`, plugins-good); never x264. Frames are dropped before the
-  encoder (a `valve` opened per requested frame). The .deb depends on
+  encoder (an `identity` gate whose probe holds `ENCODER_AHEAD` = 2
+  credits, one back per frame the stream takes; a valve per requested
+  frame capped H.264 at ~49 fps). The screen (`screen/portal.rs`):
+  ScreenCast portal over the desktop's `zbus` (blocking), a `VIRTUAL`
+  monitor sized by the caps after `pipewiresrc` (`fd` + `path`, not
+  `target-object`: 22.04's PipeWire), cursor embedded, persist mode 2,
+  restore token owner-only in `screen-cast-token` (single use: replaced
+  each time), `keepalive-time` 500 ms. Starting may wait for the PC's
+  dialog: `offer_screen` is async, the source starts on a blocking
+  thread outside the sessions lock, a press meanwhile is ignored
+  (`Screens::starting`). Measured at 60 fps on the real screen: H.264
+  8 % of a core, VP8 51 % (`docs/design/second-screen.md`). The .deb depends on
   libgstreamer, plugins-base, plugins-good and gstreamer1.0-pipewire
   (already on an Ubuntu desktop: nothing added) and only *recommends*
   plugins-extra: plugins-bad was measured at +121–144 MiB (x264, x265…)
@@ -281,8 +292,8 @@ SM-T580, always measure in release builds.
   in `server::press`, never a multi step nor "Tester l'action"): offers
   a stream (`ServerContext::offer_screen`, `screen/`) to the tablet that
   pressed. Listed in the library only where `ServerContext.screen_source`
-  exists: for now the test pattern, `PADBOARD_SCREEN_SOURCE=pattern`
-  (Linux). While it runs the header and the tray show it with
+  exists: for now only on request, `PADBOARD_SCREEN_SOURCE=screen`
+  (virtual monitor) or `pattern` (Linux), until the tablet shows it. While it runs the header and the tray show it with
   "Arrêter" (`Snapshot.second_screen`, `stop_second_screen`).
 - **Desktop config**: versioned JSON documents (`storage.rs`: step-by-step
   migrations, atomic writes, owner-only secrets, unreadable files moved aside)

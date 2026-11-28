@@ -145,6 +145,31 @@ command, which cuts the USB connection (and the other tools' devices).
   accounts at the same time, another account could send keyboard shortcuts
   into your session while Padboard runs.
 
+## Second screen (from 0.5)
+
+The tablet can show a second screen of the PC (a new monitor, on GNOME
+and KDE Plasma 6). The first time, the desktop asks whether Padboard may
+share the screen; the answer is remembered until you revoke it in the
+system settings.
+
+The picture is encoded in **H.264 by the graphics card** when it can,
+else in VP8 by the processor (about half a core at 60 frames per second).
+For H.264 you need:
+
+- GStreamer's `va` plugin: on Ubuntu 26.04 and later,
+  ```sh
+  sudo apt install gstreamer1.0-plugins-extra
+  ```
+  (recommended by the package, so usually already there); on Ubuntu
+  24.04 and Debian 12 it is in `gstreamer1.0-plugins-bad` (about 120 MiB
+  with what it pulls in). Ubuntu 22.04's GStreamer is too old: VP8 only.
+- A VA-API driver that encodes H.264: Mesa's (`mesa-va-drivers`, AMD) or
+  Intel's (`intel-media-va-driver`), usually installed with the desktop.
+
+Check with `gst-inspect-1.0 vah264enc`: if it prints the element's
+details, H.264 is used; *No such element* means VP8. Padboard writes
+which encoders it found in its log at startup (`second screen encoders`).
+
 ## Uninstall
 
 Turn *Startup* off if you enabled it, quit Padboard, then
