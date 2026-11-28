@@ -138,11 +138,27 @@ pub struct TrayTexts {
     /// The second screen runs on `{name}`.
     pub screen: &'static str,
     pub stop_screen: &'static str,
-    /// The PC's question about a second screen (notification).
+    /// The PC's question about a second screen (Linux notification).
+    #[cfg_attr(
+        not(target_os = "linux"),
+        allow(dead_code, reason = "Linux notification only")
+    )]
     pub question_title: &'static str,
     /// `{name}` asks, over `{via}`.
+    #[cfg_attr(
+        not(target_os = "linux"),
+        allow(dead_code, reason = "Linux notification only")
+    )]
     pub question_body: &'static str,
+    #[cfg_attr(
+        not(target_os = "linux"),
+        allow(dead_code, reason = "Linux notification only")
+    )]
     pub allow: &'static str,
+    #[cfg_attr(
+        not(target_os = "linux"),
+        allow(dead_code, reason = "Linux notification only")
+    )]
     pub refuse: &'static str,
 }
 

@@ -331,7 +331,6 @@ fn revoke_device(backend: tauri::State<'_, Backend>, device_id: String) -> bool 
 /// shown and asking for attention (Windows: the taskbar flashes), and on
 /// Linux a notification answering it (GNOME on Wayland never lets the
 /// window come to the front by itself).
-#[derive(Default)]
 struct ScreenQuestions {
     /// The notification is named "Padboard (test)".
     #[cfg(target_os = "linux")]
@@ -341,6 +340,17 @@ struct ScreenQuestions {
 }
 
 impl ScreenQuestions {
+    fn new(test: bool) -> Self {
+        #[cfg(not(target_os = "linux"))]
+        let _ = test;
+        Self {
+            #[cfg(target_os = "linux")]
+            test,
+            #[cfg(target_os = "linux")]
+            notice: Arc::default(),
+        }
+    }
+
     fn follow(&self, handle: &tauri::AppHandle, event: &ServerEvent) {
         match event {
             ServerEvent::ScreenRequest {
@@ -1033,11 +1043,7 @@ pub fn run() {
             }
 
             // Fold server events into the snapshot and push it to the UI.
-            let questions = ScreenQuestions {
-                #[cfg(target_os = "linux")]
-                test: test_mode.is_some(),
-                ..ScreenQuestions::default()
-            };
+            let questions = ScreenQuestions::new(test_mode.is_some());
             tauri::async_runtime::spawn(async move {
                 while let Some(event) = events_rx.recv().await {
                     questions.follow(&handle, &event);
