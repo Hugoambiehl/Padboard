@@ -10,6 +10,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.edit
+import io.github.hugoambiehl.padboard.MainActivity
 import io.github.hugoambiehl.padboard.connection.KioskExitLog
 import io.github.hugoambiehl.padboard.connection.LocalNetwork
 import io.github.hugoambiehl.padboard.protocol.KioskExitOrigin
@@ -50,7 +51,13 @@ object Kiosk {
 
     private fun admin(context: Context) = ComponentName(context, KioskAdmin::class.java)
 
-    private fun home(context: Context) = ComponentName(context, "${context.packageName}.HomeAlias")
+    /**
+     * The home entry's class (manifest `.HomeAlias`): named after the code's
+     * namespace, not the package (the dev build's id ends with `.dev`).
+     */
+    val HOME_ALIAS = "${MainActivity::class.java.name.substringBeforeLast('.')}.HomeAlias"
+
+    private fun home(context: Context) = ComponentName(context, HOME_ALIAS)
 
     /** Starts the app as the home entry, where kiosk mode runs (see MainActivity). */
     fun homeIntent(context: Context): Intent = Intent(Intent.ACTION_MAIN)

@@ -73,7 +73,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /** Started as the home entry (kiosk mode), not by the launcher or the PC. */
-    private val isHome get() = componentName.className == "$packageName.HomeAlias"
+    private val isHome get() = componentName.className == Kiosk.HOME_ALIAS
 
     /** This instance already handed kiosk mode to the home entry (once). */
     private var homeRequested = false

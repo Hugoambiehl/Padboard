@@ -82,6 +82,8 @@ class ScreenPlayer(
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            // After close() or end(): the socket's own cancellation.
+            if (!open.get()) return
             log.log(Level.WARNING, "second screen stream failed", t)
             end(ScreenStopReason.StreamFailed)
         }
