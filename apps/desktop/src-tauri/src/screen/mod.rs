@@ -5,6 +5,7 @@
 //! - [`format`]: the stream's codec and size, from the tablet's capability.
 //! - [`ticket`]: one-time tickets.
 //! - [`flow`]: at most two frames in flight.
+//! - [`gst`], [`portal`] (Linux): the screen and the test pattern.
 //! - [`stream`]: the loop of a stream connection, pulling frames from a
 //!   [`FrameSource`] only while the flow allows it.
 //!
@@ -14,13 +15,15 @@ pub mod flow;
 pub mod format;
 #[cfg(target_os = "linux")]
 pub mod gst;
+#[cfg(target_os = "linux")]
+pub mod portal;
 pub mod stream;
 pub mod ticket;
 
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Instant;
 
 use padboard_protocol::VideoCodec;
@@ -71,9 +74,13 @@ pub trait FrameSource: Send {
     fn request_key_frame(&mut self);
 }
 
-/// A kind of source this PC has (the test pattern for now; the screen
-/// next), with what it can encode here.
-#[derive(Debug, Clone, Copy)]
+/// Starts a source for a stream (may block: the PC's user may be asked).
+pub type StartSource =
+    Arc<dyn Fn(StreamFormat) -> Result<Box<dyn FrameSource>, String> + Send + Sync>;
+
+/// A kind of source this PC has (the screen, or the test pattern), with
+/// what it can encode here.
+#[derive(Clone)]
 pub struct SourceFactory {
     /// For the log.
     pub name: &'static str,
@@ -82,11 +89,19 @@ pub struct SourceFactory {
     /// Packages to install when `encoders` is empty.
     pub missing: fn() -> Vec<&'static str>,
     /// Starts a source for a stream.
-    pub start: fn(StreamFormat) -> Result<Box<dyn FrameSource>, String>,
+    pub start: StartSource,
 }
 
-/// The test pattern (Linux: GStreamer), for development and tests until
-/// the screen capture: `PADBOARD_SCREEN_SOURCE=pattern`.
+impl fmt::Debug for SourceFactory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SourceFactory")
+            .field("name", &self.name)
+            .finish_non_exhaustive()
+    }
+}
+
+/// The test pattern (Linux: GStreamer), for development and tests:
+/// `PADBOARD_SCREEN_SOURCE=pattern`.
 #[cfg(target_os = "linux")]
 #[must_use]
 pub fn pattern_factory() -> SourceFactory {
@@ -94,19 +109,58 @@ pub fn pattern_factory() -> SourceFactory {
         name: "test pattern",
         encoders: gst::encoders,
         missing: gst::missing,
-        start: |format| {
-            gst::PatternSource::start(format).map(|s| Box::new(s) as Box<dyn FrameSource>)
-        },
+        start: Arc::new(|format| {
+            gst::GstSource::start(gst::Input::Pattern, format)
+                .map(|s| Box::new(s) as Box<dyn FrameSource>)
+        }),
     }
 }
 
-/// The source the second screen uses on this PC, if any.
+/// File keeping the ScreenCast portal's restore token (owner-only): the
+/// PC's user is asked once, until they revoke it in the desktop's settings.
+#[cfg(target_os = "linux")]
+const RESTORE_TOKEN_FILE: &str = "screen-cast-token";
+
+/// The screen (Linux: a virtual monitor through the ScreenCast portal).
+#[cfg(target_os = "linux")]
 #[must_use]
-pub fn factory() -> Option<SourceFactory> {
-    #[cfg(target_os = "linux")]
-    if std::env::var("PADBOARD_SCREEN_SOURCE").is_ok_and(|v| v == "pattern") {
-        return Some(pattern_factory());
+pub fn screen_factory(config: crate::storage::ConfigDir) -> SourceFactory {
+    SourceFactory {
+        name: "screen",
+        encoders: gst::encoders,
+        missing: gst::missing,
+        start: Arc::new(move |format| {
+            let restore = config
+                .read_raw(RESTORE_TOKEN_FILE)
+                .ok()
+                .flatten()
+                .and_then(|bytes| String::from_utf8(bytes).ok());
+            let session = portal::start(restore.as_deref()).map_err(|e| e.to_string())?;
+            // Each token is good once: keep the new one.
+            if let Some(token) = &session.restore_token
+                && let Err(e) = config.write_secret(RESTORE_TOKEN_FILE, token.as_bytes())
+            {
+                tracing::warn!(error = %e, "second screen: cannot keep the sharing permission");
+            }
+            gst::GstSource::start(gst::Input::Screen(Arc::new(session)), format)
+                .map(|s| Box::new(s) as Box<dyn FrameSource>)
+        }),
     }
+}
+
+/// The source the second screen uses on this PC, if any: for now only
+/// on request (`PADBOARD_SCREEN_SOURCE=screen` or `pattern`, Linux), until
+/// the tablet shows it.
+#[must_use]
+pub fn factory(config: &crate::storage::ConfigDir) -> Option<SourceFactory> {
+    #[cfg(target_os = "linux")]
+    match std::env::var("PADBOARD_SCREEN_SOURCE").as_deref() {
+        Ok("pattern") => return Some(pattern_factory()),
+        Ok("screen") => return Some(screen_factory(config.clone())),
+        _ => {}
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = config;
     None
 }
 
@@ -157,6 +211,19 @@ struct Inner {
 #[derive(Debug, Default)]
 pub struct Screens {
     inner: Mutex<Inner>,
+    /// A source is being started (the PC's user may be answering the
+    /// desktop's dialog): further presses are ignored meanwhile.
+    starting: std::sync::atomic::AtomicBool,
+}
+
+/// Held while a source starts ([`Screens::starting`]).
+#[derive(Debug)]
+pub struct Starting<'a>(&'a std::sync::atomic::AtomicBool);
+
+impl Drop for Starting<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, std::sync::atomic::Ordering::Release);
+    }
 }
 
 /// A new offer, ready to send.
@@ -169,6 +236,16 @@ pub struct Offered {
 }
 
 impl Screens {
+    /// Marks a source as starting until the guard is dropped; `None` if
+    /// one already is.
+    pub fn starting(&self) -> Option<Starting<'_>> {
+        use std::sync::atomic::Ordering;
+        self.starting
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .ok()
+            .map(|_| Starting(&self.starting))
+    }
+
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
         self.inner.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -292,12 +369,12 @@ pub mod testing {
             name: "fake",
             encoders: || vec![VideoCodec::H264],
             missing: Vec::new,
-            start: |_| {
+            start: Arc::new(|_| {
                 Ok(Box::new(FakeSource {
                     interval: Duration::from_millis(5),
                     ..FakeSource::default()
-                }))
-            },
+                }) as Box<dyn FrameSource>)
+            }),
         }
     }
 
@@ -330,6 +407,16 @@ pub mod testing {
 mod tests {
     use super::testing::FakeSource;
     use super::*;
+
+    #[test]
+    fn one_source_starts_at_a_time() {
+        let screens = Screens::default();
+        let first = screens.starting().unwrap();
+        // The PC's dialog is open: another press is ignored.
+        assert!(screens.starting().is_none());
+        drop(first);
+        assert!(screens.starting().is_some());
+    }
 
     fn format() -> StreamFormat {
         StreamFormat {

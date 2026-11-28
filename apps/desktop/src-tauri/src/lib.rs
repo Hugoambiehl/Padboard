@@ -975,7 +975,7 @@ pub fn run() {
                     }
                 },
                 screens: screen::Screens::default(),
-                screen_source: screen::factory(),
+                screen_source: screen::factory(&config),
             });
             // OBS: real in normal and system test modes (and with
             // PADBOARD_TEST_OBS); otherwise its state comes from state.json.
