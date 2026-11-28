@@ -133,6 +133,16 @@ impl Consents {
         }
     }
 
+    /// Question `id` still waits for its answer.
+    #[must_use]
+    pub fn is_waiting(&self, id: u64) -> bool {
+        self.pending
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_ref()
+            .is_some_and(|(waiting, _)| *waiting == id)
+    }
+
     /// Question `id` is over (answered or timed out).
     pub fn close(&self, id: u64) {
         let mut pending = self.pending.lock().unwrap_or_else(PoisonError::into_inner);

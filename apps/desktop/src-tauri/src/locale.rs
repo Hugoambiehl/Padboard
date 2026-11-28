@@ -138,6 +138,12 @@ pub struct TrayTexts {
     /// The second screen runs on `{name}`.
     pub screen: &'static str,
     pub stop_screen: &'static str,
+    /// The PC's question about a second screen (notification).
+    pub question_title: &'static str,
+    /// `{name}` asks, over `{via}`.
+    pub question_body: &'static str,
+    pub allow: &'static str,
+    pub refuse: &'static str,
 }
 
 const TRAY_FR: TrayTexts = TrayTexts {
@@ -148,6 +154,10 @@ const TRAY_FR: TrayTexts = TrayTexts {
     tablets: "{n} tablettes connectées",
     screen: "Second écran : {name}",
     stop_screen: "Arrêter le second écran",
+    question_title: "Second écran",
+    question_body: "« {name} » ({via}) veut afficher un second écran de ce PC. Il verra tout ce qui s’affiche sur cet écran.",
+    allow: "Autoriser",
+    refuse: "Refuser",
 };
 
 const TRAY_EN: TrayTexts = TrayTexts {
@@ -158,6 +168,10 @@ const TRAY_EN: TrayTexts = TrayTexts {
     tablets: "{n} tablets connected",
     screen: "Second screen: {name}",
     stop_screen: "Stop the second screen",
+    question_title: "Second screen",
+    question_body: "“{name}” ({via}) wants to show a second screen of this PC. It will see everything shown on that screen.",
+    allow: "Allow",
+    refuse: "Refuse",
 };
 
 #[must_use]

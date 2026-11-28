@@ -17,6 +17,8 @@ pub mod format;
 #[cfg(target_os = "linux")]
 pub mod gst;
 #[cfg(target_os = "linux")]
+pub mod notice;
+#[cfg(target_os = "linux")]
 pub mod portal;
 pub mod stream;
 pub mod ticket;
