@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.hugoambiehl.padboard.connection.DiscoveredPc
 import io.github.hugoambiehl.padboard.connection.LinkState
+import io.github.hugoambiehl.padboard.connection.ScreenOffer
+import io.github.hugoambiehl.padboard.connection.Session
 import io.github.hugoambiehl.padboard.connection.Transport
 import io.github.hugoambiehl.padboard.connection.UpdateProgress
 import io.github.hugoambiehl.padboard.protocol.ButtonView
@@ -29,6 +31,8 @@ import io.github.hugoambiehl.padboard.protocol.NavigatePayload
 import io.github.hugoambiehl.padboard.protocol.NavigateTarget
 import io.github.hugoambiehl.padboard.protocol.Page
 import io.github.hugoambiehl.padboard.protocol.ProfileInfo
+import io.github.hugoambiehl.padboard.protocol.ScreenOfferPayload
+import io.github.hugoambiehl.padboard.protocol.VideoCodec
 import io.github.hugoambiehl.padboard.ui.about.AboutScreen
 import io.github.hugoambiehl.padboard.ui.connect.IncompatibleScreen
 import io.github.hugoambiehl.padboard.ui.connect.PinScreen
@@ -38,10 +42,12 @@ import io.github.hugoambiehl.padboard.ui.connect.UpdateOnlyScreen
 import io.github.hugoambiehl.padboard.ui.grid.GridScreen
 import io.github.hugoambiehl.padboard.ui.grid.GridStatus
 import io.github.hugoambiehl.padboard.ui.grid.PageMemory
+import io.github.hugoambiehl.padboard.ui.screen.SecondScreen
 import io.github.hugoambiehl.padboard.ui.theme.PadboardTheme
 import io.github.hugoambiehl.padboard.ui.update.UpdateOverlay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.emptyFlow
+import okhttp3.OkHttpClient
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -82,6 +88,19 @@ class KioskCornerTest {
                     MutableSharedFlow<NavigatePayload>(replay = 1).apply {
                         tryEmit(NavigatePayload(NavigateTarget.Folder, "f"))
                     }
+                )
+            },
+            "second screen" to {
+                // No PC behind it: the player fails quietly, the screen stays.
+                val nowhere = "ws://127.0.0.1:9"
+                SecondScreen(
+                    ScreenOffer(
+                        ScreenOfferPayload("ticket", VideoCodec.H264, 1728u, 1080u, 60u),
+                        Session.open(OkHttpClient(), "$nowhere/"),
+                        OkHttpClient(),
+                        nowhere
+                    ),
+                    onEnd = {}
                 )
             },
             "disconnected" to {

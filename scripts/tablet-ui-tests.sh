@@ -17,7 +17,8 @@
 #
 # PADBOARD_TEST_GPU (default guest) and PADBOARD_TEST_RAM (MB, default
 # 2048, the tablet's) change the emulator: LocalNetworkTest, on demand,
-# runs on API 37 with swiftshader_indirect and 4096.
+# and KioskCornerTest since the second screen (its SurfaceView aborts the
+# guest GPU, see below) run on API 37 with swiftshader_indirect and 4096.
 #
 # The API 37 images abort on some screen reads ("Assertion failed:
 # !rcEnc->featureInfo()->hasReadColorBufferDma"): SurfaceFlinger when the
