@@ -52,9 +52,14 @@ trust.
 to the tablet
 ([design](docs/design/second-screen.md#usb-check-the-process-on-the-other-end)):
 
-- The first time a device starts a second screen, the PC asks for
-  confirmation. The answer is remembered only for a verified connection
-  (paired Wi-Fi, or USB that passed the check above).
+- The first time a device starts a second screen, Padboard's window comes
+  forward and asks (refused by default, and after 60 seconds without an
+  answer). The answer is remembered only for a verified connection
+  (paired Wi-Fi, or USB that passed the check above); over USB the device
+  is recognised by the identifier it announces, so another device plugged
+  in through adb could claim it. Allowed devices are listed in
+  *Connexions* → *Second écran autorisé*, where they can be removed;
+  revoking a pairing removes it too.
 - While the screen is shared, the tray icon shows it, with "Arrêter le
   second écran".
 - On Windows, the extended screen uses
