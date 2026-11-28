@@ -49,6 +49,12 @@ sealed class StreamFrame {
     }
 
     companion object {
+        /** Path of the stream connection (`STREAM_PATH` in crates/protocol). */
+        const val PATH = "/stream"
+
+        /** Header carrying the offer's ticket (`STREAM_TICKET_HEADER` in crates/protocol). */
+        const val TICKET_HEADER = "x-padboard-ticket"
+
         private const val VIDEO: Byte = 1
         private const val ACK: Byte = 2
         private const val KEY_FRAME_REQUEST: Byte = 3

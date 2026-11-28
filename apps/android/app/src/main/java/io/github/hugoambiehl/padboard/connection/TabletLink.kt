@@ -3,10 +3,12 @@ package io.github.hugoambiehl.padboard.connection
 import android.app.Application
 import android.os.Build
 import android.provider.Settings
+import io.github.hugoambiehl.padboard.BuildConfig
 import io.github.hugoambiehl.padboard.kiosk.Kiosk
 import io.github.hugoambiehl.padboard.kiosk.KioskExits
 import io.github.hugoambiehl.padboard.protocol.KioskExitOrigin
 import io.github.hugoambiehl.padboard.protocol.TabletOrder
+import io.github.hugoambiehl.padboard.screen.ScreenDecoders
 import io.github.hugoambiehl.padboard.update.AndroidUpdater
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
@@ -43,7 +45,9 @@ class TabletLink private constructor(application: Application) {
             deviceName = deviceName(application),
             updater = AndroidUpdater(application),
             kioskExits = KioskExits(application),
-            localNetwork = { LocalNetwork.allowed.value }
+            config = ConnectionManager.Config(usbEndpoint = Endpoint(Endpoint.LOOPBACK, BuildConfig.USB_PORT)),
+            localNetwork = { LocalNetwork.allowed.value },
+            screenCapability = { ScreenDecoders.capability(application) }
         )
 
     init {

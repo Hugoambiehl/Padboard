@@ -20,11 +20,19 @@ import io.github.hugoambiehl.padboard.protocol.PairFailurePayload
 import io.github.hugoambiehl.padboard.protocol.PairFailureReason
 import io.github.hugoambiehl.padboard.protocol.PairSuccessPayload
 import io.github.hugoambiehl.padboard.protocol.ProfileInfo
+import io.github.hugoambiehl.padboard.protocol.ScreenCapability
+import io.github.hugoambiehl.padboard.protocol.ScreenDecoder
+import io.github.hugoambiehl.padboard.protocol.ScreenOfferPayload
+import io.github.hugoambiehl.padboard.protocol.ScreenStopPayload
+import io.github.hugoambiehl.padboard.protocol.ScreenStopReason
+import io.github.hugoambiehl.padboard.protocol.ScreenStoppedPayload
+import io.github.hugoambiehl.padboard.protocol.ScreenStoppedReason
 import io.github.hugoambiehl.padboard.protocol.SessionMode
 import io.github.hugoambiehl.padboard.protocol.TabletStatusPayload
 import io.github.hugoambiehl.padboard.protocol.UPDATE_CHUNK_SIZE
 import io.github.hugoambiehl.padboard.protocol.UpdateOfferPayload
 import io.github.hugoambiehl.padboard.protocol.UpdateOutcome
+import io.github.hugoambiehl.padboard.protocol.VideoCodec
 import io.github.hugoambiehl.padboard.protocol.WelcomePayload
 import io.github.hugoambiehl.padboard.protocol.parseMessage
 import io.github.hugoambiehl.padboard.protocol.toJson
@@ -41,6 +49,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -158,6 +167,54 @@ class ConnectionManagerTest {
         pc.usbUnverified = false
         connected(Transport.Usb)
         assertFalse(manager.usbRefused.value)
+    }
+
+    @Test
+    fun aSecondScreenIsAnnouncedOfferedOpenedAndLeft() {
+        val capability =
+            ScreenCapability(1920u, 1200u, listOf(ScreenDecoder(VideoCodec.H264, 1920u, 1088u)), touch = false)
+        val m =
+            ConnectionManager(
+                scope,
+                OkHttpClient(),
+                pairing,
+                directory,
+                "Test tablet",
+                config,
+                screenCapability = { capability }
+            )
+        pc.usbAvailable = true
+        m.start(DEVICE_ID)
+        await(m.state, "connected") { it is LinkState.Connected }
+        assertEquals(capability, pc.helloPayloads.last().screen)
+
+        val payload = ScreenOfferPayload("ticket-secret", VideoCodec.H264, 1728u, 1080u, 60u)
+        pc.sendToTablets(Message.ScreenOffer(payload))
+        val offer = await(m.screen, "offer") { it != null }!!
+        assertEquals(payload, offer.payload)
+        assertFalse("the ticket is never printed", offer.toString().contains("ticket-secret"))
+
+        // The stream goes to the session's transport, the ticket in a header.
+        val socket = offer.open(object : WebSocketListener() {})
+        runBlocking { withTimeout(5.seconds) { while (pc.streamRequests.isEmpty()) delay(20) } }
+        assertEquals("/stream" to "ticket-secret", pc.streamRequests.single())
+        socket.cancel()
+
+        m.stopScreen(offer, ScreenStopReason.User)
+        await(m.screen, "left") { it == null }
+        await(pc.receivedFlow, "screen:stop") { messages ->
+            messages.any { it == Message.ScreenStop(ScreenStopPayload(ScreenStopReason.User)) }
+        }
+
+        // The PC stops the next one; a lost session ends its offer too.
+        pc.sendToTablets(Message.ScreenOffer(payload))
+        await(m.screen, "second offer") { it != null }
+        pc.sendToTablets(Message.ScreenStopped(ScreenStoppedPayload(ScreenStoppedReason.Stopped)))
+        await(m.screen, "stopped by the PC") { it == null }
+        pc.sendToTablets(Message.ScreenOffer(payload))
+        await(m.screen, "third offer") { it != null }
+        pc.dropUsb()
+        await(m.screen, "session lost") { it == null }
     }
 
     @Test
@@ -629,6 +686,9 @@ private class FakePc(val serverId: String, val name: String) {
 
     @Volatile var usbAvailable = false
 
+    /** Stream connections opened: path and ticket header. */
+    val streamRequests = CopyOnWriteArrayList<Pair<String?, String?>>()
+
     /** The PC cannot check that USB connections come from adb (usb_peer). */
     @Volatile var usbUnverified = false
 
@@ -670,7 +730,10 @@ private class FakePc(val serverId: String, val name: String) {
     }
 
     private fun dispatcherFor(transport: Transport) = object : Dispatcher() {
-        override fun dispatch(request: RecordedRequest): MockResponse = if (transport == Transport.Usb &&
+        override fun dispatch(request: RecordedRequest): MockResponse = if (request.url.encodedPath == "/stream") {
+            streamRequests += request.url.encodedPath to request.headers["x-padboard-ticket"]
+            MockResponse.Builder().webSocketUpgrade(object : WebSocketListener() {}).build()
+        } else if (transport == Transport.Usb &&
             !usbAvailable
         ) {
             MockResponse.Builder().code(503).build()

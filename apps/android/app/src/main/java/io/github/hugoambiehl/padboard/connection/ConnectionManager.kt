@@ -14,7 +14,12 @@ import io.github.hugoambiehl.padboard.protocol.NavigatePayload
 import io.github.hugoambiehl.padboard.protocol.PROTOCOL_VERSION
 import io.github.hugoambiehl.padboard.protocol.PairFailureReason
 import io.github.hugoambiehl.padboard.protocol.PairRequestPayload
+import io.github.hugoambiehl.padboard.protocol.ScreenCapability
+import io.github.hugoambiehl.padboard.protocol.ScreenOfferPayload
+import io.github.hugoambiehl.padboard.protocol.ScreenStopPayload
+import io.github.hugoambiehl.padboard.protocol.ScreenStopReason
 import io.github.hugoambiehl.padboard.protocol.SessionMode
+import io.github.hugoambiehl.padboard.protocol.StreamFrame
 import io.github.hugoambiehl.padboard.protocol.SystemStatusPayload
 import io.github.hugoambiehl.padboard.protocol.TabletOrder
 import io.github.hugoambiehl.padboard.protocol.TabletSettingsPayload
@@ -156,7 +161,9 @@ class ConnectionManager(
     private val updater: AppUpdater = AppUpdater.None,
     private val kioskExits: KioskExitLog = KioskExitLog.None,
     /** Wi-Fi may be used (Android 17: the local network permission, see LocalNetwork). */
-    private val localNetwork: () -> Boolean = { true }
+    private val localNetwork: () -> Boolean = { true },
+    /** What the tablet can show as a second screen (`hello`); null: nothing. */
+    private val screenCapability: () -> ScreenCapability? = { null }
 ) {
     data class Config(
         val usbEndpoint: Endpoint = Endpoint(Endpoint.LOOPBACK, Endpoint.USB_PORT),
@@ -242,6 +249,11 @@ class ConnectionManager(
     /** Set by [handshake] when the PC answers with that refusal. */
     private var usbRefusedNow = false
 
+    private val _screen = MutableStateFlow<ScreenOffer?>(null)
+
+    /** The second screen the PC offers (#20); null when the grid shows. */
+    val screen: StateFlow<ScreenOffer?> = _screen.asStateFlow()
+
     private val _update = MutableStateFlow<UpdateProgress?>(null)
 
     /** An update sent by the PC over the connection (kiosk mode only). */
@@ -275,7 +287,14 @@ class ConnectionManager(
     private val wakeUp = Channel<Unit>(Channel.CONFLATED)
     private val pins = Channel<String>(Channel.CONFLATED)
 
-    private class Active(val session: Session, val transport: Transport, val welcome: WelcomePayload)
+    private class Active(
+        val session: Session,
+        val transport: Transport,
+        val welcome: WelcomePayload,
+        /** The client and address of the session, for its stream connection. */
+        val client: OkHttpClient,
+        val base: String
+    )
 
     private sealed interface End {
         /** The link dropped: reconnect. */
@@ -310,6 +329,16 @@ class ConnectionManager(
     fun press(buttonId: String) = send(Message.ButtonPress(ButtonEvent(buttonId)))
 
     fun release(buttonId: String) = send(Message.ButtonRelease(ButtonEvent(buttonId)))
+
+    /** Leaves the second screen [offer] (back to the grid), telling the PC why. */
+    fun stopScreen(offer: ScreenOffer, reason: ScreenStopReason) {
+        scope.launch {
+            if (_screen.value !== offer) return@launch
+            _screen.value = null
+            log.info("second screen left: $reason")
+            active?.session?.send(Message.ScreenStop(ScreenStopPayload(reason)))
+        }
+    }
 
     /** Pairs over Wi-Fi with a discovered PC (its addresses are tried in order). */
     fun pair(pc: DiscoveredPc) {
@@ -469,7 +498,8 @@ class ConnectionManager(
             token,
             appVersion = updater.versionName,
             appVersionCode = updater.versionCode?.takeIf { it in 0..UInt.MAX_VALUE.toLong() }?.toUInt(),
-            silentInstall = updater.canInstallSilently()
+            silentInstall = updater.canInstallSilently(),
+            screen = screenCapability()
         )
     )
 
@@ -509,7 +539,8 @@ class ConnectionManager(
     }
 
     private suspend fun tryUsb(): Active? {
-        val session = Session.open(http, "ws://${config.usbEndpoint.display}/")
+        val base = "ws://${config.usbEndpoint.display}"
+        val session = Session.open(http, "$base/")
         // USB needs no token: never send it outside TLS.
         usbRefusedNow = false
         val welcome = handshake(session, token = null)
@@ -519,7 +550,7 @@ class ConnectionManager(
             session.cancel()
             return null
         }
-        return Active(session, Transport.Usb, welcome)
+        return Active(session, Transport.Usb, welcome, http, base)
     }
 
     private suspend fun tryWifi(): Active? {
@@ -528,7 +559,8 @@ class ConnectionManager(
         val pc = pairing.load() ?: return null
         val client = http.pinnedTo(pc.pin)
         for (endpoint in candidates(pc)) {
-            val session = Session.open(client, "wss://${endpoint.display}/")
+            val base = "wss://${endpoint.display}"
+            val session = Session.open(client, "$base/")
             // A pinning failure closes the session: handshake() returns null.
             val welcome = handshake(session, pc.token) ?: continue
             if (welcome.serverId != pc.serverId) {
@@ -538,7 +570,7 @@ class ConnectionManager(
             when (welcome.auth) {
                 AuthStatus.Authenticated -> {
                     if (endpoint != pc.lastEndpoint) pairing.updateEndpoint(endpoint)
-                    return Active(session, Transport.Wifi, welcome)
+                    return Active(session, Transport.Wifi, welcome, client, base)
                 }
                 AuthStatus.TokenRejected -> {
                     log.info("the paired PC rejected the token: pairing again is needed")
@@ -674,6 +706,8 @@ class ConnectionManager(
                 active = null
                 _systemStatus.value = null
             }
+            // Its stream belongs to this session (a new session gets a new offer).
+            if (_screen.value?.session === link.session) _screen.value = null
             // Make-before-break: the new session is already up when this one closes.
             link.session.close()
             // A USB session found while this one was ending must not leak.
@@ -740,10 +774,17 @@ class ConnectionManager(
             is Message.UpdateRequest,
             is Message.UpdateResult,
             is Message.ScreenStop -> Unit
-            // The second screen (#20) is not shown yet: `hello` announces no
-            // capability, so the PC never offers one.
-            is Message.ScreenOffer,
-            is Message.ScreenStopped -> Unit
+            is Message.ScreenOffer -> {
+                log.info(
+                    "second screen offered: ${message.payload.codec} " +
+                        "${message.payload.width}x${message.payload.height}"
+                )
+                _screen.value = ScreenOffer(message.payload, link.session, link.client, link.base)
+            }
+            is Message.ScreenStopped -> {
+                log.info("second screen stopped by the PC: ${message.payload.reason}")
+                _screen.value = null
+            }
             is Message.UpdateOffer -> offered(link, message.payload)
         }
         return null
@@ -911,7 +952,7 @@ class ConnectionManager(
                             is SessionEvent.Received ->
                                 when (val message = event.message) {
                                     is Message.PairSuccess -> {
-                                        pairing.save(
+                                        val paired =
                                             PairedPc(
                                                 serverId = welcome.serverId,
                                                 serverName = welcome.serverName,
@@ -921,12 +962,15 @@ class ConnectionManager(
                                                 ),
                                                 lastEndpoint = endpoint
                                             )
-                                        )
+                                        pairing.save(paired)
                                         log.info("paired with ${welcome.serverName}")
                                         return Active(
                                             session,
                                             Transport.Wifi,
-                                            welcome.copy(auth = AuthStatus.Authenticated)
+                                            welcome.copy(auth = AuthStatus.Authenticated),
+                                            // The stream: pinned to the key just accepted.
+                                            http.pinnedTo(paired.pin),
+                                            "wss://${endpoint.display}"
                                         )
                                     }
                                     is Message.PairFailure ->
@@ -952,4 +996,28 @@ class ConnectionManager(
         const val MAX_PENDING_PINGS = 8
         val log: Logger = Logger.getLogger(ConnectionManager::class.java.name)
     }
+}
+
+/**
+ * A second screen offered by the PC: [open] connects its stream (same
+ * transport as the session, the ticket in a header), once, within the
+ * ticket's 10 s.
+ */
+class ScreenOffer internal constructor(
+    val payload: ScreenOfferPayload,
+    internal val session: Session,
+    private val client: OkHttpClient,
+    private val base: String
+) {
+    fun open(listener: okhttp3.WebSocketListener): okhttp3.WebSocket = client.newWebSocket(
+        okhttp3.Request
+            .Builder()
+            .url(base + StreamFrame.PATH)
+            .header(StreamFrame.TICKET_HEADER, payload.ticket)
+            .build(),
+        listener
+    )
+
+    /** The ticket is a secret: never printed. */
+    override fun toString(): String = "ScreenOffer(${payload.codec} ${payload.width}x${payload.height})"
 }

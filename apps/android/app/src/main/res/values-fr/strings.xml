@@ -112,4 +112,5 @@
     <string name="local_network_allow">Autoriser le Wi-Fi</string>
     <string name="disconnected_body_local_network">Android n’autorise pas Padboard à utiliser le réseau local : seul le câble USB est essayé. Autorise-le pour te reconnecter en Wi-Fi.</string>
     <string name="usb_refused">Le PC a refusé la connexion USB : il n’a pas pu vérifier qu’elle venait de la tablette, par adb. Padboard sur le PC (vue Connexions, Appareils USB) dit quoi faire. En attendant, le Wi-Fi fonctionne.</string>
+    <string name="second_screen_exit_hint">Maintiens une touche de volume pour revenir aux boutons</string>
 </resources>
