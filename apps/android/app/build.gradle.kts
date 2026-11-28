@@ -44,6 +44,8 @@ android {
         providers.gradleProperty("padboard.testVersionName").orNull?.let { versionName = it }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // The PC's USB port, through adb reverse (USB_PORT in crates/protocol).
+        buildConfigField("int", "USB_PORT", "47321")
     }
 
     signingConfigs {
@@ -58,6 +60,17 @@ android {
     }
 
     buildTypes {
+        // "Padboard (dev)" (#20): a development build installed beside the
+        // real app on the tablet, never device owner. Debug key, its own id
+        // and name (src/dev/res), and the PC's test app port
+        // (PADBOARD_PORT=47390, adb reverse tcp:47390 tcp:47390), so it
+        // never takes the real app's connection. Release is unchanged.
+        create("dev") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".dev"
+            buildConfigField("int", "USB_PORT", "47390")
+            matchingFallbacks += listOf("debug")
+        }
         release {
             signingConfig = signingConfigs.findByName("release")
             optimization {
@@ -72,6 +85,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     dependenciesInfo {
         // No dependency metadata blob (encrypted for Google Play) in the
