@@ -452,10 +452,16 @@ Test pattern from the PC (GStreamer, 1728×1080), the decoder prototype
 | H.264 (`vah264enc` → `OMX.Exynos.avc.dec`) | ~49 | 9.8 Mbit/s | 10.7 ms | 22.8 / 24.9 ms |
 | VP8 (`vp8enc` → `OMX.Exynos.vp8.dec`) | ~59.6 | 8.9 Mbit/s | 12.2 ms | 19.5 / 21.6 ms |
 
-- H.264 stays under 60 fps: the source encodes one requested frame at a
-  time (the valve opens for one frame, waits for the next picture, then
-  for the VA encoder). To try: open the valve for as many frames as the
-  window has room for.
+- H.264 stayed under 60 fps: the source encoded one requested frame at
+  a time (a valve opened for one frame, waited for the next picture, then
+  for the VA encoder). **Fixed** (2026-11-28): two pictures are kept in
+  the encoder (`ENCODER_AHEAD`), let in one by one by a probe holding
+  credits (one back each time the stream takes a frame), besides the
+  network's window of two unacknowledged frames. Measured on the PC with
+  acks 20 ms after each send, as on the SM-T580 (ignored test
+  `screen::gst::tests::throughput`): H.264 49.8 → 57.4 frames/s (the
+  pattern pipeline alone gives ~57 here), VP8 60 → 60; encoded frames
+  wait < 0.1 ms for the network (p90).
 - `KEY_LOW_LATENCY` is refused by the Exynos decoder (as in step 1):
   configured without it.
 - **Volume keys** (out of kiosk mode): a long press arrives as

@@ -31,12 +31,21 @@ pub use format::StreamFormat;
 use crate::auth::RandomError;
 use ticket::Tickets;
 
+/// Pictures a source keeps in its encoder at once, besides the network's
+/// window of unacknowledged frames ([`flow::WINDOW`]). One at a time left a
+/// VA-API H.264 encoder at ~49 frames/s on the SM-T580 (its latency added
+/// to each picture's wait).
+pub const ENCODER_AHEAD: usize = 2;
+
 /// An encoded picture.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncodedFrame {
     pub key_frame: bool,
     /// When it was captured, on the PC's monotonic clock (µs).
     pub capture_us: u64,
+    /// When the encoder gave it (how long it then waits for the network
+    /// is logged).
+    pub encoded_at: std::time::Instant,
     /// One access unit (H.264 Annex B, or one VP8 frame).
     pub data: Vec<u8>,
 }
@@ -50,7 +59,9 @@ pub struct EncodedFrame {
 /// the encoder. `next_frame` must be cancel-safe: the stream drops it when
 /// something else happens first.
 pub trait FrameSource: Send {
-    /// The next picture; `None` when the source ended (capture lost).
+    /// The next picture; `None` when the source ended (capture lost). A
+    /// source keeps up to [`ENCODER_AHEAD`] pictures in its encoder once
+    /// asked, so its latency overlaps the next picture's wait.
     fn next_frame(&mut self) -> Pin<Box<dyn Future<Output = Option<EncodedFrame>> + Send + '_>>;
     /// The tablet's decoder lost the picture: the next frame is a key frame.
     fn request_key_frame(&mut self);
@@ -299,6 +310,7 @@ pub mod testing {
                 Some(EncodedFrame {
                     key_frame: self.sent == 1,
                     capture_us: self.sent * 1000,
+                    encoded_at: std::time::Instant::now(),
                     data: vec![0, 0, 0, 1, u8::try_from(self.sent % 256).unwrap_or(0)],
                 })
             })

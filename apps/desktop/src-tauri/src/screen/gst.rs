@@ -4,17 +4,21 @@
 //! VP8 (`vp8enc`, libvpx; Ubuntu 22.04 has GStreamer 1.20, whose `va`
 //! plugin only decodes). x264 is never used (GPL, patents).
 //!
-//! Frames are dropped **before** the encoder: a `valve` in front of it
-//! opens only when the stream asks for a picture, and closes as soon as
-//! one encoded frame came out, so an encoded frame is never thrown away
-//! (a missing P-frame breaks the picture until the next key frame). A
-//! thread owns the pipeline; the stream asks it for frames through a
-//! channel, so `next_frame` can be cancelled without losing one.
+//! Frames are dropped **before** the encoder: a probe in front of it lets
+//! a picture in only with a credit ([`ENCODER_AHEAD`] of them; one comes
+//! back each time the stream takes a frame), so at most that many are in
+//! the encoder or encoded and waiting for the network's window, and an
+//! encoded frame is never thrown away (a missing P-frame breaks the
+//! picture until the next key frame). Deciding per picture, as it
+//! arrives, keeps the encoder fed (closing a valve between requests lost
+//! pictures: H.264 stayed at ~49 frames/s). A thread pulls the encoded
+//! frames into a channel, so `next_frame` can be cancelled without losing
+//! one.
 
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::OnceLock;
-use std::sync::mpsc as std_mpsc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, OnceLock};
 
 use gstreamer as gst;
 use gstreamer::prelude::*;
@@ -22,7 +26,7 @@ use gstreamer_app as gst_app;
 use padboard_protocol::VideoCodec;
 use tokio::sync::mpsc;
 
-use super::{EncodedFrame, FrameSource, StreamFormat};
+use super::{ENCODER_AHEAD, EncodedFrame, FrameSource, StreamFormat};
 
 /// Bitrate over USB (design: 12 Mbit/s; the Wi-Fi adaptation comes later).
 const KBPS: u32 = 12_000;
@@ -45,7 +49,7 @@ const COMMON: [(&str, &str); 5] = [
     ("videoconvert", "gstreamer1.0-plugins-base"),
     ("timeoverlay", "gstreamer1.0-plugins-base"),
     ("appsink", "gstreamer1.0-plugins-base"),
-    ("valve", "libgstreamer1.0-0"),
+    ("identity", "libgstreamer1.0-0"),
 ];
 
 /// What the PC can encode here, best first; empty when GStreamer or an
@@ -99,14 +103,14 @@ fn pattern_pipeline(format: StreamFormat) -> String {
         VideoCodec::H264 => format!(
             "videoconvert ! vapostproc ! \
              video/x-raw(memory:VAMemory),format=NV12,width={w},height={h} ! \
-             valve name=gate drop=true ! \
+             identity name=gate ! \
              vah264enc rate-control=cbr bitrate={KBPS} key-int-max={key} b-frames=0 target-usage=7 ! \
              video/x-h264,profile=main ! h264parse config-interval=-1 ! \
              video/x-h264,stream-format=byte-stream,alignment=au",
             key = fps * 2
         ),
         VideoCodec::Vp8 => format!(
-            "videoconvert ! video/x-raw,format=I420 ! valve name=gate drop=true ! \
+            "videoconvert ! video/x-raw,format=I420 ! identity name=gate ! \
              vp8enc deadline=1 cpu-used=16 end-usage=cbr target-bitrate={bps} \
              keyframe-max-dist={key} lag-in-frames=0 threads=4 error-resilient=default",
             bps = KBPS * 1000,
@@ -116,20 +120,18 @@ fn pattern_pipeline(format: StreamFormat) -> String {
     format!("{src} ! {encode} ! appsink name=sink sync=false max-buffers=0 drop=false")
 }
 
-enum Request {
-    Frame,
-    KeyFrame,
-}
-
 /// The test pattern, encoded in `format`.
 pub struct PatternSource {
-    requests: std_mpsc::Sender<Request>,
+    pipeline: gst::Pipeline,
+    sink: gst_app::AppSink,
     frames: mpsc::UnboundedReceiver<Option<EncodedFrame>>,
-    asked: bool,
+    /// Pictures that may still enter the encoder: [`ENCODER_AHEAD`] minus
+    /// those in it or encoded and not taken yet.
+    credits: Arc<AtomicUsize>,
 }
 
 impl PatternSource {
-    /// Starts the pipeline (paused at the valve until a frame is asked).
+    /// Starts the pipeline; pictures enter the encoder while credits last.
     ///
     /// # Errors
     /// GStreamer or an element is missing, or the pipeline does not start.
@@ -139,63 +141,76 @@ impl PatternSource {
             .map_err(|e| e.to_string())?
             .downcast::<gst::Pipeline>()
             .map_err(|_| "not a pipeline".to_owned())?;
-        let gate = pipeline.by_name("gate").ok_or("no valve")?;
+        let gate = pipeline.by_name("gate").ok_or("no gate")?;
         let sink = pipeline
             .by_name("sink")
             .ok_or("no sink")?
             .downcast::<gst_app::AppSink>()
             .map_err(|_| "not an appsink".to_owned())?;
+        // Each picture is let into the encoder only with a credit, decided
+        // as it arrives: no window where a picture is dropped while the
+        // stream is about to ask for one.
+        let credits = Arc::new(AtomicUsize::new(ENCODER_AHEAD));
+        let gate_credits = Arc::clone(&credits);
+        gate.static_pad("src")
+            .ok_or("no gate pad")?
+            .add_probe(gst::PadProbeType::BUFFER, move |_, _| {
+                let mut current = gate_credits.load(Ordering::Acquire);
+                let taken = loop {
+                    if current == 0 {
+                        break false;
+                    }
+                    match gate_credits.compare_exchange_weak(
+                        current,
+                        current - 1,
+                        Ordering::AcqRel,
+                        Ordering::Acquire,
+                    ) {
+                        Ok(_) => break true,
+                        Err(now) => current = now,
+                    }
+                };
+                if taken {
+                    gst::PadProbeReturn::Ok
+                } else {
+                    gst::PadProbeReturn::Drop
+                }
+            })
+            .ok_or("cannot watch the gate")?;
         pipeline
             .set_state(gst::State::Playing)
             .map_err(|e| e.to_string())?;
-        let (requests, wanted) = std_mpsc::channel();
         let (frames_tx, frames) = mpsc::unbounded_channel();
+        let pull = sink.clone();
         std::thread::Builder::new()
             .name("screen-pattern".into())
-            .spawn(move || serve(&pipeline, &gate, &sink, &wanted, &frames_tx))
+            .spawn(move || {
+                // Until the pipeline stops (the source dropped) or fails.
+                loop {
+                    let frame = pull.pull_sample().ok().and_then(|s| encoded(&s));
+                    let ended = frame.is_none();
+                    if frames_tx.send(frame).is_err() || ended {
+                        break;
+                    }
+                }
+            })
             .map_err(|e| e.to_string())?;
         tracing::info!(?format, "second screen: test pattern started");
         Ok(Self {
-            requests,
+            pipeline,
+            sink,
             frames,
-            asked: false,
+            credits,
         })
     }
 }
 
-/// The pipeline's thread: one encoded frame per request, until the source
-/// is dropped (its sender closes) or the pipeline fails.
-fn serve(
-    pipeline: &gst::Pipeline,
-    gate: &gst::Element,
-    sink: &gst_app::AppSink,
-    wanted: &std_mpsc::Receiver<Request>,
-    frames: &mpsc::UnboundedSender<Option<EncodedFrame>>,
-) {
-    while let Ok(request) = wanted.recv() {
-        match request {
-            Request::KeyFrame => {
-                let event = gst::event::CustomUpstream::new(
-                    gst::Structure::builder("GstForceKeyUnit")
-                        .field("all-headers", true)
-                        .build(),
-                );
-                sink.send_event(event);
-            }
-            Request::Frame => {
-                gate.set_property("drop", false);
-                let sample = sink.pull_sample();
-                gate.set_property("drop", true);
-                let frame = sample.ok().and_then(|s| encoded(&s));
-                let ended = frame.is_none();
-                if frames.send(frame).is_err() || ended {
-                    break;
-                }
-            }
-        }
+impl Drop for PatternSource {
+    fn drop(&mut self) {
+        // Ends the pulling thread (its pull_sample returns).
+        let _ = self.pipeline.set_state(gst::State::Null);
+        tracing::info!("second screen: test pattern stopped");
     }
-    let _ = pipeline.set_state(gst::State::Null);
-    tracing::info!("second screen: test pattern stopped");
 }
 
 fn encoded(sample: &gst::Sample) -> Option<EncodedFrame> {
@@ -205,6 +220,7 @@ fn encoded(sample: &gst::Sample) -> Option<EncodedFrame> {
         key_frame: !buffer.flags().contains(gst::BufferFlags::DELTA_UNIT),
         // Running time of the picture, as the overlay shows it.
         capture_us: buffer.pts().map_or(0, gst::ClockTime::useconds),
+        encoded_at: std::time::Instant::now(),
         data: map.as_slice().to_vec(),
     })
 }
@@ -212,20 +228,21 @@ fn encoded(sample: &gst::Sample) -> Option<EncodedFrame> {
 impl FrameSource for PatternSource {
     fn next_frame(&mut self) -> Pin<Box<dyn Future<Output = Option<EncodedFrame>> + Send + '_>> {
         Box::pin(async move {
-            // One request at a time: a cancelled wait keeps its request,
-            // whose frame is taken by the next call.
-            if !self.asked {
-                self.requests.send(Request::Frame).ok()?;
-                self.asked = true;
-            }
-            let frame = self.frames.recv().await.flatten();
-            self.asked = false;
-            frame
+            // Cancel-safe: a frame left in the channel is taken next time.
+            let frame = self.frames.recv().await.flatten()?;
+            // Taken: one more picture may enter the encoder.
+            self.credits.fetch_add(1, Ordering::AcqRel);
+            Some(frame)
         })
     }
 
     fn request_key_frame(&mut self) {
-        let _ = self.requests.send(Request::KeyFrame);
+        let event = gst::event::CustomUpstream::new(
+            gst::Structure::builder("GstForceKeyUnit")
+                .field("all-headers", true)
+                .build(),
+        );
+        self.sink.send_event(event);
     }
 }
 
@@ -246,7 +263,7 @@ mod tests {
     fn the_pipelines_name_their_gate_and_sink() {
         for codec in [VideoCodec::H264, VideoCodec::Vp8] {
             let p = pattern_pipeline(format(codec));
-            assert!(p.contains("valve name=gate drop=true"), "{p}");
+            assert!(p.contains("identity name=gate"), "{p}");
             assert!(p.contains("appsink name=sink"), "{p}");
             assert!(!p.contains("x264"), "{p}");
         }
@@ -267,14 +284,77 @@ mod tests {
         assert!(!first.data.is_empty());
         let second = source.next_frame().await.unwrap();
         assert!(second.capture_us > first.capture_us);
-        // Nothing comes without a request.
-        assert!(source.frames.try_recv().is_err());
+        // At most ENCODER_AHEAD frames are encoded ahead of the stream.
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let mut waiting = 0;
+        while source.frames.try_recv().is_ok() {
+            waiting += 1;
+        }
+        assert!(waiting <= ENCODER_AHEAD, "{waiting} frames encoded ahead");
+        // Taken by hand: their credits come back as next_frame would.
+        source.credits.fetch_add(waiting, Ordering::AcqRel);
         source.request_key_frame();
         let mut key = false;
         for _ in 0..5 {
             key |= source.next_frame().await.unwrap().key_frame;
         }
         assert!(key, "no key frame after the request");
+    }
+
+    /// Frames per second the stream gets from the pattern with a window of
+    /// two unacknowledged frames and acks `ack` after each send (the
+    /// SM-T580 measured ~20 ms). Run by hand:
+    /// `cargo test -p padboard-desktop --lib throughput -- --ignored --nocapture`.
+    #[tokio::test]
+    #[ignore = "a measurement, several seconds"]
+    async fn throughput() {
+        use std::collections::VecDeque;
+        use std::time::{Duration, Instant};
+        let ack = Duration::from_millis(
+            std::env::var("PADBOARD_BENCH_ACK_MS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(20),
+        );
+        for codec in encoders() {
+            let mut source = PatternSource::start(StreamFormat {
+                codec,
+                width: 1728,
+                height: 1080,
+                fps: 60,
+            })
+            .unwrap();
+            let mut flow = crate::screen::flow::Flow::default();
+            let mut acks: VecDeque<(Instant, u64)> = VecDeque::new();
+            let start = Instant::now();
+            let mut frames = 0u32;
+            let mut waits: Vec<f64> = Vec::new();
+            while start.elapsed() < Duration::from_secs(5) {
+                while acks.front().is_some_and(|&(at, _)| at <= Instant::now()) {
+                    let (_, t) = acks.pop_front().unwrap();
+                    flow.acked(t);
+                }
+                if !flow.can_send() {
+                    let (at, _) = *acks.front().unwrap();
+                    tokio::time::sleep_until(at.into()).await;
+                    continue;
+                }
+                let frame = source.next_frame().await.unwrap();
+                flow.sent(frame.capture_us);
+                waits.push(frame.encoded_at.elapsed().as_secs_f64() * 1000.0);
+                acks.push_back((Instant::now() + ack, frame.capture_us));
+                frames += 1;
+            }
+            let fps = f64::from(frames) / start.elapsed().as_secs_f64();
+            waits.sort_by(f64::total_cmp);
+            let wait = |q: f64| waits[((waits.len() - 1) as f64 * q) as usize];
+            eprintln!(
+                "THROUGHPUT {codec:?}: {fps:.1} fps (acks after {ack:?}), \
+                 encoded → sent p50 {:.1} ms, p90 {:.1} ms",
+                wait(0.5),
+                wait(0.9)
+            );
+        }
     }
 
     /// Needs a VA driver that encodes H.264 (this development PC; not CI):

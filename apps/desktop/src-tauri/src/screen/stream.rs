@@ -39,13 +39,17 @@ const REPORT_EVERY: usize = 300;
 struct Stats {
     sent: std::collections::HashMap<u64, Instant>,
     rtt_ms: Vec<f64>,
+    /// Encoded → sent: how long frames waited for the network.
+    wait_ms: Vec<f64>,
     since: Option<Instant>,
 }
 
 impl Stats {
-    fn sent(&mut self, capture_us: u64) {
+    fn sent(&mut self, capture_us: u64, encoded_at: std::time::Instant) {
         self.since.get_or_insert_with(Instant::now);
         self.sent.insert(capture_us, Instant::now());
+        self.wait_ms
+            .push(encoded_at.elapsed().as_secs_f64() * 1000.0);
     }
 
     fn acked(&mut self, capture_us: u64) {
@@ -60,12 +64,19 @@ impl Stats {
         }
         let seconds = self.since.map_or(1.0, |s| s.elapsed().as_secs_f64());
         let mut rtt = std::mem::take(&mut self.rtt_ms);
-        rtt.sort_by(f64::total_cmp);
-        let pick = |q: f64| rtt[((rtt.len() - 1) as f64 * q) as usize];
+        let mut wait = std::mem::take(&mut self.wait_ms);
+        let pick = |v: &mut Vec<f64>, q: f64| {
+            v.sort_by(f64::total_cmp);
+            v.get(((v.len().max(1) - 1) as f64 * q) as usize)
+                .copied()
+                .unwrap_or_default()
+        };
         tracing::info!(
             fps = format!("{:.1}", REPORT_EVERY as f64 / seconds),
-            ack_p50_ms = format!("{:.1}", pick(0.5)),
-            ack_p90_ms = format!("{:.1}", pick(0.9)),
+            ack_p50_ms = format!("{:.1}", pick(&mut rtt, 0.5)),
+            ack_p90_ms = format!("{:.1}", pick(&mut rtt, 0.9)),
+            wait_p50_ms = format!("{:.1}", pick(&mut wait, 0.5)),
+            wait_p90_ms = format!("{:.1}", pick(&mut wait, 0.9)),
             "second screen stream"
         );
         self.since = Some(Instant::now());
@@ -126,7 +137,7 @@ where
                     last_progress = Instant::now();
                 }
                 flow.sent(frame.capture_us);
-                stats.sent(frame.capture_us);
+                stats.sent(frame.capture_us, frame.encoded_at);
             }
             () = tokio::time::sleep_until(stall_deadline), if flow.in_flight() > 0 => {
                 let _ = ws.close(None).await;
