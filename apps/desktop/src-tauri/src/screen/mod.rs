@@ -35,6 +35,10 @@ use ticket::Tickets;
 /// window of unacknowledged frames ([`flow::WINDOW`]). One at a time left a
 /// VA-API H.264 encoder at ~49 frames/s on the SM-T580 (its latency added
 /// to each picture's wait).
+#[cfg_attr(
+    not(target_os = "linux"),
+    allow(dead_code, reason = "only the GStreamer source exists so far")
+)]
 pub const ENCODER_AHEAD: usize = 2;
 
 /// An encoded picture.
