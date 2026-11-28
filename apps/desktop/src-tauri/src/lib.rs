@@ -333,6 +333,8 @@ fn revoke_device(backend: tauri::State<'_, Backend>, device_id: String) -> bool 
 /// window come to the front by itself).
 #[derive(Default)]
 struct ScreenQuestions {
+    /// The notification is named "Padboard (test)".
+    #[cfg(target_os = "linux")]
     test: bool,
     #[cfg(target_os = "linux")]
     notice: Arc<Mutex<Option<(u64, screen::notice::Notice)>>>,
@@ -1032,6 +1034,7 @@ pub fn run() {
 
             // Fold server events into the snapshot and push it to the UI.
             let questions = ScreenQuestions {
+                #[cfg(target_os = "linux")]
                 test: test_mode.is_some(),
                 ..ScreenQuestions::default()
             };
