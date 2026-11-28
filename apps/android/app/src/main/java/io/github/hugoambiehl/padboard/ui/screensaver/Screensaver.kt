@@ -73,16 +73,22 @@ private const val MOVE_EVERY_MS = 60_000L
  * tablet was last used. Only alpha and transforms are animated.
  */
 @Composable
-fun ScreensaverHost(settings: TabletSettingsPayload?, status: SystemStatusPayload?, content: @Composable () -> Unit) {
+fun ScreensaverHost(
+    settings: TabletSettingsPayload?,
+    status: SystemStatusPayload?,
+    /** Never asleep meanwhile (the second screen: no touch for minutes); the delay starts again after. */
+    paused: Boolean = false,
+    content: @Composable () -> Unit
+) {
     val effective = settings ?: DEFAULT_SCREENSAVER
     val enabled = effective.screensaver
     val delayMs = effective.screensaverDelaySeconds.toLong() * 1_000L
     val lastTouch = remember { longArrayOf(SystemClock.uptimeMillis()) }
     var asleep by remember { mutableStateOf(false) }
 
-    LaunchedEffect(enabled, delayMs) {
+    LaunchedEffect(enabled, delayMs, paused) {
         asleep = false
-        if (!enabled) return@LaunchedEffect
+        if (!enabled || paused) return@LaunchedEffect
         lastTouch[0] = SystemClock.uptimeMillis()
         while (true) {
             val idle = SystemClock.uptimeMillis() - lastTouch[0]

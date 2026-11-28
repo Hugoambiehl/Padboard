@@ -44,7 +44,7 @@ fun PadboardApp(viewModel: PadboardViewModel) {
     val screen by viewModel.screen.collectAsStateWithLifecycle()
     KioskExitCorner(enabled = kiosk, onExit = viewModel::exitKioskByGesture) {
         Box {
-            ScreensaverHost(settings = settings, status = systemStatus) {
+            ScreensaverHost(settings = settings, status = systemStatus, paused = screen != null) {
                 Box(Modifier.fillMaxSize()) {
                     Screens(viewModel, link, layout, pcs)
                     if (usbRefused && link !is LinkState.Connected) {
@@ -52,8 +52,8 @@ fun PadboardApp(viewModel: PadboardViewModel) {
                     }
                 }
             }
-            // Over everything but an update; the screensaver's timer runs
-            // below (no touch reaches it), its overlay hidden by this one.
+            // Over everything but an update; the screensaver is paused
+            // meanwhile (it would dim the window).
             screen?.let { offer ->
                 key(offer) { SecondScreen(offer, onEnd = { viewModel.stopScreen(offer, it) }) }
             }
