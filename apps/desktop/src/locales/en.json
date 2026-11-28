@@ -807,5 +807,19 @@
       "install": "Cannot install: {detail}",
       "inUse": "adb could not be removed: one of its files is still used by a running program (an adb command, or another tool using this copy). Nothing was removed. Try again in a moment; if it happens again, close any open Android tools, then try again."
     }
+  },
+  "screenRequest": {
+    "title": "Second screen",
+    "text": "“{device}” ({via}) wants to show a second screen of this PC. It will see everything shown on that screen.",
+    "remembered": "Your answer will be remembered for this device. You can remove it in Connections.",
+    "notRemembered": "This connection is not verified: you will be asked again next time.",
+    "allow": "Allow",
+    "refuse": "Refuse"
+  },
+  "screenDevices": {
+    "title": "Second screen allowed",
+    "allowedAt": "Allowed on {date}",
+    "forget": "Remove",
+    "hint": "These devices show the second screen without the PC asking. Removed, the device will ask again."
   }
 }

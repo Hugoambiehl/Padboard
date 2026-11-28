@@ -227,5 +227,25 @@ export interface Snapshot {
   usbRefused: UsbRefusal | null;
   /** The tablet showing the second screen (shown with "Arrêter"). */
   secondScreen: { clientId: number; deviceName: string } | null;
+  /** The PC's user is asked whether a device may start a second screen. */
+  screenRequest: ScreenRequest | null;
+  /** Devices allowed to start a second screen without asking. */
+  screenDevices: ScreenDevice[];
   activity: ActivityEntry[];
+}
+
+/** A question about a second screen (`ScreenRequestView`). */
+export interface ScreenRequest {
+  id: number;
+  deviceName: string;
+  transport: "usb" | "wifi";
+  /** The answer will be remembered (verified connection). */
+  remembered: boolean;
+}
+
+/** A device allowed to start a second screen without asking (`ScreenDevice`). */
+export interface ScreenDevice {
+  deviceId: string;
+  name: string;
+  allowedAtMs: number;
 }

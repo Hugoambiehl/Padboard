@@ -147,6 +147,9 @@ pub struct ServerContext {
     /// Where the second screen's pictures come from on this PC (`None`:
     /// not available here).
     pub screen_source: Option<crate::screen::SourceFactory>,
+    /// Devices allowed to start a second screen without asking, and the
+    /// question waiting for the PC's user.
+    pub screen_consents: crate::screen::consent::Consents,
 }
 
 /// What the UI can reach of one session.
@@ -162,6 +165,16 @@ pub struct SessionHandle {
     silent_install: bool,
     /// What it can show as a second screen.
     screen: Option<ScreenCapability>,
+    /// The device (full sessions only): who is asked about on the PC.
+    who: Option<Who>,
+}
+
+/// The device behind a full session.
+#[derive(Debug, Clone)]
+pub struct Who {
+    pub device_id: String,
+    pub device_name: String,
+    pub transport: Transport,
 }
 
 impl ServerContext {
@@ -280,6 +293,35 @@ impl ServerContext {
         Ok(format)
     }
 
+    /// The PC's user answered question `id` about a second screen; false
+    /// if it is no longer waiting.
+    pub fn answer_screen_request(&self, id: u64, allow: bool) -> bool {
+        let answered = self.screen_consents.answer(id, allow);
+        tracing::info!(
+            id,
+            allow,
+            answered,
+            "second screen: answer from the PC's user"
+        );
+        answered
+    }
+
+    /// Forgets that `device_id` may start a second screen without asking.
+    pub fn forget_screen_device(&self, device_id: &str) -> bool {
+        let forgotten = self.screen_consents.forget(device_id);
+        if forgotten {
+            tracing::info!(
+                device = device_id,
+                "second screen: device no longer allowed"
+            );
+            emit(
+                self,
+                ServerEvent::ScreenDevices(self.screen_consents.devices()),
+            );
+        }
+        forgotten
+    }
+
     /// Stops the second screen ("Arrêter" on the PC); false if none runs.
     pub fn stop_screen(&self) -> bool {
         let Some(client) = self.screens.stop(None) else {
@@ -372,6 +414,21 @@ pub enum ServerEvent {
     ScreenEnded {
         client_id: u64,
     },
+    /// The PC's user is asked whether this device may start a second
+    /// screen (window brought to the front).
+    ScreenRequest {
+        id: u64,
+        device_name: String,
+        transport: Transport,
+        /// The answer will be remembered (verified connection).
+        remembered: bool,
+    },
+    /// That question is over (answered, timed out).
+    ScreenRequestEnded {
+        id: u64,
+    },
+    /// The devices allowed to start a second screen without asking.
+    ScreenDevices(Vec<crate::screen::consent::ScreenDevice>),
     ClientDisconnected {
         id: u64,
         /// Silent for too long (no TCP close): over Wi-Fi, typically a
@@ -852,6 +909,11 @@ where
     feeds.send_settings(&mut ws).await?;
     feeds.send_status(&mut ws).await?;
     tracing::info!(%peer, client = id, ?transport, device = %device_name, "tablet connected");
+    let who = Who {
+        device_id: device_id.clone(),
+        device_name: device_name.clone(),
+        transport,
+    };
     emit(
         ctx,
         ServerEvent::ClientConnected {
@@ -864,7 +926,7 @@ where
         },
     );
     let kick = ctx.auth.open_session(&device_id, id, transport);
-    let result = session(&mut ws, id, &tablet, kick, feeds, ctx).await;
+    let result = session(&mut ws, id, &tablet, &who, kick, feeds, ctx).await;
     ctx.auth.close_session(&device_id, id);
     // Completes the closing handshake (replies to the peer's close frame, or
     // sends ours) so the tablet sees a clean close instead of a dropped socket.
@@ -930,6 +992,7 @@ async fn session<S>(
     ws: &mut WebSocketStream<S>,
     id: u64,
     tablet: &TabletInfo,
+    who: &Who,
     mut kick: tokio::sync::oneshot::Receiver<crate::auth::Kick>,
     mut feeds: Feeds,
     ctx: &Arc<ServerContext>,
@@ -950,6 +1013,7 @@ where
             app_version_code: tablet.app_version_code,
             silent_install: tablet.silent_install,
             screen: tablet.screen.clone(),
+            who: Some(who.clone()),
         },
     );
     let mut transfer: Option<Transfer> = None;
@@ -1098,6 +1162,7 @@ where
             app_version_code: tablet.app_version_code,
             silent_install: tablet.silent_install,
             screen: None,
+            who: None,
         },
     );
     let mut transfer: Option<Transfer> = None;
@@ -1415,6 +1480,19 @@ async fn start_second_screen(ctx: &Arc<ServerContext>, client_id: u64) -> Action
         );
         return ActionOutcome::Ok;
     };
+    let capable = ctx
+        .sessions
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(&client_id)
+        .is_some_and(|h| h.screen.is_some());
+    if !capable {
+        // Never ask the PC's user for a tablet that cannot show it.
+        return unavailable("this tablet's Padboard cannot show a second screen: update it".into());
+    }
+    if let Err(refused) = confirm_second_screen(ctx, client_id).await {
+        return refused;
+    }
     let start = Arc::clone(&source.start);
     match ctx
         .offer_screen(client_id, &encoders, move |format| start(format))
@@ -1434,6 +1512,66 @@ async fn start_second_screen(ctx: &Arc<ServerContext>, client_id: u64) -> Action
         }
         Err(e) => ActionOutcome::from_error(&ActionError::Failed(e.to_string())),
     }
+}
+
+/// The first time a device starts a second screen, the PC's user is
+/// asked; the answer is remembered only for a verified connection: Wi-Fi
+/// (paired, token) or USB that passed the adb peer check (SECURITY.md).
+/// A device allowed earlier but connected without that check is asked
+/// again.
+async fn confirm_second_screen(
+    ctx: &Arc<ServerContext>,
+    client_id: u64,
+) -> Result<(), ActionOutcome> {
+    let refused = |m: &str| ActionOutcome::from_error(&ActionError::Failed(m.into()));
+    let who = ctx
+        .sessions
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(&client_id)
+        .and_then(|h| h.who.clone())
+        .ok_or_else(|| refused("the tablet left"))?;
+    let verified =
+        who.transport == Transport::Wifi || matches!(ctx.usb_peers, UsbPeers::AdbServer { .. });
+    if verified && ctx.screen_consents.is_allowed(&who.device_id) {
+        return Ok(());
+    }
+    let (id, answer) = ctx.screen_consents.ask();
+    tracing::info!(
+        client = client_id,
+        device = %who.device_name,
+        transport = ?who.transport,
+        remembered = verified,
+        "second screen: asking the PC's user"
+    );
+    emit(
+        ctx,
+        ServerEvent::ScreenRequest {
+            id,
+            device_name: who.device_name.clone(),
+            transport: who.transport,
+            remembered: verified,
+        },
+    );
+    let allowed = matches!(
+        tokio::time::timeout(crate::screen::consent::ANSWER_TIMEOUT, answer).await,
+        Ok(Ok(true))
+    );
+    ctx.screen_consents.close(id);
+    emit(ctx, ServerEvent::ScreenRequestEnded { id });
+    if !allowed {
+        tracing::info!(client = client_id, "second screen refused on the PC");
+        return Err(refused("second screen refused on the PC"));
+    }
+    if verified {
+        ctx.screen_consents
+            .remember(&who.device_id, &who.device_name, crate::state::now_ms());
+        emit(
+            ctx,
+            ServerEvent::ScreenDevices(ctx.screen_consents.devices()),
+        );
+    }
+    Ok(())
 }
 
 /// Reports the outcome of a press: an error to the tablet, the activity to the UI.
@@ -1791,6 +1929,7 @@ mod tests {
             usb_peers,
             screens: crate::screen::Screens::default(),
             screen_source: Some(crate::screen::testing::fake_factory()),
+            screen_consents: crate::screen::consent::Consents::default(),
         })
     }
 
@@ -2234,7 +2373,10 @@ mod tests {
         with_copy_bound_to(&h, Action::SecondScreen);
         let (mut client, id) = screen_tablet(&mut h).await;
         send_msg(&mut client, &press("copy")).await;
+        // USB without the peer check (unit tests): asked, never remembered.
+        assert!(!answer_question(&mut h, true).await);
         let offer = next_offer(&mut client).await;
+        assert!(!h.ctx.screen_consents.is_allowed("test-device"));
         let mut stream = open_stream(&h, Some(&offer.ticket)).await;
         assert!(next_video(&mut stream).await.is_some());
         let mut started = false;
@@ -2253,6 +2395,86 @@ mod tests {
         }
         // Nothing ran on the PC's executor.
         assert!(h.executor.executed.lock().unwrap().is_empty());
+    }
+
+    /// Waits for the PC's question and answers it; whether it said the
+    /// answer would be remembered.
+    async fn answer_question(h: &mut Harness, allow: bool) -> bool {
+        loop {
+            if let ServerEvent::ScreenRequest { id, remembered, .. } = next_event(h).await {
+                assert!(h.ctx.answer_screen_request(id, allow));
+                return remembered;
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_second_screen_refused_on_the_pc_is_not_offered() {
+        let mut h = start(Transport::Usb, false).await;
+        with_copy_bound_to(&h, Action::SecondScreen);
+        let (mut client, _) = screen_tablet(&mut h).await;
+        send_msg(&mut client, &press("copy")).await;
+        answer_question(&mut h, false).await;
+        loop {
+            match recv_msg(&mut client).await {
+                Message::Error(error) => {
+                    assert_eq!(error.code, ErrorCode::ActionFailed);
+                    assert!(error.message.contains("refused"), "{}", error.message);
+                    break;
+                }
+                Message::ScreenOffer(_) => panic!("offered after a refusal"),
+                _ => {}
+            }
+        }
+        assert_eq!(h.ctx.screens.active(), None);
+    }
+
+    /// A paired Wi-Fi tablet is a verified connection: allowed once, it is
+    /// not asked again (until forgotten).
+    #[tokio::test]
+    async fn a_verified_device_is_asked_once() {
+        let mut h = start(Transport::Wifi, false).await;
+        with_copy_bound_to(&h, Action::SecondScreen);
+        let (token, first) = pair(&h, "tab-wifi").await;
+        drop(first);
+        let Message::Hello(hello) = hello_with(PROTOCOL_VERSION, "tab-wifi", Some(&token)) else {
+            unreachable!()
+        };
+        let Message::Hello(capable) = screen_hello() else {
+            unreachable!()
+        };
+        let hello = Message::Hello(HelloPayload {
+            screen: capable.screen,
+            ..hello
+        });
+        let (mut client, welcome) = greet(&h, &hello).await;
+        assert_eq!(welcome.auth, AuthStatus::Authenticated);
+        expect_layout(&mut client).await;
+
+        send_msg(&mut client, &press("copy")).await;
+        assert!(
+            answer_question(&mut h, true).await,
+            "a paired device is remembered"
+        );
+        next_offer(&mut client).await;
+        assert!(h.ctx.screen_consents.is_allowed("tab-wifi"));
+        assert!(h.ctx.stop_screen());
+
+        // Again: no question, straight to the offer.
+        send_msg(&mut client, &press("copy")).await;
+        next_offer(&mut client).await;
+        while let Ok(Some(event)) = timeout(Duration::from_millis(50), h.events.recv()).await {
+            assert!(
+                !matches!(event, ServerEvent::ScreenRequest { .. }),
+                "asked again"
+            );
+        }
+        assert!(h.ctx.stop_screen());
+
+        // Forgotten: asked again.
+        assert!(h.ctx.forget_screen_device("tab-wifi"));
+        send_msg(&mut client, &press("copy")).await;
+        answer_question(&mut h, false).await;
     }
 
     /// A tablet whose app predates the second screen is told why.

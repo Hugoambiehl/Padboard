@@ -807,5 +807,19 @@
       "install": "Installation impossible : {detail}",
       "inUse": "adb n’a pas pu être supprimé : un de ses fichiers est encore utilisé par un programme en cours (une commande adb, ou un autre outil qui utilise cette copie). Rien n’a été supprimé. Réessaie dans un moment ; si ça recommence, ferme les outils Android ouverts, puis réessaie."
     }
+  },
+  "screenRequest": {
+    "title": "Second écran",
+    "text": "« {device} » ({via}) veut afficher un second écran de ce PC. Il verra tout ce qui s’affiche sur cet écran.",
+    "remembered": "Ta réponse sera retenue pour cet appareil. Tu pourras la retirer dans Connexions.",
+    "notRemembered": "Cette connexion n’est pas vérifiée : la question reviendra la prochaine fois.",
+    "allow": "Autoriser",
+    "refuse": "Refuser"
+  },
+  "screenDevices": {
+    "title": "Second écran autorisé",
+    "allowedAt": "Autorisé le {date}",
+    "forget": "Retirer",
+    "hint": "Ces appareils affichent le second écran sans que le PC demande. Retiré, l’appareil demandera de nouveau."
   }
 }

@@ -322,7 +322,21 @@ fn cancel_pairing(backend: tauri::State<'_, Backend>) {
 /// Forgets a paired device and closes its Wi-Fi session.
 #[tauri::command]
 fn revoke_device(backend: tauri::State<'_, Backend>, device_id: String) -> bool {
+    // A device no longer trusted no longer starts a second screen unasked.
+    backend.server.forget_screen_device(&device_id);
     backend.auth.revoke(&device_id)
+}
+
+/// The PC's user answered question `id`: may that device start a second screen?
+#[tauri::command]
+fn answer_screen_request(backend: tauri::State<'_, Backend>, id: u64, allow: bool) -> bool {
+    backend.server.answer_screen_request(id, allow)
+}
+
+/// The device must ask again before its next second screen.
+#[tauri::command]
+fn forget_screen_device(backend: tauri::State<'_, Backend>, device_id: String) -> bool {
+    backend.server.forget_screen_device(&device_id)
 }
 
 /// Kiosk mode for the USB tablet `serial` (Padboard becomes its device owner).
@@ -788,6 +802,8 @@ pub fn run() {
             get_locale,
             start_pairing,
             stop_second_screen,
+            answer_screen_request,
+            forget_screen_device,
             cancel_pairing,
             revoke_device,
             set_wifi_enabled,
@@ -904,6 +920,10 @@ pub fn run() {
             // Fold server events into the snapshot and push it to the UI.
             tauri::async_runtime::spawn(async move {
                 while let Some(event) = events_rx.recv().await {
+                    // A question about a second screen: the window comes forward.
+                    if matches!(event, ServerEvent::ScreenRequest { .. }) {
+                        tray::show_window(&handle);
+                    }
                     // A tablet entering or leaving kiosk mode: the USB rows read it again.
                     if matches!(event, ServerEvent::TabletStatus { .. }) {
                         let _ = status_refresh.send(());
@@ -976,7 +996,9 @@ pub fn run() {
                 },
                 screens: screen::Screens::default(),
                 screen_source: screen::factory(&config),
+                screen_consents: screen::consent::Consents::load(config.clone()),
             });
+            let _ = events_tx.send(ServerEvent::ScreenDevices(ctx.screen_consents.devices()));
             // OBS: real in normal and system test modes (and with
             // PADBOARD_TEST_OBS); otherwise its state comes from state.json.
             if test_mode.as_ref().is_none_or(TestMode::obs) {

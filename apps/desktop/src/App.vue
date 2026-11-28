@@ -6,6 +6,7 @@ import { listen } from "@tauri-apps/api/event";
 import AppHeader from "./components/AppHeader.vue";
 import PairingDialog from "./components/PairingDialog.vue";
 import CloseToTrayDialog from "./components/CloseToTrayDialog.vue";
+import ScreenRequestDialog from "./components/ScreenRequestDialog.vue";
 import EditorView from "./views/EditorView.vue";
 import ConnectionsView from "./views/ConnectionsView.vue";
 import { useStatus } from "./composables/useStatus";
@@ -69,6 +70,11 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
         :pairing="snapshot.pairing"
         :wifi="snapshot.server.wifi"
         @close="pairingOpen = false"
+      />
+      <ScreenRequestDialog
+        v-if="snapshot.screenRequest"
+        :key="snapshot.screenRequest.id"
+        :request="snapshot.screenRequest"
       />
     </template>
     <CloseToTrayDialog v-if="closeHintOpen" @close="closeHintOpen = false" />

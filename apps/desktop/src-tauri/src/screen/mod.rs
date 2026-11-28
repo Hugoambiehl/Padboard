@@ -11,6 +11,7 @@
 //!
 //! One stream at a time on the PC: a new offer replaces the running one.
 
+pub mod consent;
 pub mod flow;
 pub mod format;
 #[cfg(target_os = "linux")]
