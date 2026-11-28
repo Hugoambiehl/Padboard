@@ -23,6 +23,18 @@ Logs:
 Device owner: `adb shell dpm list-owners` (Padboard listed = kiosk mode on;
 nothing = off).
 
+## 0.5: the second screen (#20), once the Padboard app shows it
+
+To do when the tablet app has the second screen (the throwaway prototype
+was only tried out of kiosk mode, 2026-11-28).
+
+| Step | Do | Expected |
+|---|---|---|
+| Volume key exit, kiosk mode | Kiosk mode on (lock task); start the second screen; hold a volume key ~1 s | Back to the grid; the system's volume panel does not show, the volume does not change; `adb logcat -d -s Kiosk` shows no lock task warning |
+| Short press | During the second screen, a short press on a volume key | Nothing (consumed: no volume change, no panel); the picture stays |
+| After leaving | Back on the grid, press a volume key | The volume changes as usual |
+| Stop from the PC | *Arrêter* in Padboard's header, then in the tray menu | Back to the grid on the tablet each time |
+
 ## Release candidate 0.4.0-rc.3: Android 17 local network, kiosk exit
 
 - **#31**: on Android 17, the app asks for the local network permission
