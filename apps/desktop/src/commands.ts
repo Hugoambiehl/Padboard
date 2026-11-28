@@ -8,6 +8,12 @@ import type { PlatformToolsInfo } from "./types/platformTools";
 export const startPairing = () => invoke<PairingView>("start_pairing");
 export const cancelPairing = () => invoke<void>("cancel_pairing");
 export const revokeDevice = (deviceId: string) => invoke<boolean>("revoke_device", { deviceId });
+/** Answers the PC's question: may that device start a second screen? */
+export const answerScreenRequest = (id: number, allow: boolean) =>
+  invoke<boolean>("answer_screen_request", { id, allow });
+/** The device must ask again before its next second screen. */
+export const forgetScreenDevice = (deviceId: string) =>
+  invoke<boolean>("forget_screen_device", { deviceId });
 export const setWifiEnabled = (enabled: boolean) => invoke<void>("set_wifi_enabled", { enabled });
 export const setAdbPath = (path: string | null) => invoke<void>("set_adb_path", { path });
 export const enableKiosk = (serial: string) => invoke<void>("enable_kiosk", { serial });

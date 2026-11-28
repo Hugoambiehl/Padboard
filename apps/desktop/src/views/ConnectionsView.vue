@@ -5,6 +5,7 @@ import ServerCard from "../components/ServerCard.vue";
 import ClientsCard from "../components/ClientsCard.vue";
 import PairedDevicesCard from "../components/PairedDevicesCard.vue";
 import UsbCard from "../components/UsbCard.vue";
+import ScreenDevicesCard from "../components/ScreenDevicesCard.vue";
 import ObsCard from "../components/ObsCard.vue";
 import ScreensaverCard from "../components/ScreensaverCard.vue";
 import ActivityCard from "../components/ActivityCard.vue";
@@ -50,6 +51,10 @@ const { t } = useI18n();
         :development="snapshot.server.development"
         :development-code="snapshot.server.developmentCode"
         :refused="snapshot.usbRefused"
+      />
+      <ScreenDevicesCard
+        v-if="snapshot.screenDevices.length > 0"
+        :devices="snapshot.screenDevices"
       />
       <ObsCard />
       <ScreensaverCard />

@@ -10,7 +10,8 @@
 //! ```
 //!
 //! Options: `--id NAME` simulates another tablet (its own device id and token),
-//! `--port N` overrides the port. Once connected, type a button id (e.g.
+//! `--port N` overrides the port, `--screen` announces a second screen
+//! (H.264 decoder; offers are printed, no stream is opened). Once connected, type a button id (e.g.
 //! `terminal`) and Enter to press it; Ctrl+C to quit.
 //!
 //! The pairing (server id, token, pinned key) is kept in the system temp
@@ -56,6 +57,8 @@ struct Args {
     target: Option<String>,
     id: String,
     port: Option<u16>,
+    /// Announces the second screen capability.
+    screen: bool,
 }
 
 fn parse_args() -> Args {
@@ -65,11 +68,13 @@ fn parse_args() -> Args {
         target: None,
         id: "fake-tablet".into(),
         port: None,
+        screen: false,
     };
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--id" => parsed.id = args.next().unwrap_or_default(),
             "--port" => parsed.port = args.next().and_then(|p| p.parse().ok()),
+            "--screen" => parsed.screen = true,
             _ if parsed.command.is_empty() => parsed.command = arg,
             _ => parsed.target = Some(arg),
         }
@@ -91,7 +96,7 @@ async fn main() -> Result<()> {
         }
         _ => {
             eprintln!(
-                "usage: fake-tablet discover | usb | wifi <host> | forget  [--id NAME] [--port N]"
+                "usage: fake-tablet discover | usb | wifi <host> | forget  [--id NAME] [--port N] [--screen]"
             );
             std::process::exit(2);
         }
@@ -162,7 +167,8 @@ fn discover() -> Result<()> {
     Ok(())
 }
 
-fn hello(id: &str, pairing: &Pairing) -> Message {
+fn hello(args: &Args, pairing: &Pairing) -> Message {
+    let id = &args.id;
     Message::Hello(HelloPayload {
         protocol_version: PROTOCOL_VERSION,
         device_name: format!("Fake tablet ({id})"),
@@ -171,7 +177,16 @@ fn hello(id: &str, pairing: &Pairing) -> Message {
         app_version: Some(env!("CARGO_PKG_VERSION").to_owned()),
         app_version_code: None,
         silent_install: None,
-        screen: None,
+        screen: args.screen.then(|| padboard_protocol::ScreenCapability {
+            display_width: 1920,
+            display_height: 1200,
+            decoders: vec![padboard_protocol::ScreenDecoder {
+                codec: padboard_protocol::VideoCodec::H264,
+                max_width: 1920,
+                max_height: 1088,
+            }],
+            touch: false,
+        }),
     })
 }
 
@@ -180,7 +195,7 @@ async fn usb(args: &Args) -> Result<()> {
     let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}")).await?;
     let pairing = load(&args.id);
     save(&args.id, &pairing);
-    send(&mut ws, &hello(&args.id, &pairing)).await?;
+    send(&mut ws, &hello(args, &pairing)).await?;
     let Message::Welcome(welcome) = recv(&mut ws).await? else {
         return Err("expected welcome".into());
     };
@@ -221,7 +236,7 @@ async fn wifi(args: &Args) -> Result<()> {
     let (spki, code) = certificate_key(&certificate).ok_or("unreadable certificate")?;
     let (mut ws, _) = tokio_tungstenite::client_async(format!("wss://{host}:{port}"), tls).await?;
 
-    send(&mut ws, &hello(&args.id, &pairing)).await?;
+    send(&mut ws, &hello(args, &pairing)).await?;
     let Message::Welcome(welcome) = recv(&mut ws).await? else {
         return Err("expected welcome".into());
     };
@@ -330,6 +345,9 @@ async fn session<S: AsyncRead + AsyncWrite + Unpin>(
                         }
                         Message::Navigate(n) => {
                             println!("Navigate {:?} {}", n.to, n.id.unwrap_or_default());
+                        }
+                        Message::ScreenOffer(offer) => {
+                            println!("Screen offer {:?} {}x{}", offer.codec, offer.width, offer.height);
                         }
                         Message::Pong(_) => {}
                         other => println!("<- {}", other.type_tag()),

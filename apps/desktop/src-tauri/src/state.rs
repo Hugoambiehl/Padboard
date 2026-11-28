@@ -42,12 +42,27 @@ pub struct Snapshot {
     /// The tablet showing the second screen (always shown while it runs,
     /// with "Arrêter").
     pub second_screen: Option<SecondScreenView>,
+    /// The PC's user is asked whether a device may start a second screen.
+    pub screen_request: Option<ScreenRequestView>,
+    /// Devices allowed to start a second screen without asking.
+    pub screen_devices: Vec<crate::screen::consent::ScreenDevice>,
     /// Most recent first.
     pub activity: VecDeque<ActivityEntry>,
     #[serde(skip)]
     labels: HashMap<String, String>,
     #[serde(skip)]
     next_activity_id: u64,
+}
+
+/// A question about a second screen, waiting for the PC's user.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScreenRequestView {
+    pub id: u64,
+    pub device_name: String,
+    pub transport: Transport,
+    /// The answer will be remembered (verified connection).
+    pub remembered: bool,
 }
 
 /// The second screen while it runs.
@@ -254,6 +269,8 @@ impl Snapshot {
             dropped_wifi: Vec::new(),
             usb_refused: None,
             second_screen: None,
+            screen_request: None,
+            screen_devices: Vec::new(),
             activity: VecDeque::new(),
             labels,
             next_activity_id: 1,
@@ -385,6 +402,25 @@ impl Snapshot {
                     self.second_screen = None;
                 }
             }
+            ServerEvent::ScreenRequest {
+                id,
+                device_name,
+                transport,
+                remembered,
+            } => {
+                self.screen_request = Some(ScreenRequestView {
+                    id,
+                    device_name,
+                    transport,
+                    remembered,
+                });
+            }
+            ServerEvent::ScreenRequestEnded { id } => {
+                if self.screen_request.as_ref().is_some_and(|r| r.id == id) {
+                    self.screen_request = None;
+                }
+            }
+            ServerEvent::ScreenDevices(devices) => self.screen_devices = devices,
             ServerEvent::ClientDisconnected { id, lost } => {
                 if let Some(client) = self.clients.iter().find(|c| c.id == id)
                     && lost

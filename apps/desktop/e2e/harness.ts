@@ -225,11 +225,14 @@ export class App {
     await this.session.screenshot(join(SHOTS(), `${name}.png`));
   }
 
-  /** Connects a fake tablet over "USB" (the app's loopback port). */
-  async connectTablet(id = "e2e"): Promise<FakeTablet> {
+  /**
+   * Connects a fake tablet over "USB" (the app's loopback port); `screen`:
+   * it announces the second screen capability.
+   */
+  async connectTablet(id = "e2e", screen = false): Promise<FakeTablet> {
     const tablet = new FakeTablet(
       FAKE_TABLET(),
-      ["usb", "--port", String(this.usbPort), "--id", id],
+      ["usb", "--port", String(this.usbPort), "--id", id, ...(screen ? ["--screen"] : [])],
       this.dir,
     );
     this.tablets.push(tablet);

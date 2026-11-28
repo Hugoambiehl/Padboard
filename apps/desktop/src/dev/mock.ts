@@ -85,6 +85,11 @@ const status: Snapshot = {
   ],
   pairing: { state: "idle" },
   pairedDevices: [],
+  screenRequest:
+    new URLSearchParams(location.search).get("ask") === "1"
+      ? { id: 1, deviceName: "Galaxy Tab A", transport: "usb", remembered: true }
+      : null,
+  screenDevices: [{ deviceId: "tab", name: "Galaxy Tab A", allowedAtMs: Date.now() - 86_400_000 }],
   secondScreen:
     new URLSearchParams(location.search).get("screen") === "1"
       ? { clientId: 1, deviceName: "Galaxy Tab A" }
