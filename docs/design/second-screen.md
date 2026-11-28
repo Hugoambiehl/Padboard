@@ -273,6 +273,20 @@ Wi-Fi was not measured yet; the reachability limits of
     the PC's screen is not taken. Tried on the tablet before it is kept.
   - Not the top-right corner: on Windows it is the close button of
     maximised windows.
+- **Built** (2026-11-28, `screen/` and `ui/screen/` in the app):
+  `ScreenDecoders` (hardware decoders from `MediaCodecList`, the real
+  screen size) in `hello`; `ConnectionManager.screen` holds the offer,
+  which opens `/stream` on the session's own client (Wi-Fi: pinned like
+  the session; right after pairing, pinned to the key just accepted);
+  `ScreenPlayer` feeds `MediaCodec` on one thread, shows and acks on
+  another, asks for a key frame until one arrives, and never ends the
+  app (a decoder failure becomes `decoder_failed`). `SecondScreen` draws
+  over everything but an update, pauses the screensaver (it dims the
+  window) and shows the way out for 4 s. Volume keys: `VolumeExit`
+  (JVM-tested), from `MainActivity.onKeyDown/onKeyUp`: the first repeat
+  (Android's long press) leaves. Measured in the real app on the
+  SM-T580, H.264 test pattern: **57–58 fps**, acks p50 15–20 ms (49 fps
+  before the encoder fix).
 - **Kiosk corner**: in kiosk mode the bottom-left 40 dp stay free as on
   every screen. The picture is still drawn there, but touches that
   **start** in the corner are not sent to the PC, so the 5 s exit gesture

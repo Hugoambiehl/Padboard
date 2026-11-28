@@ -23,13 +23,18 @@ Logs:
 Device owner: `adb shell dpm list-owners` (Padboard listed = kiosk mode on;
 nothing = off).
 
-## 0.5: the second screen (#20), once the Padboard app shows it
+## 0.5: the second screen (#20)
 
-To do when the tablet app has the second screen (the throwaway prototype
-was only tried out of kiosk mode, 2026-11-28).
+Checked out of kiosk mode with the *Padboard (dev)* build on 2026-11-28
+(test pattern and the real Linux screen, 5 starts and exits in a row,
+volume long press simulated with `adb shell input keyevent --longpress`).
+To do again on the release candidate, in kiosk mode.
 
 | Step | Do | Expected |
 |---|---|---|
+| First time on Linux | Press *Second écran* | GNOME asks to share the screen; accepted, the tablet shows a new, empty monitor (wallpaper) with "Maintiens une touche de volume pour revenir aux boutons" for 4 s |
+| Next times | Leave, press again | No question from GNOME; the picture comes back in under a second |
+| Screensaver | Second screen on, no touch for longer than the screensaver's delay | The picture is never dimmed; after leaving, the screensaver comes after its delay as usual |
 | Volume key exit, kiosk mode | Kiosk mode on (lock task); start the second screen; hold a volume key ~1 s | Back to the grid; the system's volume panel does not show, the volume does not change; `adb logcat -d -s Kiosk` shows no lock task warning |
 | Short press | During the second screen, a short press on a volume key | Nothing (consumed: no volume change, no panel); the picture stays |
 | After leaving | Back on the grid, press a volume key | The volume changes as usual |
