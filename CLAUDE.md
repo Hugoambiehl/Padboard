@@ -295,6 +295,22 @@ SM-T580, always measure in release builds.
   exists: for now only on request, `PADBOARD_SCREEN_SOURCE=screen`
   (virtual monitor) or `pattern` (Linux), until the tablet shows it. While it runs the header and the tray show it with
   "Arrêter" (`Snapshot.second_screen`, `stop_second_screen`).
+- **Second screen on the tablet** (`screen/`, `ui/screen/`): `hello`
+  announces the hardware decoders (`ScreenDecoders`); an offer
+  (`ConnectionManager.screen`, cleared by `screen:stopped` or the end of
+  its session) opens `/stream` with the session's own OkHttp client;
+  `ScreenPlayer` (MediaCodec on a `SurfaceView`, acks when shown) never
+  lets a decoder thread end the process (a double interrupt did once);
+  `SecondScreen` over everything but an update, screensaver paused;
+  long press on a volume key leaves (`VolumeExit`: every event of that
+  key swallowed until released, from `onKeyDown/onKeyUp`:
+  `dispatchKeyEvent` is a restricted API on `ComponentActivity`).
+- **Padboard (dev)** build type (#20): id `….padboard.dev`, debug key,
+  own name (`src/dev/res`), `BuildConfig.USB_PORT` 47390 (the PC's test
+  app), never device owner; installed beside the real app on the
+  tablet during development, uninstalled before a release candidate.
+  Release is unchanged. Components are named after classes
+  (`Kiosk.HOME_ALIAS`), never `packageName` (it crashed the dev build).
 - **Desktop config**: versioned JSON documents (`storage.rs`: step-by-step
   migrations, atomic writes, owner-only secrets, unreadable files moved aside)
   in Tauri's app config dir. The TLS private key is stored alone

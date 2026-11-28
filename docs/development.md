@@ -190,7 +190,30 @@ adb logcat --pid="$(adb shell pidof io.github.hugoambiehl.padboard)"   # logs
 ```
 
 A debug build and a release build are signed with different keys: switching
-between them needs `adb uninstall` (pairing lost). Release builds, signing
+between them needs `adb uninstall` (pairing lost).
+
+**Padboard (dev)**, beside the real app (#20): build type `dev`, id
+`io.github.hugoambiehl.padboard.dev`, debug key, its own name, and the
+PC's **test app port 47390** (`BuildConfig.USB_PORT`), so it never takes
+the real app's connection nor replaces it. Never device owner (the PC's
+kiosk command must not be used on it).
+
+```sh
+./gradlew :app:assembleDev
+adb install -r app/build/outputs/apk/dev/app-dev.apk
+adb reverse tcp:47390 tcp:47390
+# the PC's test app on that port, e.g. with the second screen:
+PADBOARD_TEST_DIR=/tmp/pb PADBOARD_PORT=47390 PADBOARD_SCREEN_SOURCE=pattern scripts/desktop-dev.sh
+adb shell am start -n io.github.hugoambiehl.padboard.dev/io.github.hugoambiehl.padboard.MainActivity
+# afterwards
+adb shell am force-stop io.github.hugoambiehl.padboard.dev
+adb reverse --remove tcp:47390
+adb reverse tcp:47321 tcp:47321
+```
+
+The code's namespace stays `io.github.hugoambiehl.padboard`: name
+components after classes (`Kiosk.HOME_ALIAS`), never after
+`packageName`. Release builds, signing
 and kiosk mode: [release-signing.md](release-signing.md),
 [install-tablet.md](install-tablet.md#kiosk-mode).
 
