@@ -327,6 +327,119 @@ fn revoke_device(backend: tauri::State<'_, Backend>, device_id: String) -> bool 
     backend.auth.revoke(&device_id)
 }
 
+/// The PC's question about a second screen, made visible: the window
+/// shown and asking for attention (Windows: the taskbar flashes), and on
+/// Linux a notification answering it (GNOME on Wayland never lets the
+/// window come to the front by itself).
+#[derive(Default)]
+struct ScreenQuestions {
+    test: bool,
+    #[cfg(target_os = "linux")]
+    notice: Arc<Mutex<Option<(u64, screen::notice::Notice)>>>,
+}
+
+impl ScreenQuestions {
+    fn follow(&self, handle: &tauri::AppHandle, event: &ServerEvent) {
+        match event {
+            ServerEvent::ScreenRequest {
+                id,
+                device_name,
+                transport,
+                ..
+            } => {
+                tray::show_window(handle);
+                if let Some(window) = handle.get_webview_window("main") {
+                    let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
+                }
+                #[cfg(target_os = "linux")]
+                self.notify(handle, *id, device_name, *transport);
+                #[cfg(not(target_os = "linux"))]
+                let _ = (id, device_name, transport);
+            }
+            #[cfg(target_os = "linux")]
+            ServerEvent::ScreenRequestEnded { id } => {
+                let mut notice = self.notice.lock().unwrap_or_else(PoisonError::into_inner);
+                if notice.as_ref().is_some_and(|(of, _)| of == id)
+                    && let Some((_, shown)) = notice.take()
+                {
+                    shown.close();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn notify(
+        &self,
+        handle: &tauri::AppHandle,
+        id: u64,
+        device_name: &str,
+        transport: auth::Transport,
+    ) {
+        let texts = locale::tray_texts(locale::current());
+        let via = match transport {
+            auth::Transport::Usb => "USB",
+            auth::Transport::Wifi => "Wi-Fi",
+        };
+        let body = texts
+            .question_body
+            .replace("{name}", device_name)
+            .replace("{via}", via);
+        let app = if self.test {
+            tray::TEST_NAME
+        } else {
+            texts.app
+        };
+        let handle = handle.clone();
+        let slot = Arc::clone(&self.notice);
+        // D-Bus calls: off the event loop.
+        std::thread::spawn(move || {
+            let answers = handle.clone();
+            let shown = screen::notice::Notice::show(
+                screen::notice::Texts {
+                    app,
+                    title: texts.question_title,
+                    body: &body,
+                    allow: texts.allow,
+                    refuse: texts.refuse,
+                    open: texts.open,
+                },
+                move |choice| {
+                    let Some(backend) = answers.try_state::<Backend>() else {
+                        return;
+                    };
+                    match choice {
+                        screen::notice::Choice::Allow => {
+                            backend.server.answer_screen_request(id, true);
+                        }
+                        screen::notice::Choice::Refuse => {
+                            backend.server.answer_screen_request(id, false);
+                        }
+                        screen::notice::Choice::Open => tray::show_window(&answers),
+                    }
+                },
+            );
+            let shown = match shown {
+                Ok(shown) => shown,
+                Err(e) => {
+                    tracing::info!(error = %e, "second screen: no notification for the question");
+                    return;
+                }
+            };
+            let waiting = handle
+                .try_state::<Backend>()
+                .is_some_and(|b| b.server.screen_consents.is_waiting(id));
+            if waiting {
+                *slot.lock().unwrap_or_else(PoisonError::into_inner) = Some((id, shown));
+            } else {
+                // Answered in the window meanwhile.
+                shown.close();
+            }
+        });
+    }
+}
+
 /// The PC's user answered question `id`: may that device start a second screen?
 #[tauri::command]
 fn answer_screen_request(backend: tauri::State<'_, Backend>, id: u64, allow: bool) -> bool {
@@ -918,12 +1031,13 @@ pub fn run() {
             }
 
             // Fold server events into the snapshot and push it to the UI.
+            let questions = ScreenQuestions {
+                test: test_mode.is_some(),
+                ..ScreenQuestions::default()
+            };
             tauri::async_runtime::spawn(async move {
                 while let Some(event) = events_rx.recv().await {
-                    // A question about a second screen: the window comes forward.
-                    if matches!(event, ServerEvent::ScreenRequest { .. }) {
-                        tray::show_window(&handle);
-                    }
+                    questions.follow(&handle, &event);
                     // A tablet entering or leaving kiosk mode: the USB rows read it again.
                     if matches!(event, ServerEvent::TabletStatus { .. }) {
                         let _ = status_refresh.send(());

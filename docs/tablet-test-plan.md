@@ -32,7 +32,7 @@ To do again on the release candidate, in kiosk mode.
 
 | Step | Do | Expected |
 |---|---|---|
-| Question on the PC | Press *Second écran* from a tablet never allowed | Padboard's window comes forward: « … veut afficher un second écran de ce PC », *Refuser* selected; *Refuser* → the tablet says it was refused; again, *Autoriser* → it starts. Over USB with the real app (adb check on) the device then appears in *Connexions* → *Second écran autorisé* and is not asked again; *Retirer* → asked again |
+| Question on the PC | Press *Second écran* from a tablet never allowed | Linux: a notification « Second écran » with *Autoriser* / *Refuser* (Padboard's window shows the same question, but GNOME keeps it behind); « … veut afficher un second écran de ce PC », *Refuser* selected; *Refuser* → the tablet says it was refused; again, *Autoriser* → it starts. Over USB with the real app (adb check on) the device then appears in *Connexions* → *Second écran autorisé* and is not asked again; *Retirer* → asked again |
 | First time on Linux | Press *Second écran* | GNOME asks to share the screen; accepted, the tablet shows a new, empty monitor (wallpaper) with "Maintiens une touche de volume pour revenir aux boutons" for 4 s |
 | Next times | Leave, press again | No question from GNOME; the picture comes back in under a second |
 | Screensaver | Second screen on, no touch for longer than the screensaver's delay | The picture is never dimmed; after leaving, the screensaver comes after its delay as usual |

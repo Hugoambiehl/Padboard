@@ -296,8 +296,10 @@ SM-T580, always measure in release builds.
   (virtual monitor) or `pattern` (Linux), until the tablet shows it. While it runs the header and the tray show it with
   "Arrêter" (`Snapshot.second_screen`, `stop_second_screen`). The first
   time a device starts one the PC's user is asked (`screen/consent.rs`,
-  `Snapshot.screen_request`, window brought forward, refused by default
-  and after 60 s), remembered only for a verified connection (paired
+  `Snapshot.screen_request`, window shown and asking for attention, on
+  Linux a critical notification with Autoriser / Refuser,
+  `screen/notice.rs`: GNOME Wayland never lets the window come forward
+  itself; refused by default and after 60 s), remembered only for a verified connection (paired
   Wi-Fi, USB with `UsbPeers::AdbServer`) in `screen-devices.json`;
   removable in *Second écran autorisé*, forgotten on `revoke_device`. In
   simulated test mode (no peer check) it asks every time; the `--screen`
