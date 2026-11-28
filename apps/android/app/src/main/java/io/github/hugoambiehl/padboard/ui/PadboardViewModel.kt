@@ -7,9 +7,11 @@ import io.github.hugoambiehl.padboard.connection.DiscoveredPc
 import io.github.hugoambiehl.padboard.connection.Endpoint
 import io.github.hugoambiehl.padboard.connection.LinkState
 import io.github.hugoambiehl.padboard.connection.LocalNetwork
+import io.github.hugoambiehl.padboard.connection.ScreenOffer
 import io.github.hugoambiehl.padboard.connection.TabletLink
 import io.github.hugoambiehl.padboard.kiosk.Kiosk
 import io.github.hugoambiehl.padboard.protocol.KioskExitOrigin
+import io.github.hugoambiehl.padboard.protocol.ScreenStopReason
 import io.github.hugoambiehl.padboard.ui.grid.PageMemory
 import kotlinx.coroutines.launch
 
@@ -35,6 +37,9 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
 
     /** An update sent by the PC (kiosk mode). */
     val update = manager.update
+
+    /** The second screen the PC offers; null when the grid shows. */
+    val screen = manager.screen
 
     /** The page the user is on, kept across reconnections (not app restarts). */
     val pageMemory = PageMemory()
@@ -70,6 +75,13 @@ class PadboardViewModel(application: Application) : AndroidViewModel(application
 
     /** "Réessayer maintenant" while the PC is out of reach. */
     fun retryNow() = manager.nudge()
+
+    /**
+     * Leaves the second screen [offer]: the user's long press on a volume
+     * key, or its stream ended (`null`: closed by the PC).
+     */
+    fun stopScreen(offer: ScreenOffer, reason: ScreenStopReason?) =
+        manager.stopScreen(offer, reason ?: ScreenStopReason.StreamFailed)
 
     /** Hides a failed update. */
     fun dismissUpdate() = manager.dismissUpdate()

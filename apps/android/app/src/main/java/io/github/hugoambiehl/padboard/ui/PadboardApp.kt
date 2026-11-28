@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -25,6 +26,7 @@ import io.github.hugoambiehl.padboard.ui.connect.UsbRefusedNotice
 import io.github.hugoambiehl.padboard.ui.connect.rememberLocalNetworkRequest
 import io.github.hugoambiehl.padboard.ui.grid.GridScreen
 import io.github.hugoambiehl.padboard.ui.grid.GridStatus
+import io.github.hugoambiehl.padboard.ui.screen.SecondScreen
 import io.github.hugoambiehl.padboard.ui.screensaver.ScreensaverHost
 import io.github.hugoambiehl.padboard.ui.update.UpdateOverlay
 
@@ -39,6 +41,7 @@ fun PadboardApp(viewModel: PadboardViewModel) {
     val systemStatus by viewModel.systemStatus.collectAsStateWithLifecycle()
     val update by viewModel.update.collectAsStateWithLifecycle()
     val usbRefused by viewModel.usbRefused.collectAsStateWithLifecycle()
+    val screen by viewModel.screen.collectAsStateWithLifecycle()
     KioskExitCorner(enabled = kiosk, onExit = viewModel::exitKioskByGesture) {
         Box {
             ScreensaverHost(settings = settings, status = systemStatus) {
@@ -48,6 +51,11 @@ fun PadboardApp(viewModel: PadboardViewModel) {
                         UsbRefusedNotice(Modifier.align(Alignment.BottomCenter))
                     }
                 }
+            }
+            // Over everything but an update; the screensaver's timer runs
+            // below (no touch reaches it), its overlay hidden by this one.
+            screen?.let { offer ->
+                key(offer) { SecondScreen(offer, onEnd = { viewModel.stopScreen(offer, it) }) }
             }
             // Above the screensaver: an update shows even while it sleeps.
             update?.let { UpdateOverlay(it, onDismiss = viewModel::dismissUpdate) }

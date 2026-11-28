@@ -3,6 +3,7 @@ package io.github.hugoambiehl.padboard
 import android.app.ActivityManager
 import android.content.Intent
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,6 +17,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.hugoambiehl.padboard.connection.LocalNetwork
 import io.github.hugoambiehl.padboard.kiosk.Kiosk
+import io.github.hugoambiehl.padboard.protocol.ScreenStopReason
+import io.github.hugoambiehl.padboard.screen.VolumeExit
 import io.github.hugoambiehl.padboard.ui.PadboardApp
 import io.github.hugoambiehl.padboard.ui.PadboardViewModel
 import io.github.hugoambiehl.padboard.ui.theme.PadboardTheme
@@ -133,6 +136,27 @@ class MainActivity : ComponentActivity() {
             if (locked) runCatching { stopLockTask() }
         }
     }
+
+    private val volumeExit = VolumeExit()
+
+    /** Volume keys during the second screen: see [VolumeExit]. */
+    private fun volumeKey(keyCode: Int, event: KeyEvent, down: Boolean): Boolean {
+        val offer = viewModel.screen.value
+        return when (volumeExit.onKey(keyCode, down, event.repeatCount, streaming = offer != null)) {
+            VolumeExit.Outcome.Pass -> false
+            VolumeExit.Outcome.Consume -> true
+            VolumeExit.Outcome.Exit -> {
+                offer?.let { viewModel.stopScreen(it, ScreenStopReason.User) }
+                true
+            }
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean =
+        volumeKey(keyCode, event, down = true) || super.onKeyDown(keyCode, event)
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean =
+        volumeKey(keyCode, event, down = false) || super.onKeyUp(keyCode, event)
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
