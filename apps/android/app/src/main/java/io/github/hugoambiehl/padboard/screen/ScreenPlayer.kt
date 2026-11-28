@@ -154,15 +154,23 @@ class ScreenPlayer(
             }
         } catch (_: InterruptedException) {
             // Closed.
-        } catch (e: IllegalStateException) {
-            // MediaCodec.CodecException included.
-            log.log(Level.WARNING, "second screen decoder failed", e)
+        } catch (e: RuntimeException) {
+            // MediaCodec.CodecException, a frame too large for the buffer…:
+            // never let it end the app.
+            if (open.get()) log.log(Level.WARNING, "second screen decoder failed", e)
             end(ScreenStopReason.DecoderFailed)
         } finally {
             shower.interrupt()
-            shower.join(JOIN_MS)
+            // close() and end() both interrupt this thread: clear it, or
+            // join() throws (it ended the app once).
+            Thread.interrupted()
+            try {
+                shower.join(JOIN_MS)
+            } catch (_: InterruptedException) {
+                // Leaving anyway.
+            }
             runCatching { codec.stop() }
-            codec.release()
+            runCatching { codec.release() }
         }
     }
 
@@ -178,7 +186,7 @@ class ScreenPlayer(
                 val ack = StreamFrame.Ack(captureUs.toULong(), decodeUs.coerceIn(0, UInt.MAX_VALUE.toLong()).toUInt())
                 socket.send(ack.encode().toByteString())
             }
-        } catch (e: IllegalStateException) {
+        } catch (e: RuntimeException) {
             // Stopped while dequeuing (close), or the decoder failed.
             if (open.get()) {
                 log.log(Level.WARNING, "second screen decoder failed", e)
