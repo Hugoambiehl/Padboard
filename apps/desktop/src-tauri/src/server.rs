@@ -212,27 +212,40 @@ impl ServerContext {
 
     /// Offers a second screen to the tablet of connection `client_id`:
     /// the format is chosen from its capability and the codecs the PC can
-    /// encode (`encoders`), `make` builds the source for it. A stream
-    /// running for another tablet is replaced.
+    /// encode (`encoders`), `make` builds the source for it (on a blocking
+    /// thread: the PC's user may be asked first). A stream running for
+    /// another tablet is replaced.
     ///
     /// # Errors
     /// Why no stream is offered.
-    pub fn offer_screen(
+    pub async fn offer_screen(
         self: &Arc<Self>,
         client_id: u64,
         encoders: &[VideoCodec],
-        make: impl FnOnce(StreamFormat) -> Result<Box<dyn FrameSource>, String>,
+        make: impl FnOnce(StreamFormat) -> Result<Box<dyn FrameSource>, String> + Send + 'static,
     ) -> Result<StreamFormat, ScreenError> {
+        let format = {
+            let sessions = self
+                .sessions
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let handle = sessions.get(&client_id).ok_or(ScreenError::Gone)?;
+            let capability = handle.screen.as_ref().ok_or(ScreenError::NoCapability)?;
+            crate::screen::format::choose(capability, encoders).ok_or(ScreenError::NoCommonCodec)?
+        };
+        let source = tokio::task::spawn_blocking(move || make(format))
+            .await
+            .map_err(|e| ScreenError::Source(e.to_string()))?
+            .map_err(ScreenError::Source)?;
+        // The tablet may have left meanwhile (the source is then dropped).
         let sessions = self
             .sessions
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let handle = sessions.get(&client_id).ok_or(ScreenError::Gone)?;
-        let outbox = handle.outbox.clone().ok_or(ScreenError::Gone)?;
-        let capability = handle.screen.as_ref().ok_or(ScreenError::NoCapability)?;
-        let format = crate::screen::format::choose(capability, encoders)
-            .ok_or(ScreenError::NoCommonCodec)?;
-        let source = make(format).map_err(ScreenError::Source)?;
+        let outbox = sessions
+            .get(&client_id)
+            .and_then(|h| h.outbox.clone())
+            .ok_or(ScreenError::Gone)?;
         let offered = self
             .screens
             .offer(client_id, format, source, std::time::Instant::now())
@@ -1343,8 +1356,13 @@ where
         return send_error(ws, ErrorCode::UnknownButton, reason).await;
     };
     if matches!(action, Action::SecondScreen) {
-        let outcome = start_second_screen(ctx, client_id);
-        finish(ctx, outbox, client_id, button_id, outcome);
+        // The PC's user may be asked to share the screen: in its own task.
+        let ctx = Arc::clone(ctx);
+        let outbox = outbox.clone();
+        tokio::spawn(async move {
+            let outcome = start_second_screen(&ctx, client_id).await;
+            finish(&ctx, &outbox, client_id, button_id, outcome);
+        });
         return Ok(());
     }
     if matches!(action, Action::Multi(_)) {
@@ -1378,9 +1396,9 @@ where
 
 /// "Second écran" pressed on tablet `client_id`: a stream offered to it
 /// (it then opens the stream connection), or why not.
-fn start_second_screen(ctx: &Arc<ServerContext>, client_id: u64) -> ActionOutcome {
+async fn start_second_screen(ctx: &Arc<ServerContext>, client_id: u64) -> ActionOutcome {
     let unavailable = |m: String| ActionOutcome::from_error(&ActionError::Unavailable(m));
-    let Some(source) = ctx.screen_source else {
+    let Some(source) = ctx.screen_source.clone() else {
         return unavailable("the second screen is not available on this PC yet".into());
     };
     let encoders = (source.encoders)();
@@ -1390,7 +1408,18 @@ fn start_second_screen(ctx: &Arc<ServerContext>, client_id: u64) -> ActionOutcom
             (source.missing)().join(", ")
         ));
     }
-    match ctx.offer_screen(client_id, &encoders, source.start) {
+    let Some(_starting) = ctx.screens.starting() else {
+        tracing::debug!(
+            client = client_id,
+            "second screen already starting, press ignored"
+        );
+        return ActionOutcome::Ok;
+    };
+    let start = Arc::clone(&source.start);
+    match ctx
+        .offer_screen(client_id, &encoders, move |format| start(format))
+        .await
+    {
         Ok(format) => {
             tracing::info!(
                 client = client_id,
@@ -2100,6 +2129,7 @@ mod tests {
         let format = h
             .ctx
             .offer_screen(id, &[VideoCodec::H264], |_| Ok(fake_source()))
+            .await
             .unwrap();
         assert_eq!((format.width, format.height), (1728, 1080));
         let offer = next_offer(&mut client).await;
@@ -2141,6 +2171,7 @@ mod tests {
         let (mut client, id) = screen_tablet(&mut h).await;
         h.ctx
             .offer_screen(id, &[VideoCodec::H264], |_| Ok(fake_source()))
+            .await
             .unwrap();
         let offer = next_offer(&mut client).await;
         for ticket in [None, Some("forged")] {
@@ -2159,6 +2190,7 @@ mod tests {
         let (mut client, id) = screen_tablet(&mut h).await;
         h.ctx
             .offer_screen(id, &[VideoCodec::H264], |_| Ok(fake_source()))
+            .await
             .unwrap();
         let offer = next_offer(&mut client).await;
         let mut stream = open_stream(&h, Some(&offer.ticket)).await;
@@ -2181,12 +2213,14 @@ mod tests {
         assert_eq!(
             h.ctx
                 .offer_screen(id, &[VideoCodec::H264], |_| Ok(fake_source()))
+                .await
                 .unwrap_err(),
             ScreenError::NoCapability
         );
         assert_eq!(
             h.ctx
                 .offer_screen(9999, &[VideoCodec::H264], |_| Ok(fake_source()))
+                .await
                 .unwrap_err(),
             ScreenError::Gone
         );
