@@ -70,7 +70,19 @@ pub fn encoders() -> Vec<VideoCodec> {
     if has("vp8enc") {
         codecs.push(VideoCodec::Vp8);
     }
+    // Tests: only these encoders (`vp8`: a PC without VA-API H.264, as
+    // Ubuntu 22.04), e.g. PADBOARD_SCREEN_ENCODERS=vp8.
+    if let Ok(only) = std::env::var("PADBOARD_SCREEN_ENCODERS") {
+        codecs.retain(|c| only.split(',').any(|o| o.trim() == codec_name(*c)));
+    }
     codecs
+}
+
+fn codec_name(codec: VideoCodec) -> &'static str {
+    match codec {
+        VideoCodec::H264 => "h264",
+        VideoCodec::Vp8 => "vp8",
+    }
 }
 
 /// Packages to install when no encoder is usable (for the message).

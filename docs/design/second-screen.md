@@ -286,7 +286,11 @@ Wi-Fi was not measured yet; the reachability limits of
   (JVM-tested), from `MainActivity.onKeyDown/onKeyUp`: the first repeat
   (Android's long press) leaves. Measured in the real app on the
   SM-T580, H.264 test pattern: **57–58 fps**, acks p50 15–20 ms (49 fps
-  before the encoder fix).
+  before the encoder fix); VP8 (`PADBOARD_SCREEN_ENCODERS=vp8`,
+  `OMX.Exynos.vp8.dec`): **58–60 fps**, acks p50 19–20 ms.
+  `KioskCornerTest` draws it too (API 37 emulator with
+  `PADBOARD_TEST_GPU=swiftshader_indirect`: its SurfaceView aborts the
+  guest GPU).
 - **Kiosk corner**: in kiosk mode the bottom-left 40 dp stay free as on
   every screen. The picture is still drawn there, but touches that
   **start** in the corner are not sent to the PC, so the 5 s exit gesture
