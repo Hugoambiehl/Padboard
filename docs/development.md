@@ -126,11 +126,22 @@ cargo run -p padboard-actions --example fake-player   # an MPRIS player for medi
 ### Second screen (in development, #20)
 
 The *Second écran* action is listed only where the PC has a picture
-source. Until the screen capture lands, the only one is a test pattern
-(Linux, GStreamer): start the app with `PADBOARD_SCREEN_SOURCE=pattern`
-(any mode). A tablet whose app announces the capability then gets the
+source, for now only on request (Linux, GStreamer):
+`PADBOARD_SCREEN_SOURCE=screen` (a virtual monitor through the
+ScreenCast portal: GNOME asks the first time, then remembers it with the
+token in `screen-cast-token` in the config dir) or
+`PADBOARD_SCREEN_SOURCE=pattern` (a test pattern, no portal, any mode). A tablet whose app announces the capability then gets the
 stream; the PC shows "Second écran : <tablet>" with *Arrêter* in the
 header and in the tray menu.
+
+Measurements (ignored tests, `--ignored --nocapture`):
+`screen::gst::tests::throughput` (the pattern, frames per second with
+acks after `PADBOARD_BENCH_ACK_MS`, default 20) and
+`screen::gst::tests::screen_cost` (the real screen: asks to share it,
+then gives 45 s to put something moving on the new, invisible monitor,
+e.g. a window pushed past the right edge and maximized with Super+Up;
+then frames per second and the CPU of Padboard and gnome-shell per
+encoder, `PADBOARD_BENCH_SECS` each).
 
 ### End-to-end tests (real window, local only)
 

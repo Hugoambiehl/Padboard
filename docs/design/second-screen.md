@@ -96,11 +96,22 @@ at 1728×1080, so no bars.
   BSD, royalty-free; measured 31.1 ms p50, ~1.2 cores), decoded in
   hardware on the SM-T580. `x264enc` (GPL-2.0+, patent-encumbered, in
   plugins-ugly) is not used.
-- The `.deb` adds the distribution's free packages to `depends` /
-  `recommends` (as it does for `adb`): `gstreamer1.0-pipewire`,
-  `gstreamer1.0-plugins-base`, `-good` (VP8), `-bad` (VA), `gstreamer1.0-vaapi`
-  not needed (the `va` plugin is in `-bad`). Checked at run time: a
-  missing element gives a clear message, never a crash.
+- The `.deb` depends on `gstreamer1.0-pipewire`, `-plugins-base` and
+  `-plugins-good` (VP8), all on an Ubuntu desktop already, and only
+  recommends `gstreamer1.0-plugins-extra` (the `va` plugin on Ubuntu
+  26.04+; `-bad` before, +121–144 MiB, never a dependency). Checked at
+  run time: a missing element gives a clear message, never a crash.
+- **Built** (`screen/portal.rs`, `zbus` already used by the desktop):
+  `CreateSession`, `SelectSources` (`VIRTUAL`, cursor embedded, persist
+  mode 2), `Start`, `OpenPipeWireRemote`, each answer awaited on its
+  `Request` (watched before the call, 2 min for the user to answer).
+  The restore token is kept owner-only in `screen-cast-token` (each one
+  is good once: the new one replaces it). The virtual monitor takes the
+  stream's size from the caps after `pipewiresrc` (1728×1080 for the
+  SM-T580, `max-framerate` 60). Starting runs on a blocking thread
+  outside the sessions lock, in its own task; a second press while the
+  dialog is open is ignored. Available with
+  `PADBOARD_SCREEN_SOURCE=screen` until the tablet shows it.
 - Wayland and X11 GNOME, KDE Plasma: the portal works on all three; the
   `VIRTUAL` source is GNOME (mutter) and KDE 6 only. Elsewhere: mirror
   only, said so.
@@ -120,6 +131,11 @@ one frame inside, so the **last change would stay invisible until the next
 one**. The PC therefore repeats the last captured frame (encoded again,
 tiny P-frame) one frame time after the last change, once. A static screen
 then costs nothing.
+
+Built with `pipewiresrc keepalive-time=500`: the last picture is sent
+again every 500 ms while the screen is still (also what lets a key frame
+asked for on a still screen arrive). Faster repeat, once, after a change:
+to decide with the tablet (remaining 4).
 
 ## 4. Transport and who may connect
 
@@ -470,13 +486,29 @@ Test pattern from the PC (GStreamer, 1728×1080), the decoder prototype
   key is released, otherwise the system's volume panel shows. Checked
   with a real key: no panel. To check again in kiosk mode (lock task).
 
+### Measured on the PC: the real screen (2026-11-28)
+
+GNOME 50 (Wayland), Ryzen AI 7 350 (Radeon 860M, Mesa VA-API), a virtual
+monitor of 1728×1080 showing a 60 fps animation maximized, acks 20 ms
+after each send (ignored test `screen::gst::tests::screen_cost`):
+
+| Encoder | Frames/s (compositor → sent) | Padboard CPU | gnome-shell CPU |
+|---|---|---|---|
+| H.264 (`vapostproc ! vah264enc`) | 60 → 60 | 8 % of a core | 13 % |
+| VP8 (`videoconvert ! vp8enc`, software) | 60 → 60 | 51 % of a core | 14 % |
+
+PipeWire gives BGRA in system memory (no DMA-BUF asked yet);
+`vapostproc` converts it on the GPU, VP8 needs `videoconvert` on the CPU
+(part of its cost). A still screen costs nothing but the 2 repeats a
+second.
+
 ### Remaining
 
 1. **GPU and drivers on Windows**: hybrid laptops (Duplication on the
    wrong adapter), hardware MFT quirks (some refuse low latency or CBR);
    the software MFT is the fallback, CPU cost to measure.
 2. **Linux encoders**: VA-API H.264 encode missing on some setups; VP8
-   fallback costs ~1.2 cores. `VIRTUAL` source on GNOME and KDE 6 only.
+   fallback costs about half a core at 60 fps (measured above). `VIRTUAL` source on GNOME and KDE 6 only.
 3. **Latency over Wi-Fi** and with the TLS + WebSocket path on the
    SM-T580 (OkHttp copies each message; 1.5 MB/s is small, to measure).
 4. **Decoder holding one frame**: the repeat-last-frame trick (section 3)
